@@ -183,14 +183,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
         </div>
       </div>
 
-      {/* Children */}
-      {!task.isCollapsed && task.children.length > 0 && (
-        <div>
-          {task.children.map((childId) => (
-            <TaskRow key={childId} taskId={childId} depth={depth + 1} />
-          ))}
-        </div>
-      )}
     </div>
   );
 };
