@@ -19,6 +19,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
   const addTask = useTaskStore((state) => state.addTask);
   const indentTask = useTaskStore((state) => state.indentTask);
   const outdentTask = useTaskStore((state) => state.outdentTask);
+  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
+  const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusedTaskId === taskId && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [focusedTaskId, taskId]);
   
   // Local state for performant typing and IME support
   const [localTitle, setLocalTitle] = useState(task?.title || '');
@@ -119,10 +129,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
 
         {/* Title Input */}
         <input
+          ref={inputRef}
           type="text"
           value={localTitle}
           onChange={(e) => setLocalTitle(e.target.value)}
           onBlur={handleBlur}
+          onFocus={() => setFocusedTaskId(taskId)}
           onKeyDown={handleKeyDown}
           onCompositionStart={() => { isComposing.current = true; }}
           onCompositionEnd={() => { isComposing.current = false; }}

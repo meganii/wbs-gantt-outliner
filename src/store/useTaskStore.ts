@@ -7,8 +7,10 @@ interface TaskState {
   tasks: Record<string, Task>;
   rootIds: string[]; // Top-level ordered IDs
   projectConfig: ProjectConfig;
+  focusedTaskId: string | null;
   
   // Actions
+  setFocusedTaskId: (id: string | null) => void;
   addTask: (targetId: string, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
@@ -46,6 +48,9 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
   rootIds: [initialTaskId],
   projectConfig: DEFAULT_CONFIG,
+  focusedTaskId: null,
+
+  setFocusedTaskId: (id) => set({ focusedTaskId: id }),
 
   addTask: (targetId, position = 'after') => {
     const newId = uuidv4();
@@ -83,7 +88,7 @@ export const useTaskStore = create<TaskState>((set) => ({
           isCollapsed: false, // Auto-expand
         };
         
-        return { tasks };
+        return { tasks, focusedTaskId: newId };
       } 
       else {
         // 'after': Add as sibling after targetId
@@ -99,7 +104,7 @@ export const useTaskStore = create<TaskState>((set) => ({
           } else {
             rootIds.push(newId);
           }
-          return { tasks, rootIds };
+          return { tasks, rootIds, focusedTaskId: newId };
         } else {
           // It's a child task
           const parent = tasks[parentId];
@@ -111,7 +116,7 @@ export const useTaskStore = create<TaskState>((set) => ({
             siblings.push(newId);
           }
            tasks[parentId] = { ...parent, children: siblings };
-           return { tasks };
+           return { tasks, focusedTaskId: newId };
         }
       }
     });
