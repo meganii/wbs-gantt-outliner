@@ -12,9 +12,10 @@ interface TaskRowProps {
   depth?: number;
   prevId?: string;
   nextId?: string;
+  wbsNumber?: string;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
   const updateTask = useTaskStore((state) => state.updateTask);
@@ -147,12 +148,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         <button 
           onClick={() => toggleCollapse(taskId)}
           className={clsx(
-            "p-0.5 rounded hover:bg-white/10 text-gray-400 mr-2",
+            "p-0.5 rounded hover:bg-white/10 text-gray-400 mr-1",
             task.children.length === 0 && "invisible"
           )}
         >
           {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
+
+        {/* WBS Number */}
+        <span className="text-xs text-gray-500 font-mono mr-2 min-w-[24px] text-right select-none">
+          {wbsNumber}
+        </span>
 
         {/* Title Input */}
         <input
