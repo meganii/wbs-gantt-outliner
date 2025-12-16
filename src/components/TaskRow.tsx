@@ -23,6 +23,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const outdentTask = useTaskStore((state) => state.outdentTask);
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
   const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
+  const moveTask = useTaskStore((state) => state.moveTask);
   
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,12 +80,23 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     }
 
     if (e.key === 'ArrowUp') {
+      if (e.shiftKey && (e.metaKey || e.altKey)) {
+        e.preventDefault();
+        moveTask(taskId, 'up');
+        return;
+      }
       if (prevId) {
         e.preventDefault();
+        // Just move focus, don't change data
         setFocusedTaskId(prevId);
       }
     }
     if (e.key === 'ArrowDown') {
+      if (e.shiftKey && (e.metaKey || e.altKey)) {
+        e.preventDefault();
+        moveTask(taskId, 'down');
+        return;
+      }
       if (nextId) {
         e.preventDefault();
         setFocusedTaskId(nextId);

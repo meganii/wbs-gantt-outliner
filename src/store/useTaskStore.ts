@@ -18,6 +18,7 @@ interface TaskState {
   indentTask: (id: string) => void;
   outdentTask: (id: string) => void;
   reorderTask: (activeId: string, overId: string) => void;
+  moveTask: (id: string, direction: 'up' | 'down') => void;
 }
 
 const DEFAULT_CONFIG: ProjectConfig = {
@@ -295,5 +296,45 @@ export const useTaskStore = create<TaskState>((set) => ({
     tasks[activeId] = { ...activeTask, parentId: newParentId };
     
     return { tasks, rootIds };
+  }),
+
+  moveTask: (id, direction) => set((state) => {
+    const tasks = { ...state.tasks };
+    const task = tasks[id];
+    if (!task) return {};
+
+    // 1. Identify siblings
+    let siblings: string[];
+    let parentId = task.parentId;
+    
+    if (parentId) {
+       siblings = [...tasks[parentId].children];
+    } else {
+       siblings = [...state.rootIds];
+    }
+    
+    const idx = siblings.indexOf(id);
+    if (idx === -1) return {};
+
+    // 2. Swap logic
+    if (direction === 'up') {
+       if (idx === 0) return {}; // Already at top
+       const prev = siblings[idx - 1];
+       siblings[idx - 1] = id;
+       siblings[idx] = prev;
+    } else {
+       if (idx === siblings.length - 1) return {}; // Already at bottom
+       const next = siblings[idx + 1];
+       siblings[idx + 1] = id;
+       siblings[idx] = next;
+    }
+    
+    // 3. Apply updates
+    if (parentId) {
+      tasks[parentId] = { ...tasks[parentId], children: siblings };
+      return { tasks };
+    } else {
+      return { tasks, rootIds: siblings };
+    }
   }),
 }));
