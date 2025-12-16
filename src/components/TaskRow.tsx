@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
@@ -18,6 +18,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
   const indentTask = useTaskStore((state) => state.indentTask);
   const outdentTask = useTaskStore((state) => state.outdentTask);
   
+  // Local state for performant typing and IME support
+  const [localTitle, setLocalTitle] = useState(task?.title || '');
+  const isComposing = useRef(false);
+
+  // Sync local state if external state changes (e.g. undo/redo, or other user)
+  useEffect(() => {
+    if (task) {
+        setLocalTitle(task.title);
+    }
+  }, [task?.title]);
+
   const {
     attributes,
     listeners,
@@ -36,13 +47,37 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
 
   if (!task) return null;
 
+  const handleBlur = () => {
+    if (task.title !== localTitle) {
+      updateTask(taskId, { title: localTitle });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ignore key events during IME composition
+    if (isComposing.current || e.nativeEvent.isComposing) {
+      if (e.key === 'Enter') {
+         // Should usually allow default behavior to confirm composition? 
+         // But usually browser handles confirm before keydown?
+         return; 
+      }
+      return;
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Ensure title is saved before adding new task
+      if (task.title !== localTitle) {
+        updateTask(taskId, { title: localTitle });
+      }
       addTask(taskId, 'after');
     }
     if (e.key === 'Tab') {
       e.preventDefault();
+      // Save title before structural change
+      if (task.title !== localTitle) {
+         updateTask(taskId, { title: localTitle });
+      }
       if (e.shiftKey) {
         outdentTask(taskId);
       } else {
@@ -83,9 +118,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
         {/* Title Input */}
         <input
           type="text"
-          value={task.title}
-          onChange={(e) => updateTask(taskId, { title: e.target.value })}
+          value={localTitle}
+          onChange={(e) => setLocalTitle(e.target.value)}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => { isComposing.current = true; }}
+          onCompositionEnd={() => { isComposing.current = false; }}
           placeholder="New Task"
           className="bg-transparent border-none outline-none text-sm text-gray-200 flex-1 placeholder-gray-600 focus:placeholder-gray-700"
         />
