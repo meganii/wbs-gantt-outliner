@@ -10,9 +10,11 @@ import { format } from 'date-fns';
 interface TaskRowProps {
   taskId: string;
   depth?: number;
+  prevId?: string;
+  nextId?: string;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
   const updateTask = useTaskStore((state) => state.updateTask);
@@ -74,6 +76,19 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
          return; 
       }
       return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      if (prevId) {
+        e.preventDefault();
+        setFocusedTaskId(prevId);
+      }
+    }
+    if (e.key === 'ArrowDown') {
+      if (nextId) {
+        e.preventDefault();
+        setFocusedTaskId(nextId);
+      }
     }
 
     if (e.key === 'Enter') {

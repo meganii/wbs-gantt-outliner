@@ -33,8 +33,14 @@ export const Outliner: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
-            {flattenedItems.map(({ id, depth }) => (
-              <TaskRow key={id} taskId={id} depth={depth} />
+            {flattenedItems.map(({ id, depth }, index) => (
+              <TaskRow 
+                key={id} 
+                taskId={id} 
+                depth={depth} 
+                prevId={flattenedItems[index - 1]?.id}
+                nextId={flattenedItems[index + 1]?.id}
+              />
             ))}
           </SortableContext>
         </DndContext>
