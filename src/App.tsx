@@ -11,13 +11,13 @@ function App() {
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
 
-  const loadProject = useTaskStore(_ => (data: any) => {
+  const loadProject = (data: any) => {
     useTaskStore.setState({ 
       tasks: data.tasks, 
       rootIds: data.rootIds, 
       projectConfig: data.projectConfig 
     });
-  });
+  };
 
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
