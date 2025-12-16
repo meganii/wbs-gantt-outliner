@@ -4,6 +4,8 @@ import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { calculateEndDate, getWorkDaysCount } from '../utils/date';
+import { format } from 'date-fns';
 
 interface TaskRowProps {
   taskId: string;
@@ -128,21 +130,54 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0 }) => {
           className="bg-transparent border-none outline-none text-sm text-gray-200 flex-1 placeholder-gray-600 focus:placeholder-gray-700"
         />
 
-        {/* Dates & Metadata (Visible on hover or always?) -> Always for now, maybe condensed */}
+        {/* Dates & Metadata */}
         <div className="flex items-center space-x-2 text-xs text-gray-500 mr-4 opacity-50 group-hover:opacity-100 transition-opacity">
+          {/* Duration */}
           <input 
             type="number" 
             value={task.duration} 
-            onChange={(e) => updateTask(taskId, { duration: parseInt(e.target.value) || 0 })}
+            onChange={(e) => {
+              const newDuration = parseInt(e.target.value) || 0;
+              const newEndDate = calculateEndDate(new Date(task.startDate), newDuration, []);
+              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
+              updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
+            }}
             className="bg-transparent w-12 text-right outline-none border-b border-transparent focus:border-gray-600 focus:text-gray-300"
             title="Duration (days)"
           />
           <span className="text-gray-600">days</span>
           
+          {/* Start Date */}
           <input 
             type="date"
             value={task.startDate}
-            onChange={(e) => updateTask(taskId, { startDate: e.target.value })}
+            onChange={(e) => {
+               const newStartDate = e.target.value;
+               if (!newStartDate) return;
+               const newEndDate = calculateEndDate(new Date(newStartDate), task.duration, []);
+               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
+               updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
+            }}
+            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-300"
+          />
+
+          <span className="text-gray-600">-</span>
+
+          {/* End Date */}
+          <input 
+            type="date"
+            value={task.endDate}
+            onChange={(e) => {
+               const newEndDate = e.target.value;
+               if (!newEndDate) return;
+               // Calculate new duration
+               const start = new Date(task.startDate);
+               const end = new Date(newEndDate);
+               if (end < start) return; // Basic validation
+               
+               const newDuration = getWorkDaysCount(start, end, []);
+               updateTask(taskId, { endDate: newEndDate, duration: newDuration });
+            }}
             className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-300"
           />
         </div>
