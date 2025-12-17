@@ -162,6 +162,18 @@ export const useTaskStore = create<TaskState>((set) => ({
     return { tasks, rootIds, selectedTaskIds: [] }; 
   }),
 
+  toggleCollapse: (id) => set((state) => {
+    const task = state.tasks[id];
+    if (!task) return {};
+    
+    return {
+      tasks: {
+        ...state.tasks,
+        [id]: { ...task, isCollapsed: !task.isCollapsed }
+      }
+    };
+  }),
+
   indentTask: (ids) => set((state) => {
     const idArray = Array.isArray(ids) ? ids : [ids];
     if (idArray.length === 0) return {};

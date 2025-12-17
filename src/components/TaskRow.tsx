@@ -27,6 +27,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
   const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
   const moveTask = useTaskStore((state) => state.moveTask);
+  const deleteTask = useTaskStore((state) => state.deleteTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   
   const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId)) 
@@ -136,6 +137,48 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
       } else {
         indentTask(effectiveIds);
       }
+    }
+
+    if (e.key === 'Backspace') {
+      if (localTitle === '') {
+        e.preventDefault();
+        // Be careful with multiple selection on Backspace?
+        // Usually backspace merge?
+        // For OUTLINER: Backspace on empty bullet deletes it and focuses previous.
+        if (effectiveIds.length <= 1) {
+             const targetPrev = prevId; 
+             deleteTask(taskId);
+             if (targetPrev) {
+               setFocusedTaskId(targetPrev);
+             }
+        } else {
+             // Multi-selection: Backspace usually deletes? Or requires explicit Delete?
+             // Let's allow Backspace to delete if all are selected?
+             // To be safe, let's require Cmd+Backspace for multi or non-empty.
+             // But user asked for "Task Deletion".
+             // If localTitle is empty, we delete this one.
+        }
+      }
+    }
+    
+    // Explicit Delete
+    if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
+       e.preventDefault();
+       const idsToDelete = effectiveIds;
+       
+       // Calculate focus target before deletion (simple heuristic: prev of first, or next of last?)
+       // If we delete focused task, we need to move focus.
+       // Current assumption: focus is on `taskId`.
+       let targetFocus = prevId || nextId; 
+       
+       deleteTask(idsToDelete);
+       
+       if (targetFocus && !idsToDelete.includes(targetFocus)) {
+          setFocusedTaskId(targetFocus);
+       } else {
+          // If we deleted everything around us, we might fall back to root or parent?
+          // Store doesn't handle this well yet.
+       }
     }
   };
 
