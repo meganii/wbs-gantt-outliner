@@ -17,6 +17,46 @@ export const Outliner: React.FC = () => {
   );
   
   const flattenedIds = useMemo(() => flattenedItems.map(i => i.id), [flattenedItems]);
+  
+  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
+  const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
+  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
+  
+  const [anchorId, setAnchorId] = React.useState<string | null>(null);
+
+  // Selection Logic
+  const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
+    if (range) {
+       // Range select from anchor (or focused) to id
+       const targetAnchor = anchorId || focusedTaskId || (selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length-1] : id);
+       
+       const startIdx = flattenedIds.indexOf(targetAnchor);
+       const endIdx = flattenedIds.indexOf(id);
+       
+       if (startIdx !== -1 && endIdx !== -1) {
+         const min = Math.min(startIdx, endIdx);
+         const max = Math.max(startIdx, endIdx);
+         const rangeIds = flattenedIds.slice(min, max + 1);
+         setSelectedTaskIds(rangeIds);
+         // Don't update anchor on range extend? Usually anchor stays same.
+         return;
+       }
+    }
+    
+    // Non-range selection updates the anchor
+    setAnchorId(id);
+    
+    if (multi) {
+      // Toggle
+      if (selectedTaskIds.includes(id)) {
+        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
+      } else {
+        setSelectedTaskIds([...selectedTaskIds, id]);
+      }
+    } else {
+      setSelectedTaskIds([id]);
+    }
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -41,6 +81,8 @@ export const Outliner: React.FC = () => {
                 wbsNumber={wbsNumber}
                 prevId={flattenedItems[index - 1]?.id}
                 nextId={flattenedItems[index + 1]?.id}
+                isSelected={selectedTaskIds.includes(id)}
+                onSelectionChange={handleSelectionChange}
               />
             ))}
           </SortableContext>

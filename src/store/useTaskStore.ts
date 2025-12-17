@@ -8,17 +8,22 @@ interface TaskState {
   rootIds: string[]; // Top-level ordered IDs
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
-  
+  selectedTaskIds: string[]; // Set of selected IDs
+
   // Actions
   setFocusedTaskId: (id: string | null) => void;
+  setSelectedTaskIds: (ids: string[]) => void;
+  // selectTask: (id: string, toggle: boolean, range: boolean) => void; // Implemented in component via helpers usually, or store. 
+  // Store needs sorted list for range.
+  
   addTask: (targetId: string, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
+  deleteTask: (ids: string | string[]) => void; // Updated signature
   toggleCollapse: (id: string) => void;
-  indentTask: (id: string) => void;
-  outdentTask: (id: string) => void;
+  indentTask: (id: string | string[]) => void;
+  outdentTask: (id: string | string[]) => void;
   reorderTask: (activeId: string, overId: string) => void;
-  moveTask: (id: string, direction: 'up' | 'down') => void;
+  moveTask: (id: string | string[], direction: 'up' | 'down') => void;
 }
 
 const DEFAULT_CONFIG: ProjectConfig = {
@@ -50,8 +55,10 @@ export const useTaskStore = create<TaskState>((set) => ({
   rootIds: [initialTaskId],
   projectConfig: DEFAULT_CONFIG,
   focusedTaskId: null,
+  selectedTaskIds: [],
 
   setFocusedTaskId: (id) => set({ focusedTaskId: id }),
+  setSelectedTaskIds: (ids) => set({ selectedTaskIds: ids }),
 
   addTask: (targetId, position = 'after') => {
     const newId = uuidv4();
@@ -127,95 +134,124 @@ export const useTaskStore = create<TaskState>((set) => ({
     tasks: { ...state.tasks, [id]: { ...state.tasks[id], ...updates } }
   })),
 
-  deleteTask: (id) => set((state) => {
-    // Basic delete: remove from parent's children and from tasks map
-    // Does NOT recurse yet (orphan cleanup required in robust app)
+  deleteTask: (ids) => set((state) => {
+    const idArray = Array.isArray(ids) ? ids : [ids];
     const tasks = { ...state.tasks };
-    const task = tasks[id];
-    if (!task) return {}; // No-op
-
-    // Remove from parent
-    if (task.parentId) {
-      const parent = tasks[task.parentId];
-      if (parent) {
-         tasks[task.parentId] = {
-           ...parent,
-           children: parent.children.filter(childId => childId !== id)
-         };
-      }
-    } else {
-      // Remove from rootIds
-      return { 
-        tasks: (() => { delete tasks[id]; return tasks; })(), 
-        rootIds: state.rootIds.filter(rid => rid !== id) 
-      };
-    }
+    let rootIds = [...state.rootIds];
     
-    delete tasks[id];
-    return { tasks };
+    idArray.forEach(id => {
+       const task = tasks[id];
+       if (!task) return;
+       
+       if (task.parentId) {
+         const parent = tasks[task.parentId];
+         if (parent) {
+           tasks[task.parentId] = {
+             ...parent,
+             children: parent.children.filter(childId => childId !== id)
+           };
+         }
+       } else {
+         rootIds = rootIds.filter(rid => rid !== id);
+       }
+       delete tasks[id];
+       // Note: Children of deleted tasks become orphans or are deleted - currently orphan if validation doesn't clean up
+       // Ideally we should delete children recursively.
+    });
+    
+    return { tasks, rootIds, selectedTaskIds: [] }; 
   }),
 
-  indentTask: (id: string) => set((state) => {
-    const tasks = { ...state.tasks };
-    const task = tasks[id];
+  indentTask: (ids) => set((state) => {
+    const idArray = Array.isArray(ids) ? ids : [ids];
+    if (idArray.length === 0) return {};
     
-    // 1. Identify current parent and siblings
-    let siblings: string[] = [];
-    if (task.parentId) {
-      siblings = tasks[task.parentId].children;
+    const tasks = { ...state.tasks };
+    
+    // Sort ids by visual order (assuming they share parent, which is required for block indent usually)
+    // If mixed parents, we probably shouldn't indent mixed block.
+    // Let's assume first item defines the context.
+    const firstId = idArray[0];
+    const task = tasks[firstId];
+    if (!task) return {};
+
+    const parentId = task.parentId;
+    let siblings: string[];
+    if (parentId) {
+      siblings = tasks[parentId].children;
     } else {
       siblings = state.rootIds;
     }
+
+    // Filter to only ids that are actually in this sibling list (sanity check)
+    // And Sort them by index
+    const sortedIds = idArray
+      .filter(id => siblings.includes(id))
+      .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
+      
+    if (sortedIds.length === 0) return {};
+
+    // Logic uses the *first* (top-most) item to determine new parent (prev sibling)
+    const firstIdx = siblings.indexOf(sortedIds[0]);
+    if (firstIdx <= 0) return {};
     
-    const idx = siblings.indexOf(id);
-    if (idx <= 0) return {}; // No previous sibling to become child of
+    const newParentId = siblings[firstIdx - 1];
+    // Check if newParent is part of selection? (Cannot indent under itself)
+    if (idArray.includes(newParentId)) return {}; 
     
-    // 2. Identify new parent (previous sibling)
-    const prevSiblingId = siblings[idx - 1];
-    const newParent = tasks[prevSiblingId];
+    const newParent = tasks[newParentId];
     
-    // 3. Remove from current position
-    // We need to clone the arrays to trigger updates
-    const newSiblings = [...siblings];
-    newSiblings.splice(idx, 1);
+    // Remove all sortedIds from current siblings
+    const newSiblings = siblings.filter(sid => !sortedIds.includes(sid));
     
-    // 4. Add to new parent's children
-    const newParentChildren = [...newParent.children, id];
+    // Add all sortedIds to newParent
+    const newParentChildren = [...newParent.children, ...sortedIds];
     
-    // 5. Update state
+    // Update relationships
     const updates: Partial<TaskState> = { tasks };
     
-    if (task.parentId) {
-      tasks[task.parentId] = { ...tasks[task.parentId], children: newSiblings };
+    if (parentId) {
+      tasks[parentId] = { ...tasks[parentId], children: newSiblings };
     } else {
       updates.rootIds = newSiblings;
     }
     
-    tasks[prevSiblingId] = { 
-      ...newParent, 
+    tasks[newParentId] = {
+      ...newParent,
       children: newParentChildren,
-      isCollapsed: false // Ensure expanded to show the new child
+      isCollapsed: false
     };
     
-    tasks[id] = { ...task, parentId: prevSiblingId };
+    sortedIds.forEach(id => {
+      tasks[id] = { ...tasks[id], parentId: newParentId };
+    });
     
     return updates;
   }),
 
-  outdentTask: (id: string) => set((state) => {
-    const tasks = { ...state.tasks };
-    const task = tasks[id];
+  outdentTask: (ids) => set((state) => {
+    const idArray = Array.isArray(ids) ? ids : [ids];
+    if (idArray.length === 0) return {};
     
+    const tasks = { ...state.tasks };
+    const firstId = idArray[0];
+    const task = tasks[firstId];
     if (!task.parentId) return {}; // Already root
     
     const currentParent = tasks[task.parentId];
     
-    // 1. Remove from current parent
-    const currentSiblings = [...currentParent.children];
-    const idx = currentSiblings.indexOf(id);
-    currentSiblings.splice(idx, 1);
+    // Same logic: Verify and sort
+    const currentSiblings = currentParent.children;
+    const sortedIds = idArray
+      .filter(id => currentSiblings.includes(id))
+      .sort((a, b) => currentSiblings.indexOf(a) - currentSiblings.indexOf(b));
+
+    if (sortedIds.length === 0) return {};
+
+    // Remove all ids from current parent
+    const newSiblings = currentSiblings.filter(sid => !sortedIds.includes(sid));
     
-    // 2. Identify new context (grandparent)
+    // Identify new context
     let newContextIds: string[];
     let grandParentId: string | null = null;
     
@@ -226,15 +262,18 @@ export const useTaskStore = create<TaskState>((set) => ({
       newContextIds = [...state.rootIds];
     }
     
-    // 3. Insert after current parent
+    // Insert after current parent
     const parentIdx = newContextIds.indexOf(task.parentId);
-    newContextIds.splice(parentIdx + 1, 0, id);
+    newContextIds.splice(parentIdx + 1, 0, ...sortedIds);
     
-    // 4. Update state
+    // Update
     const updates: Partial<TaskState> = { tasks };
     
-    tasks[task.parentId] = { ...currentParent, children: currentSiblings };
-    tasks[id] = { ...task, parentId: grandParentId };
+    tasks[task.parentId] = { ...currentParent, children: newSiblings };
+    
+    sortedIds.forEach(id => {
+      tasks[id] = { ...tasks[id], parentId: grandParentId };
+    });
     
     if (grandParentId) {
       tasks[grandParentId] = { ...tasks[grandParentId], children: newContextIds };
@@ -244,10 +283,6 @@ export const useTaskStore = create<TaskState>((set) => ({
     
     return updates;
   }),
-
-  toggleCollapse: (id) => set((state) => ({
-    tasks: { ...state.tasks, [id]: { ...state.tasks[id], isCollapsed: !state.tasks[id].isCollapsed } }
-  })),
 
   reorderTask: (activeId: string, overId: string) => set((state) => {
     if (activeId === overId) return {};
@@ -298,38 +333,63 @@ export const useTaskStore = create<TaskState>((set) => ({
     return { tasks, rootIds };
   }),
 
-  moveTask: (id, direction) => set((state) => {
-    const tasks = { ...state.tasks };
-    const task = tasks[id];
-    if (!task) return {};
-
-    // 1. Identify siblings
-    let siblings: string[];
-    let parentId = task.parentId;
+  moveTask: (ids, direction) => set((state) => {
+    const idArray = Array.isArray(ids) ? ids : [ids];
+    if (idArray.length === 0) return {};
     
+    const tasks = { ...state.tasks };
+    
+    const firstId = idArray[0];
+    const task = tasks[firstId];
+    const parentId = task.parentId;
+    
+    let siblings: string[];
     if (parentId) {
        siblings = [...tasks[parentId].children];
     } else {
        siblings = [...state.rootIds];
     }
     
-    const idx = siblings.indexOf(id);
-    if (idx === -1) return {};
-
-    // 2. Swap logic
-    if (direction === 'up') {
-       if (idx === 0) return {}; // Already at top
-       const prev = siblings[idx - 1];
-       siblings[idx - 1] = id;
-       siblings[idx] = prev;
-    } else {
-       if (idx === siblings.length - 1) return {}; // Already at bottom
-       const next = siblings[idx + 1];
-       siblings[idx + 1] = id;
-       siblings[idx] = next;
+    // Sort and Check Connectivity
+    const sortedIds = idArray
+      .filter(id => siblings.includes(id)) // Ensure same parent/level
+      .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
+    
+    if (sortedIds.length === 0) return {};
+    
+    const firstIdx = siblings.indexOf(sortedIds[0]);
+    const lastIdx = siblings.indexOf(sortedIds[sortedIds.length - 1]);
+    
+    // Check contiguous
+    if ((lastIdx - firstIdx + 1) !== sortedIds.length) {
+       // Not contiguous - abort move to avoid corruption
+       return {};
     }
     
-    // 3. Apply updates
+    if (direction === 'up') {
+       if (firstIdx === 0) return {}; 
+       // Start of block is at firstIdx.
+       // Prev sibling is at firstIdx - 1.
+       
+       // Remove block
+       siblings.splice(firstIdx, sortedIds.length);
+       // Insert block before prev sibling (at firstIdx - 1)
+       siblings.splice(firstIdx - 1, 0, ...sortedIds);
+       
+    } else {
+       // Move Down
+       if (lastIdx === siblings.length - 1) return {};
+       
+       // Remove block
+       siblings.splice(firstIdx, sortedIds.length);
+       // Insert block after next sibling
+       // Next sibling was at lastIdx + 1. 
+       // After removal, next sibling is at firstIdx (since we removed 'length' items, and next was at first + length)
+       // So we want to insert AFTER next sibling.
+       // Insert at firstIdx + 1.
+       siblings.splice(firstIdx + 1, 0, ...sortedIds);
+    }
+    
     if (parentId) {
       tasks[parentId] = { ...tasks[parentId], children: siblings };
       return { tasks };

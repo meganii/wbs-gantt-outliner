@@ -13,9 +13,11 @@ interface TaskRowProps {
   prevId?: string;
   nextId?: string;
   wbsNumber?: string;
+  isSelected?: boolean;
+  onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
   const updateTask = useTaskStore((state) => state.updateTask);
@@ -25,6 +27,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
   const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
   const moveTask = useTaskStore((state) => state.moveTask);
+  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
+  
+  const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId)) 
+                        ? selectedTaskIds 
+                        : [taskId];
   
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -63,47 +70,53 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
 
   if (!task) return null;
 
-  const handleBlur = () => {
-    if (task.title !== localTitle) {
-      updateTask(taskId, { title: localTitle });
-    }
-  };
+
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Ignore key events during IME composition
     if (isComposing.current || e.nativeEvent.isComposing) {
-      if (e.key === 'Enter') {
-         // Should usually allow default behavior to confirm composition? 
-         // But usually browser handles confirm before keydown?
-         return; 
+       // ...
+       return;
+    }
+    
+    // Selection Range Extension with Arrow Keys
+    if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      if (e.metaKey || e.altKey) {
+        // This is Move Block
+        e.preventDefault();
+        moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
+        return;
+      } else {
+        // Shift + Arrow (Range Select)
+        e.preventDefault();
+        const targetId = e.key === 'ArrowUp' ? prevId : nextId;
+        if (targetId) {
+            setFocusedTaskId(targetId);
+            if (onSelectionChange) {
+                onSelectionChange(targetId, false, true); 
+            }
+        }
+        return;
       }
-      return;
     }
 
     if (e.key === 'ArrowUp') {
-      if (e.shiftKey && (e.metaKey || e.altKey)) {
+       // Standard Nav
+       if (prevId) {
         e.preventDefault();
-        moveTask(taskId, 'up');
-        return;
-      }
-      if (prevId) {
-        e.preventDefault();
-        // Just move focus, don't change data
         setFocusedTaskId(prevId);
+        if (onSelectionChange) onSelectionChange(prevId, false, false);
       }
     }
     if (e.key === 'ArrowDown') {
-      if (e.shiftKey && (e.metaKey || e.altKey)) {
-        e.preventDefault();
-        moveTask(taskId, 'down');
-        return;
-      }
+       // Standard Nav
       if (nextId) {
         e.preventDefault();
         setFocusedTaskId(nextId);
+        if (onSelectionChange) onSelectionChange(nextId, false, false);
       }
     }
-
+    
     if (e.key === 'Enter') {
       e.preventDefault();
       // Ensure title is saved before adding new task
@@ -119,27 +132,52 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
          updateTask(taskId, { title: localTitle });
       }
       if (e.shiftKey) {
-        outdentTask(taskId);
+        outdentTask(effectiveIds);
       } else {
-        indentTask(taskId);
+        indentTask(effectiveIds);
       }
     }
-    // TODO: Backspace to delete if empty
   };
+
+  const rowStyle = clsx(
+    "flex items-center group py-1 border-b border-gray-800 hover:bg-white/5 transition-colors duration-200",
+    isSelected && "bg-blue-900/30"
+  );
+  
+  const handleBlur = () => {
+    if (task.title !== localTitle) {
+      updateTask(taskId, { title: localTitle });
+    }
+  };
+
 
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
-      <div 
-        className={clsx(
-          "flex items-center group py-1 border-b border-gray-800 hover:bg-white/5",
-          "transition-colors duration-200"
-        )}
-      >
+      <div className={rowStyle}>
         {/* Drag Handle */}
         <button 
-          className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none"
-          {...attributes} 
-          {...listeners}
+           className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none"
+           {...attributes} 
+           {...listeners}
+           onPointerDown={(e) => {
+             // Prioritize selection with modifiers over dragging
+             if (e.shiftKey || e.metaKey || e.ctrlKey) {
+               e.preventDefault();
+               e.stopPropagation();
+               if (onSelectionChange) {
+                 onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
+               }
+               return;
+             }
+             // Otherwise, pass to dnd-kit
+             listeners?.onPointerDown(e);
+           }}
+           onClick={(e) => {
+             // Click without drag (fallback for simple click if dnd doesn't consume)
+             if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
+                onSelectionChange(taskId, false, false);
+             }
+           }}
         >
           <GripVertical size={14} />
         </button>
