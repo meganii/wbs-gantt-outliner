@@ -61,7 +61,7 @@ function App() {
   }, [syncScroll]);
 
   return (
-    <div className="flex flex-col h-screen bg-white text-gray-900">
+    <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
       {/* Header / Tabs */}
       <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
         <span className="font-bold text-gray-700 text-sm mr-6">WBS Gantt Outliner</span>
@@ -131,7 +131,7 @@ function App() {
         )}
 
         {view === 'gantt' && (
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto w-full">
             <GanttChart showSidebar />
           </div>
         )}

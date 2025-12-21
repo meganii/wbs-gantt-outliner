@@ -31,11 +31,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   }, []);
 
   return (
-    <div className="flex-1 overflow-auto bg-white text-gray-900 flex flex-col">
+    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full">
       {/* Timeline Header */}
       <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
         {showSidebar && (
-          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs">Task Name</div>
+          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100">Task Name</div>
         )}
         <div className="flex">
           {range.map(date => {
@@ -62,7 +62,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         {flattenedItems.map(({ id, task, depth }) => (
           <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8">
             {showSidebar && (
-              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate" style={{ paddingLeft: depth * 12 + 8 }}>
+              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate sticky left-0 z-10 bg-white" style={{ paddingLeft: depth * 12 + 8 }}>
                 {task.title || '(Untitled)'}
               </div>
             )}
