@@ -24,6 +24,10 @@ export const Outliner: React.FC = () => {
   
   const [anchorId, setAnchorId] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    // Shortcuts are now handled directly in TaskRow for better reliability
+  }, []);
+
   // Selection Logic
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     if (range) {

@@ -37,6 +37,11 @@ function createWindow() {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
   });
 
+  // Platform-specific shortcuts via before-input-event
+  win.webContents.on('before-input-event', (event, input) => {
+    // Shortcuts handled in renderer via keydown to avoid conflicts with browser defaults
+  });
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {

@@ -20,8 +20,9 @@ interface TaskState {
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void; // Updated signature
   toggleCollapse: (id: string) => void;
-  indentTask: (id: string | string[]) => void;
-  outdentTask: (id: string | string[]) => void;
+  setCollapsed: (ids: string[], isCollapsed: boolean) => void;
+  indentTask: (ids: string | string[]) => void;
+  outdentTask: (ids: string | string[]) => void;
   reorderTask: (activeId: string, overId: string) => void;
   moveTask: (id: string | string[], direction: 'up' | 'down') => void;
 }
@@ -174,7 +175,17 @@ export const useTaskStore = create<TaskState>((set) => ({
     };
   }),
 
-  indentTask: (ids) => set((state) => {
+  setCollapsed: (ids: string[], isCollapsed: boolean) => set((state) => {
+    const tasks = { ...state.tasks };
+    ids.forEach(id => {
+      if (tasks[id]) {
+        tasks[id] = { ...tasks[id], isCollapsed };
+      }
+    });
+    return { tasks };
+  }),
+
+  indentTask: (ids: string | string[]) => set((state) => {
     const idArray = Array.isArray(ids) ? ids : [ids];
     if (idArray.length === 0) return {};
     
@@ -241,7 +252,7 @@ export const useTaskStore = create<TaskState>((set) => ({
     return updates;
   }),
 
-  outdentTask: (ids) => set((state) => {
+  outdentTask: (ids: string | string[]) => set((state) => {
     const idArray = Array.isArray(ids) ? ids : [ids];
     if (idArray.length === 0) return {};
     

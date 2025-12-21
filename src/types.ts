@@ -28,5 +28,6 @@ export interface TaskStoreState {
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   toggleCollapse: (id: string) => void;
+  setCollapsed: (ids: string[], isCollapsed: boolean) => void;
   setProjectConfig: (config: Partial<ProjectConfig>) => void;
 }

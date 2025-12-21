@@ -28,6 +28,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
   const moveTask = useTaskStore((state) => state.moveTask);
   const deleteTask = useTaskStore((state) => state.deleteTask);
+  const setCollapsed = useTaskStore((state) => state.setCollapsed);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   
   const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId)) 
@@ -80,15 +81,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
        return;
     }
     
-    // Selection Range Extension with Arrow Keys
+    // Collapse/Expand with Shift + Cmd + Arrow Keys
+    if (e.shiftKey && e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      setCollapsed(effectiveIds, e.key === 'ArrowUp');
+      return;
+    }
+
+    // Selection Range Extension or Block Move with Arrow Keys
     if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      if (e.metaKey || e.altKey) {
-        // This is Move Block
+      if (e.altKey) {
+        // Shift + Alt + Arrow: Move Block
         e.preventDefault();
         moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
         return;
-      } else {
-        // Shift + Arrow (Range Select)
+      } else if (!e.metaKey) {
+        // Shift + Arrow (only): Range Select
         e.preventDefault();
         const targetId = e.key === 'ArrowUp' ? prevId : nextId;
         if (targetId) {
@@ -103,7 +111,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
 
     if (e.key === 'ArrowUp') {
        // Standard Nav
-       if (prevId) {
+       if (prevId && !e.metaKey) {
         e.preventDefault();
         setFocusedTaskId(prevId);
         if (onSelectionChange) onSelectionChange(prevId, false, false);
@@ -111,7 +119,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     }
     if (e.key === 'ArrowDown') {
        // Standard Nav
-      if (nextId) {
+      if (nextId && !e.metaKey) {
         e.preventDefault();
         setFocusedTaskId(nextId);
         if (onSelectionChange) onSelectionChange(nextId, false, false);
