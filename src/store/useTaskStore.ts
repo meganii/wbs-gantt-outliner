@@ -25,6 +25,7 @@ interface TaskState {
   outdentTask: (ids: string | string[]) => void;
   reorderTask: (activeId: string, overId: string) => void;
   moveTask: (id: string | string[], direction: 'up' | 'down') => void;
+  addDependency: (fromId: string, toId: string) => void;
 }
 
 const DEFAULT_CONFIG: ProjectConfig = {
@@ -419,5 +420,40 @@ export const useTaskStore = create<TaskState>((set) => ({
     } else {
       return { tasks, rootIds: siblings };
     }
+  }),
+
+  addDependency: (fromId, toId) => set((state) => {
+    if (fromId === toId) return {};
+    
+    // Cycle check: fromId depends on toId?
+    const checkCycle = (currentId: string, targetId: string, visited: Set<string> = new Set()): boolean => {
+      if (currentId === targetId) return true;
+      if (visited.has(currentId)) return false;
+      visited.add(currentId);
+      
+      const task = state.tasks[currentId];
+      if (!task || !task.dependencies) return false;
+      
+      return task.dependencies.some(depId => checkCycle(depId, targetId, visited));
+    };
+    
+    if (checkCycle(fromId, toId)) {
+      console.warn('Cycle detected, cannot add dependency');
+      return {};
+    }
+
+    const tasks = { ...state.tasks };
+    const targetTask = tasks[toId];
+    if (!targetTask) return {};
+    
+    // Avoid duplicate
+    if (targetTask.dependencies.includes(fromId)) return {};
+    
+    tasks[toId] = {
+      ...targetTask,
+      dependencies: [...targetTask.dependencies, fromId]
+    };
+    
+    return { tasks };
   }),
 }));
