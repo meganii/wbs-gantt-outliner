@@ -44,17 +44,17 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#1e1e1e]">
+    <div className="flex flex-col h-screen bg-white text-gray-900">
       {/* Header / Tabs */}
-      <header className="h-10 bg-[#2b2b2b] flex items-center px-4 border-b border-black select-none draggable">
-        <span className="font-bold text-gray-300 text-sm mr-6">WBS Gantt Outliner</span>
+      <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
+        <span className="font-bold text-gray-700 text-sm mr-6">WBS Gantt Outliner</span>
         
         <div className="flex space-x-1 no-drag">
           <button 
             onClick={() => setView('outliner')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
-              view === 'outliner' ? "bg-[#3c3c3c] text-white" : "text-gray-400 hover:bg-[#323232]"
+              view === 'outliner' ? "bg-white text-blue-600 shadow-sm font-medium" : "text-gray-500 hover:bg-gray-200"
             )}
           >
             Outliner
@@ -63,17 +63,17 @@ function App() {
             onClick={() => setView('gantt')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
-              view === 'gantt' ? "bg-[#3c3c3c] text-white" : "text-gray-400 hover:bg-[#323232]"
+              view === 'gantt' ? "bg-white text-blue-600 shadow-sm font-medium" : "text-gray-500 hover:bg-gray-200"
             )}
           >
             Gantt
           </button>
           
-          <div className="w-px bg-gray-700 mx-2 h-4 my-auto" />
+          <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
           
-          <button onClick={handleSave} className="px-3 py-1 text-xs text-gray-400 hover:bg-[#323232] rounded-sm no-drag">Save</button>
-          <button onClick={handleLoad} className="px-3 py-1 text-xs text-gray-400 hover:bg-[#323232] rounded-sm no-drag">Load</button>
-          <button onClick={handleExport} className="px-3 py-1 text-xs text-gray-400 hover:bg-[#323232] rounded-sm no-drag">Export</button>
+          <button onClick={handleSave} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Save</button>
+          <button onClick={handleLoad} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Load</button>
+          <button onClick={handleExport} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Export</button>
         </div>
       </header>
 
@@ -83,7 +83,7 @@ function App() {
       </main>
       
       {/* Status Bar */}
-      <footer className="h-6 bg-[#2b2b2b] border-t border-black flex items-center px-2 text-[10px] text-gray-500 select-none">
+      <footer className="h-6 bg-gray-100 border-t border-gray-300 flex items-center px-2 text-[10px] text-gray-500 select-none">
         <span>Ready</span>
       </footer>
     </div>

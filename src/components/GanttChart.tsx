@@ -27,10 +27,10 @@ export const GanttChart: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex-1 overflow-auto bg-[#1e1e1e] text-white flex flex-col">
+    <div className="flex-1 overflow-auto bg-white text-gray-900 flex flex-col">
       {/* Timeline Header */}
-      <div className="flex sticky top-0 bg-[#2b2b2b] z-10 border-b border-gray-700" style={{ height: HEADER_HEIGHT }}>
-        <div className="w-48 flex-shrink-0 border-r border-gray-700 p-2 font-bold text-xs">Task Name</div>
+      <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
+        <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs">Task Name</div>
         <div className="flex">
           {range.map(date => {
             const isWknd = !isWorkDay(date, holidays);
@@ -38,8 +38,8 @@ export const GanttChart: React.FC = () => {
               <div 
                 key={date.toISOString()} 
                 className={clsx(
-                  "flex-shrink-0 border-r border-gray-700 text-[10px] flex flex-col items-center justify-center",
-                  isWknd ? "bg-black/20 text-gray-500" : "text-gray-300"
+                  "flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center",
+                  isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
                 )}
                 style={{ width: CELL_WIDTH }}
               >
@@ -54,10 +54,10 @@ export const GanttChart: React.FC = () => {
       {/* Gantt Rows */}
       <div className="flex-1">
         {flattenedItems.map(({ id, task, depth }) => (
-          <div key={id} className="flex border-b border-gray-800 hover:bg-white/5 h-8">
+          <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8">
             {/* Sidebar (Task Name) - Duplicate rendering or synchronized scroll? */}
             {/* Usually Gantt implies strict alignment. */}
-            <div className="w-48 flex-shrink-0 border-r border-gray-700 flex items-center px-2 text-xs truncate" style={{ paddingLeft: depth * 12 + 8 }}>
+            <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate" style={{ paddingLeft: depth * 12 + 8 }}>
               {task.title || '(Untitled)'}
             </div>
             
@@ -70,8 +70,8 @@ export const GanttChart: React.FC = () => {
                   <div 
                     key={date.toISOString()}
                     className={clsx(
-                      "flex-shrink-0 border-r border-gray-800 h-full",
-                      isWknd && "bg-black/20"
+                      "flex-shrink-0 border-r border-gray-100 h-full",
+                      isWknd && "bg-gray-100/50"
                     )}
                     style={{ width: CELL_WIDTH }} 
                   />

@@ -191,8 +191,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   };
 
   const rowStyle = clsx(
-    "flex items-center group py-1 border-b border-gray-800 hover:bg-white/5 transition-colors duration-200",
-    isSelected && "bg-blue-900/30"
+    "flex items-center group py-1 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
+    isSelected && "bg-blue-50"
   );
   
   const handleBlur = () => {
@@ -237,7 +237,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         <button 
           onClick={() => toggleCollapse(taskId)}
           className={clsx(
-            "p-0.5 rounded hover:bg-white/10 text-gray-400 mr-1",
+            "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1",
             task.children.length === 0 && "invisible"
           )}
         >
@@ -261,7 +261,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
           onCompositionStart={() => { isComposing.current = true; }}
           onCompositionEnd={() => { isComposing.current = false; }}
           placeholder="New Task"
-          className="bg-transparent border-none outline-none text-sm text-gray-200 flex-1 placeholder-gray-600 focus:placeholder-gray-700"
+          className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300"
         />
 
         {/* Dates & Metadata */}
@@ -276,10 +276,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
             }}
-            className="bg-transparent w-12 text-right outline-none border-b border-transparent focus:border-gray-600 focus:text-gray-300"
+            className="bg-transparent w-12 text-right outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
             title="Duration (days)"
           />
-          <span className="text-gray-600">days</span>
+          <span className="text-gray-400">days</span>
           
           {/* Start Date */}
           <input 
@@ -292,10 +292,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
                updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-300"
+            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600"
           />
 
-          <span className="text-gray-600">-</span>
+          <span className="text-gray-400">-</span>
 
           {/* End Date */}
           <input 
@@ -312,7 +312,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                const newDuration = getWorkDaysCount(start, end, []);
                updateTask(taskId, { endDate: newEndDate, duration: newDuration });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-300"
+            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600"
           />
         </div>
       </div>
