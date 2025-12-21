@@ -81,32 +81,31 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
        return;
     }
     
-    // Collapse/Expand with Shift + Cmd + Arrow Keys
+    // Row Reordering (Move Task): Shift + Cmd + Arrow Keys
     if (e.shiftKey && e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
+      return;
+    }
+
+    // Collapse/Expand: Option + Arrow Keys
+    if (!e.shiftKey && e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       setCollapsed(effectiveIds, e.key === 'ArrowUp');
       return;
     }
 
-    // Selection Range Extension or Block Move with Arrow Keys
-    if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      if (e.altKey) {
-        // Shift + Alt + Arrow: Move Block
-        e.preventDefault();
-        moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
-        return;
-      } else if (!e.metaKey) {
-        // Shift + Arrow (only): Range Select
-        e.preventDefault();
-        const targetId = e.key === 'ArrowUp' ? prevId : nextId;
-        if (targetId) {
-            setFocusedTaskId(targetId);
-            if (onSelectionChange) {
-                onSelectionChange(targetId, false, true); 
-            }
-        }
-        return;
+    // Selection Range Extension with Shift + Arrow Keys (No Cmd)
+    if (e.shiftKey && !e.metaKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      const targetId = e.key === 'ArrowUp' ? prevId : nextId;
+      if (targetId) {
+          setFocusedTaskId(targetId);
+          if (onSelectionChange) {
+              onSelectionChange(targetId, false, true); 
+          }
       }
+      return;
     }
 
     if (e.key === 'ArrowUp') {
