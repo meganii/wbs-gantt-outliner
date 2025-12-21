@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
-import clsx from 'clsx';
 import { useTaskStore } from './store/useTaskStore';
+import clsx from 'clsx';
 
 function App() {
-  const [view, setView] = useState<'outliner' | 'gantt'>('outliner');
+  const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
   
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
@@ -43,6 +43,23 @@ function App() {
      exportToExcel(tasks, rootIds);
   };
 
+  const outlinerScrollRef = useRef<HTMLDivElement>(null);
+  const ganttScrollRef = useRef<HTMLDivElement>(null);
+
+  const syncScroll = useCallback((source: React.RefObject<HTMLDivElement | null>, target: React.RefObject<HTMLDivElement | null>) => {
+    if (source.current && target.current) {
+      target.current.scrollTop = source.current.scrollTop;
+    }
+  }, []);
+
+  const handleOutlinerScroll = useCallback(() => {
+    syncScroll(outlinerScrollRef, ganttScrollRef);
+  }, [syncScroll]);
+
+  const handleGanttScroll = useCallback(() => {
+    syncScroll(ganttScrollRef, outlinerScrollRef);
+  }, [syncScroll]);
+
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900">
       {/* Header / Tabs */}
@@ -51,13 +68,22 @@ function App() {
         
         <div className="flex space-x-1 no-drag">
           <button 
-            onClick={() => setView('outliner')}
+            onClick={() => setView('wbs')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
-              view === 'outliner' ? "bg-white text-blue-600 shadow-sm font-medium" : "text-gray-500 hover:bg-gray-200"
+              view === 'wbs' ? "bg-white text-blue-600 shadow-sm font-medium" : "text-gray-500 hover:bg-gray-200"
             )}
           >
-            Outliner
+            WBS
+          </button>
+          <button 
+            onClick={() => setView('integrated')}
+            className={clsx(
+              "px-3 py-1 text-xs rounded-sm transition-colors",
+              view === 'integrated' ? "bg-white text-blue-600 shadow-sm font-medium" : "text-gray-500 hover:bg-gray-200"
+            )}
+          >
+            Integrated
           </button>
           <button 
             onClick={() => setView('gantt')}
@@ -79,7 +105,36 @@ function App() {
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {view === 'outliner' ? <Outliner /> : <GanttChart />}
+        {view === 'wbs' && (
+          <div className="flex-1 overflow-auto">
+            <Outliner />
+          </div>
+        )}
+        
+        {view === 'integrated' && (
+          <>
+            <div 
+              ref={outlinerScrollRef} 
+              onScroll={handleOutlinerScroll}
+              className="w-[600px] border-r border-gray-200 overflow-y-auto no-scrollbar"
+            >
+              <Outliner />
+            </div>
+            <div 
+              ref={ganttScrollRef} 
+              onScroll={handleGanttScroll}
+              className="flex-1 overflow-auto"
+            >
+              <GanttChart />
+            </div>
+          </>
+        )}
+
+        {view === 'gantt' && (
+          <div className="flex-1 overflow-auto">
+            <GanttChart showSidebar />
+          </div>
+        )}
       </main>
       
       {/* Status Bar */}

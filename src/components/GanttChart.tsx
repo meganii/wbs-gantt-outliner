@@ -8,7 +8,11 @@ import { isWorkDay } from '../utils/date';
 const CELL_WIDTH = 40;
 const HEADER_HEIGHT = 40;
 
-export const GanttChart: React.FC = () => {
+interface GanttChartProps {
+  showSidebar?: boolean;
+}
+
+export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) => {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const holidays = useTaskStore(state => state.projectConfig.calendar.holidays);
@@ -30,7 +34,9 @@ export const GanttChart: React.FC = () => {
     <div className="flex-1 overflow-auto bg-white text-gray-900 flex flex-col">
       {/* Timeline Header */}
       <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
-        <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs">Task Name</div>
+        {showSidebar && (
+          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs">Task Name</div>
+        )}
         <div className="flex">
           {range.map(date => {
             const isWknd = !isWorkDay(date, holidays);
@@ -55,12 +61,11 @@ export const GanttChart: React.FC = () => {
       <div className="flex-1">
         {flattenedItems.map(({ id, task, depth }) => (
           <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8">
-            {/* Sidebar (Task Name) - Duplicate rendering or synchronized scroll? */}
-            {/* Usually Gantt implies strict alignment. */}
-            <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate" style={{ paddingLeft: depth * 12 + 8 }}>
-              {task.title || '(Untitled)'}
-            </div>
-            
+            {showSidebar && (
+              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate" style={{ paddingLeft: depth * 12 + 8 }}>
+                {task.title || '(Untitled)'}
+              </div>
+            )}
             {/* Bars Area */}
             <div className="relative flex">
                {/* Grid Background */}

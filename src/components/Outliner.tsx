@@ -73,8 +73,11 @@ export const Outliner: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-white text-gray-900 p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="bg-white text-gray-900 overflow-x-auto">
+      <div className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center px-4 font-bold text-xs z-10 w-full">
+        Task Description
+      </div>
+      <div className="px-4 pb-4">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
             {flattenedItems.map(({ id, depth, wbsNumber }, index) => (

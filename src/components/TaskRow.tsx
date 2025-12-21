@@ -191,7 +191,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   };
 
   const rowStyle = clsx(
-    "flex items-center group py-1 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
+    "flex items-center group h-8 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
     isSelected && "bg-blue-50"
   );
   
