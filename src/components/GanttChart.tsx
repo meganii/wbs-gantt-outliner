@@ -366,7 +366,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
                      {/* Dependency Handle (Right side) */}
                      <div 
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-20"
+                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm"
                         onMouseDown={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
