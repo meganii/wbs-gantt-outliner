@@ -26,6 +26,7 @@ interface TaskState {
   reorderTask: (activeId: string, overId: string) => void;
   moveTask: (id: string | string[], direction: 'up' | 'down') => void;
   addDependency: (fromId: string, toId: string) => void;
+  removeDependency: (fromId: string, toId: string) => void;
 }
 
 const DEFAULT_CONFIG: ProjectConfig = {
@@ -454,6 +455,19 @@ export const useTaskStore = create<TaskState>((set) => ({
       dependencies: [...targetTask.dependencies, fromId]
     };
     
+    return { tasks };
+  }),
+
+  removeDependency: (fromId, toId) => set((state) => {
+    const tasks = { ...state.tasks };
+    const targetTask = tasks[toId];
+    if (!targetTask) return {};
+
+    tasks[toId] = {
+      ...targetTask,
+      dependencies: targetTask.dependencies.filter(id => id !== fromId)
+    };
+
     return { tasks };
   }),
 }));
