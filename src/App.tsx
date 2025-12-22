@@ -21,12 +21,10 @@ function App() {
 
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
-    // @ts-ignore
     await window.ipcRenderer.invoke('save-file', data);
   };
 
   const handleLoad = async () => {
-    // @ts-ignore
     const content = await window.ipcRenderer.invoke('load-file');
     if (content) {
       try {
