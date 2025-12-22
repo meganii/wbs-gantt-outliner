@@ -39,9 +39,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   // Drag & Drop State
   const [dragState, setDragState] = React.useState<{
     taskId: string;
-    mode: 'move' | 'resize-left' | 'resize-right' | 'dependency';
+    mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
     startX: number;
-    startY: number; // Added for dependency drag
+    startY: number; // Added for dependency and draw-range
     initialStartDate: Date;
     initialEndDate: Date;
     currentStartDate: Date;
@@ -88,24 +88,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
           if (newEnd >= dragState.initialStartDate) {
              setDragState(prev => prev ? { ...prev, currentEndDate: newEnd } : null);
           }
+      } else if (dragState.mode === 'draw-range') {
+          const currentDragDate = addDays(dragState.initialStartDate, deltaDays);
+          setDragState(prev => prev ? { ...prev, currentEndDate: currentDragDate } : null);
       }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
       if (dragState) {
         if (dragState.mode === 'dependency') {
-             // Check if we dropped on a task
-             // We can use document.elementFromPoint or simpler if we tracked hover.
-             // Let's use logic: find task element under mouse.
-             // But 'e.target' might be the covering SVG or something.
-             // Let's assume we can get target from e.target if pointer-events allow.
-             
-             // Simplest: Check if the element under cursor has data-task-id
-             // We temporarily hide the SVG line or ensure it has pointer-events-none?
-             // Yes, SVG line should be pointer-events-none.
-             
              let target = e.target as HTMLElement;
-             // Traverse up to find data-task-id
              while (target && !target.getAttribute?.('data-task-id')) {
                  target = target.parentElement as HTMLElement;
              }
@@ -117,11 +109,23 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                  }
              }
         } 
+        else if (dragState.mode === 'draw-range') {
+            const { taskId, currentStartDate, currentEndDate } = dragState;
+            const start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
+            const end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
+            
+            const newDuration = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+             updateTask(taskId, {
+                startDate: format(start, 'yyyy-MM-dd'),
+                endDate: format(end, 'yyyy-MM-dd'),
+                duration: newDuration
+             });
+        }
         else {
             // Commit changes for move/resize
             const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
             if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
-               const newDuration = Math.ceil((currentEndDate.getTime() - currentStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+               const newDuration = Math.round((currentEndDate.getTime() - currentStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                
                updateTask(taskId, {
                  startDate: format(currentStartDate, 'yyyy-MM-dd'),
@@ -294,7 +298,37 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
               </div>
             )}
             {/* Bars Area */}
-            <div className="relative flex pointer-events-auto">
+            <div 
+                className="relative flex pointer-events-auto cursor-crosshair"
+                onMouseDown={(e) => {
+                    // Start Drawing Range
+                    // Only if clicking on empty space (not propagating from task bar)
+                    if (e.target !== e.currentTarget && !(e.target as HTMLElement).classList.contains('flex-shrink-0')) {
+                        // Actually, grid divs are children, so target might be them.
+                        // We check if it's NOT a task bar.
+                        // Task bar usually stops propagation, so we might be safe.
+                        // Let's implement robust check.
+                    }
+                    if (e.button !== 0) return;
+                    
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left; // relative to row
+                    // Calculate date from X
+                    const daysOffset = Math.floor(x / CELL_WIDTH);
+                    const clickedDate = addDays(range[0], daysOffset);
+                    
+                    setDragState({
+                        taskId: id,
+                        mode: 'draw-range',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        initialStartDate: clickedDate,
+                        initialEndDate: clickedDate,
+                        currentStartDate: clickedDate,
+                        currentEndDate: clickedDate
+                    });
+                }}
+            >
                {/* Grid Background */}
                {range.map(date => {
                  const isWknd = !isWorkDay(date, holidays);
@@ -310,18 +344,39 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                  );
                })}
 
+                {/* Drawing Preview Box */}
+               {dragState?.taskId === id && dragState?.mode === 'draw-range' && (
+                   (() => {
+                        const s = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
+                        const e = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
+                        
+                        const timelineStart = range[0];
+                        const diffDays = Math.round((s.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
+                        const offset = diffDays * CELL_WIDTH;
+                        const daySpan = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        const width = daySpan * CELL_WIDTH;
+                        
+                        return (
+                            <div
+                                className="absolute top-1.5 h-5 border-2 border-dashed border-blue-500 bg-blue-100/30 z-30 pointer-events-none"
+                                style={{ left: offset, width: width - 2 }}
+                            />
+                        );
+                   })()
+               )}
+
                {/* Task Bar - Z-30 */}
                {(() => {
                  // Determine which dates to use (drag state or real state)
-                 const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency';
+                 const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
                  const taskStart = isDragging && dragState ? dragState.currentStartDate : new Date(task.startDate);
                  const taskEnd = isDragging && dragState ? dragState.currentEndDate : new Date(task.endDate);
                  
                  const timelineStart = range[0];
                  
-                 const diffDays = Math.ceil((taskStart.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
+                 const diffDays = Math.round((taskStart.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
                  const offset = diffDays * CELL_WIDTH;
-                 const daySpan = Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                 const daySpan = Math.round((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                  const width = daySpan * CELL_WIDTH;
 
                  if (width <= 0) return null;
