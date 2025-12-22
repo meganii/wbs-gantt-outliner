@@ -1,0 +1,221 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { useTaskStore } from './useTaskStore';
+import { act } from '@testing-library/react';
+
+// To properly test the store, we need to interact with it outside of a React component.
+// We can grab the initial state to reset the store before each test.
+const initialState = useTaskStore.getState();
+
+describe('useTaskStore', () => {
+
+  // Reset store before each test
+  beforeEach(() => {
+    act(() => {
+      useTaskStore.setState(initialState, true);
+    });
+  });
+
+  describe('Initial State', () => {
+    it('should have a root task', () => {
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(rootIds.length).toBe(1);
+      const rootTask = tasks[rootIds[0]];
+      expect(rootTask.title).toBe('Project Root');
+      expect(rootTask.parentId).toBe(null);
+    });
+  });
+
+  describe('addTask', () => {
+    it('should add a new task after a target task', () => {
+      const { rootIds } = useTaskStore.getState();
+      const targetId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(targetId, 'after');
+      });
+
+      const { tasks, rootIds: newRootIds } = useTaskStore.getState();
+      expect(newRootIds.length).toBe(2);
+      const newTaskId = newRootIds[1];
+      expect(tasks[newTaskId].parentId).toBe(null);
+      expect(tasks[newTaskId].title).toBe('');
+    });
+
+    it('should add a new task inside a target task', () => {
+      const { rootIds } = useTaskStore.getState();
+      const targetId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(targetId, 'inside');
+      });
+
+      const { tasks } = useTaskStore.getState();
+      const parentTask = tasks[targetId];
+      expect(parentTask.children.length).toBe(1);
+      const newTaskId = parentTask.children[0];
+      expect(tasks[newTaskId].parentId).toBe(targetId);
+    });
+  });
+
+  describe('deleteTask', () => {
+    it('should delete a single task', () => {
+      const { rootIds } = useTaskStore.getState();
+      const targetId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().deleteTask(targetId);
+      });
+
+      const { tasks, rootIds: newRootIds } = useTaskStore.getState();
+      expect(newRootIds.length).toBe(0);
+      expect(tasks[targetId]).toBeUndefined();
+    });
+  });
+
+  describe('indentTask', () => {
+    it('should indent a task, making it a child of its previous sibling', () => {
+      // Setup: Add two tasks at the root
+      const { rootIds } = useTaskStore.getState();
+      const firstTaskId = rootIds[0];
+      act(() => {
+        useTaskStore.getState().addTask(firstTaskId, 'after');
+      });
+
+      const { rootIds: currentRootIds, tasks: currentTasks } = useTaskStore.getState();
+      const secondTaskId = currentRootIds[1];
+      expect(currentTasks[secondTaskId].parentId).toBe(null);
+
+      // Indent the second task
+      act(() => {
+        useTaskStore.getState().indentTask(secondTaskId);
+      });
+
+      const { tasks, rootIds: newRootIds } = useTaskStore.getState();
+      expect(newRootIds.length).toBe(1);
+      expect(newRootIds[0]).toBe(firstTaskId);
+      expect(tasks[secondTaskId].parentId).toBe(firstTaskId);
+      expect(tasks[firstTaskId].children).toContain(secondTaskId);
+    });
+  });
+
+  describe('outdentTask', () => {
+    it('should outdent a task, making it a sibling of its parent', () => {
+      // Setup: Add a child task
+      const { rootIds } = useTaskStore.getState();
+      const parentId = rootIds[0];
+      act(() => {
+        useTaskStore.getState().addTask(parentId, 'inside');
+      });
+
+      const childId = useTaskStore.getState().tasks[parentId].children[0];
+      expect(useTaskStore.getState().tasks[childId].parentId).toBe(parentId);
+
+      // Outdent the child task
+      act(() => {
+        useTaskStore.getState().outdentTask(childId);
+      });
+
+      const { tasks, rootIds: newRootIds } = useTaskStore.getState();
+      expect(newRootIds.length).toBe(2);
+      expect(newRootIds[1]).toBe(childId);
+      expect(tasks[childId].parentId).toBe(null);
+      expect(tasks[parentId].children.length).toBe(0);
+    });
+  });
+
+  describe('addDependency', () => {
+    it('should add a dependency between two tasks', () => {
+      // Setup: Add two tasks
+      const { rootIds } = useTaskStore.getState();
+      const fromId = rootIds[0];
+      act(() => {
+        useTaskStore.getState().addTask(fromId, 'after');
+      });
+      const toId = useTaskStore.getState().rootIds[1];
+
+      // Add dependency
+      act(() => {
+        useTaskStore.getState().addDependency(fromId, toId);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[toId].dependencies).toContain(fromId);
+    });
+
+    it('should not add a dependency if it creates a cycle', () => {
+      // Setup: Add two tasks with a dependency
+      const { rootIds } = useTaskStore.getState();
+      const task1Id = rootIds[0];
+      act(() => {
+        useTaskStore.getState().addTask(task1Id, 'after');
+      });
+      const task2Id = useTaskStore.getState().rootIds[1];
+      act(() => {
+        useTaskStore.getState().addDependency(task1Id, task2Id);
+      });
+
+      // Try to add a circular dependency
+      act(() => {
+        useTaskStore.getState().addDependency(task2Id, task1Id);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // The dependency should not have been added
+      expect(tasks[task1Id].dependencies).not.toContain(task2Id);
+    });
+  });
+
+  describe('removeDependency', () => {
+    it('should remove a dependency between two tasks', () => {
+      // Setup: Add two tasks with a dependency
+      const { rootIds } = useTaskStore.getState();
+      const fromId = rootIds[0];
+      act(() => {
+        useTaskStore.getState().addTask(fromId, 'after');
+      });
+      const toId = useTaskStore.getState().rootIds[1];
+       act(() => {
+        useTaskStore.getState().addDependency(fromId, toId);
+      });
+
+      expect(useTaskStore.getState().tasks[toId].dependencies).toContain(fromId);
+
+      // Remove dependency
+      act(() => {
+        useTaskStore.getState().removeDependency(fromId, toId);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[toId].dependencies).not.toContain(fromId);
+    });
+  });
+
+  describe('updateTask with Date Propagation', () => {
+    it('should update a dependent task start date when its predecessor end date changes', () => {
+      // Setup: task2 depends on task1
+      const { rootIds } = useTaskStore.getState();
+      const task1Id = rootIds[0];
+      act(() => {
+        useTaskStore.getState().updateTask(task1Id, { startDate: '2024-01-01', endDate: '2024-01-01', duration: 1 });
+        useTaskStore.getState().addTask(task1Id, 'after');
+      });
+      const task2Id = useTaskStore.getState().rootIds[1];
+      act(() => {
+        useTaskStore.getState().updateTask(task2Id, { startDate: '2024-01-02', endDate: '2024-01-02', duration: 1 });
+        useTaskStore.getState().addDependency(task1Id, task2Id);
+      });
+
+      const { tasks: initialTasks } = useTaskStore.getState();
+      expect(initialTasks[task2Id].startDate).toBe('2024-01-02');
+
+      // Action: Update task1's end date
+      act(() => {
+        useTaskStore.getState().updateTask(task1Id, { endDate: '2024-01-03' }); // 2 work days longer
+      });
+
+      const { tasks: updatedTasks } = useTaskStore.getState();
+      // task2's start date should be the next workday after task1's new end date
+      expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
+    });
+  });
+});

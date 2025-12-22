@@ -24,3 +24,6 @@ dist_electron
 *.njsproj
 *.sln
 *.sw?
+
+# Coverage report
+coverage/
