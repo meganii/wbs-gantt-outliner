@@ -169,9 +169,38 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                     const endX = targetRect.left - containerRect.left + scrollLeft;
                     const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
 
-                    // Orthogonal connector
-                    // A simple elbow - from source right, then down, then to target left
-                    const path = `M ${startX} ${startY} L ${startX + 10} ${startY} L ${startX + 10} ${endY} L ${endX} ${endY}`;
+                    // Smart Routing
+                    let path = '';
+                    const boxPadding = 20; // Distance to go out before turning
+                    // const arrowSpacing = 10; // Space before arrow hits target (Unused)
+
+                    // Check if simple routing works (Target is well to the right of Source)
+                    if (endX > startX + boxPadding * 2) {
+                        // Simple elbow: Right -> MidX -> Down/Up -> Target
+                         const midX = startX + (endX - startX) / 2;
+                         path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+                    } else {
+                        // Overlap or close routing: Go around
+                        
+                        // Revised "Around" Path:
+                        // 1. Out Right (startX + 10)
+                        // 2. Vertical to (endY +/- 12) (The gap line).
+                        //    If endY > startY (Target below), y = startY + 16 (Bottom of source row).
+                        //    If endY < startY (Target above), y = startY - 16 (Top of source row).
+                        const rowHeight = 32;
+                        const verticalLaneY = endY > startY ? startY + (rowHeight/2) : startY - (rowHeight/2);
+                        
+                        // 3. Left to (endX - 10)
+                        // 4. Vertical to endY
+                        // 5. Right to endX
+                        
+                        path = `M ${startX} ${startY} 
+                                L ${startX + boxPadding} ${startY} 
+                                L ${startX + boxPadding} ${verticalLaneY}
+                                L ${endX - boxPadding} ${verticalLaneY}
+                                L ${endX - boxPadding} ${endY}
+                                L ${endX} ${endY}`;
+                    }
 
                     lines.push({ key: `${depId}-${id}`, d: path });
                 }
@@ -210,8 +239,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
       {/* Gantt Rows */}
       <div className="flex-1 relative" ref={containerRef}>
-        {/* SVG Layer for Dependencies */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ minHeight: flattenedItems.length * 32 }}>
+        {/* SVG Layer for Dependencies - Z-10 */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ minHeight: flattenedItems.length * 32 }}>
             <defs>
                 <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
                     <polygon points="0 0, 6 2, 0 4" fill="#9ca3af" />
@@ -257,12 +286,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         </svg>
 
         {flattenedItems.map(({ id, task, depth }) => (
-          <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-10 pointer-events-none"> 
-            {/* pointer-events-none on row wrapper to let svg clicks pass? No, tasks need events. */}
-            {/* Actually, we want task bars to catch events. Wrapper can be whatever. */}
+          <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"> 
             
             {showSidebar && (
-              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate sticky left-0 z-10 bg-white pointer-events-auto" style={{ paddingLeft: depth * 12 + 8 }}>
+              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate sticky left-0 z-40 bg-white pointer-events-auto" style={{ paddingLeft: depth * 12 + 8 }}>
                 {task.title || '(Untitled)'}
               </div>
             )}
@@ -283,7 +310,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                  );
                })}
 
-               {/* Task Bar */}
+               {/* Task Bar - Z-30 */}
                {(() => {
                  // Determine which dates to use (drag state or real state)
                  const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency';
@@ -310,8 +337,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                      }}
                      data-task-id={id}
                      className={clsx(
-                        "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group",
-                        isDragging ? "bg-blue-600 cursor-grabbing z-30" : "bg-blue-500 hover:bg-blue-400 cursor-pointer"
+                        "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group z-30",
+                        isDragging ? "bg-blue-600 cursor-grabbing" : "bg-blue-500 hover:bg-blue-400 cursor-pointer"
                      )}
                      style={{ left: offset, width: width - 2 }}
                      title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
