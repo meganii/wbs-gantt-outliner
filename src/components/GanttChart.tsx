@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useLayoutEffect, useState, useRef } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { addDays, format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { flattenTree } from '../utils/tree';
@@ -18,6 +18,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   const holidays = useTaskStore(state => state.projectConfig.calendar.holidays);
 
   const flattenedItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
+
+  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string }>>([]);
+  const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Determine timeline range
   // Find min Start and max End from tasks, or default to current month
@@ -45,19 +48,6 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
     currentEndDate: Date;
     targetTaskId?: string; // For dependency drop target
   } | null>(null);
-
-  // Helper to find task element and get coordinates
-  const getTaskCoordinates = (taskId: string) => {
-    // This is tricky in React without refs for every task.
-    // We can rely on data attributes or IDs.
-    // Let's assume we add `data-task-id={taskId}` to the task bar.
-    const element = document.querySelector(`[data-task-id="${taskId}"]`);
-    if (!element) return null;
-    const rect = element.getBoundingClientRect();
-    // We need coordinates relative to the Gantt chart container (lines container)
-    // We can use a ref for the container.
-    return rect;
-  };
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [mousePos, setMousePos] = React.useState<{x: number, y: number} | null>(null);
@@ -154,6 +144,43 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
     };
   }, [dragState, updateTask, addDependency]);
 
+  useLayoutEffect(() => {
+    const lines = [];
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    for (const { id, task } of flattenedItems) {
+        if (task.dependencies) {
+            for (const depId of task.dependencies) {
+                const sourceTaskEl = taskBarRefs.current.get(depId);
+                const targetTaskEl = taskBarRefs.current.get(id);
+
+                if (sourceTaskEl && targetTaskEl) {
+                    const sourceRect = sourceTaskEl.getBoundingClientRect();
+                    const targetRect = targetTaskEl.getBoundingClientRect();
+
+                    // Adjust for container's scroll position
+                    const scrollLeft = containerRef.current?.scrollLeft || 0;
+                    const scrollTop = containerRef.current?.scrollTop || 0;
+
+                    // Calculate positions relative to the container's viewport
+                    const startX = sourceRect.right - containerRect.left + scrollLeft;
+                    const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
+                    const endX = targetRect.left - containerRect.left + scrollLeft;
+                    const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
+
+                    // Orthogonal connector
+                    // A simple elbow - from source right, then down, then to target left
+                    const path = `M ${startX} ${startY} L ${startX + 10} ${startY} L ${startX + 10} ${endY} L ${endX} ${endY}`;
+
+                    lines.push({ key: `${depId}-${id}`, d: path });
+                }
+            }
+        }
+    }
+    setDependencyLines(lines);
+  }, [flattenedItems, tasks, showSidebar]); // Re-run when layout might change
+
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none">
       {/* Timeline Header */}
@@ -191,45 +218,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                 </marker>
             </defs>
             {/* Existing Dependencies */}
-            {flattenedItems.map(({ id, task }) => (
-                task.dependencies?.map(depId => {
-                    const depTask = tasks[depId]; // Predecessor
-                    if (!depTask) return null;
-                    
-                    // We need layout coordinates. 
-                    // Store layout in state? Or calculate on the fly?
-                    // Calculation requires row index.
-                    const startIdx = flattenedItems.findIndex(i => i.id === depId);
-                    const endIdx = flattenedItems.findIndex(i => i.id === id);
-                    if (startIdx === -1 || endIdx === -1) return null;
-
-                    const depEnd = new Date(depTask.endDate);
-                    const myStart = new Date(task.startDate);
-                    
-                    const timelineStart = range[0];
-                    const startX = (Math.ceil((depEnd.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)) + 1) * CELL_WIDTH;
-                    const endX = Math.ceil((myStart.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)) * CELL_WIDTH;
-                    
-                    const startY = startIdx * 32 + 16;
-                    const endY = endIdx * 32 + 16;
-                    
-                    // Simple path
-                    // M startX startY L endX endY ? No, ortho.
-                    // Right from start, then down/up, then right to end.
-                    const midX = startX + 10;
-                    const path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-
-                    return (
-                        <path 
-                            key={`${depId}-${id}`}
-                            d={path} 
-                            stroke="#9ca3af" 
-                            strokeWidth="1.5" 
-                            fill="none" 
-                            markerEnd="url(#arrowhead)"
-                        />
-                    );
-                })
+            {dependencyLines.map(({ key, d }) => (
+                <path
+                    key={key}
+                    d={d}
+                    stroke="#9ca3af"
+                    strokeWidth="1.5"
+                    fill="none"
+                    markerEnd="url(#arrowhead)"
+                />
             ))}
             
             {/* Dragging Line */}
@@ -304,6 +301,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
                  return (
                    <div 
+                     ref={el => {
+                       if (el) {
+                         taskBarRefs.current.set(id, el);
+                       } else {
+                         taskBarRefs.current.delete(id);
+                       }
+                     }}
                      data-task-id={id}
                      className={clsx(
                         "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group",
