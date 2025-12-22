@@ -19,7 +19,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
   const flattenedItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
 
-  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string }>>([]);
+  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Determine timeline range
@@ -35,6 +35,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
   const updateTask = useTaskStore(state => state.updateTask);
   const addDependency = useTaskStore(state => state.addDependency);
+  const removeDependency = useTaskStore(state => state.removeDependency);
 
   // Drag & Drop State
   const [dragState, setDragState] = React.useState<{
@@ -146,7 +147,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, updateTask, addDependency]);
+  }, [dragState, updateTask, addDependency, removeDependency]);
 
   useLayoutEffect(() => {
     const lines = [];
@@ -206,7 +207,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                                 L ${endX} ${endY}`;
                     }
 
-                    lines.push({ key: `${depId}-${id}`, d: path });
+                    lines.push({ 
+                        key: `${depId}::${id}`, 
+                        d: path,
+                        fromId: depId,
+                        toId: id
+                    });
                 }
             }
         }
@@ -244,23 +250,40 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       {/* Gantt Rows */}
       <div className="flex-1 relative" ref={containerRef}>
         {/* SVG Layer for Dependencies - Z-10 */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ minHeight: flattenedItems.length * 32 }}>
+        <svg 
+            className="absolute inset-0 w-full h-full pointer-events-none z-10" 
+            style={{ minHeight: flattenedItems.length * 32 }}
+        >
             <defs>
                 <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                    <polygon points="0 0, 6 2, 0 4" fill="#9ca3af" />
+                    <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
                 </marker>
             </defs>
             {/* Existing Dependencies */}
-            {dependencyLines.map(({ key, d }) => (
-                <path
-                    key={key}
-                    d={d}
-                    stroke="#9ca3af"
-                    strokeWidth="1.5"
-                    fill="none"
-                    markerEnd="url(#arrowhead)"
-                />
-            ))}
+            {dependencyLines.map(({ key, d, fromId, toId }) => {
+                return (
+                    <path
+                        key={key}
+                        d={d}
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        fill="none"
+                        markerEnd="url(#arrowhead)"
+                        className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
+                        style={{ pointerEvents: 'stroke' }}
+                        onMouseDown={(e) => {
+                            // Prevent starting a draw-range when clicking or dragging from a dependency line
+                            e.stopPropagation();
+                        } }
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('この依存関係を削除しますか？')) {
+                                removeDependency(fromId, toId);
+                            }
+                        }}
+                    />
+                );
+            })}
             
             {/* Dragging Line */}
             {dragState?.mode === 'dependency' && mousePos && (
