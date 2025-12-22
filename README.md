@@ -1,73 +1,38 @@
-# React + TypeScript + Vite
+# WBS Gantt Outliner
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+WBS（作業分解構成図）をアウトライナー形式で素早く作成し、ガントチャートでスケジュールを管理するためのデスクトップアプリケーションです。
 
-Currently, two official plugins are available:
+## 主な機能
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **WBS作成:** アウトライナー形式で直感的にタスクを階層化できます。
+- **ガントチャート:** WBSと連動したガントチャートでスケジュールを可視化します。
+- **統合ビュー:** WBSとガントチャートを同時に表示・操作できます。
+- **ドラッグ＆ドロップ:** タスクの並べ替えや親子関係の変更が簡単に行えます。
+- **ファイル操作:** プロジェクトをJSON形式で保存・読み込みできます。
+- **Excelエクスポート:** 作成したWBSをExcelファイルに出力できます。
 
-## React Compiler
+## 使用技術
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- [Electron](https://www.electronjs.org/)
+- [React](https://react.dev/)
+- [Vite](https://vitejs.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Zustand](https://github.com/pmndrs/zustand)
+- [Dnd Kit](https://dndkit.com/)
 
-## Expanding the ESLint configuration
+## 開発タスク
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### TODO
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- [ ] タスクの依存関係設定
+- [ ] 実績の入力
+- [ ] 祝日設定
+- [ ] JSONファイルからのインポート機能
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### DONE
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- [x] WBSの基本的な階層化
+- [x] ガントチャートの表示
+- [x] Excelエクスポート機能
+- [x] ファイルの保存・読み込み
