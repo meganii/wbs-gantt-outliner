@@ -280,8 +280,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       {/* Timeline Header */}
       <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
         {showSidebar && (
-          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-between items-center">
-            <span>Task Name</span>
+          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-end items-center">
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
@@ -402,14 +401,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
             )}
         </svg>
 
-        {flattenedItems.map(({ id, task, depth }) => (
+        {flattenedItems.map(({ id, task }) => (
           <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"> 
-            
-            {showSidebar && (
-              <div className="w-48 flex-shrink-0 border-r border-gray-300 flex items-center px-2 text-xs truncate sticky left-0 z-40 bg-white pointer-events-auto" style={{ paddingLeft: depth * 12 + 8 }}>
-                {task.title || '(Untitled)'}
-              </div>
-            )}
             {/* Bars Area */}
             <div 
                 className="relative flex pointer-events-auto cursor-crosshair"
