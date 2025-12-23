@@ -271,6 +271,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
             value={task.duration} 
             onChange={(e) => {
               const newDuration = parseInt(e.target.value) || 0;
+              if (!task.startDate) return;
               const newEndDate = calculateEndDate(new Date(task.startDate), newDuration, []);
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
@@ -283,7 +284,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
           {/* Start Date */}
           <input 
             type="date"
-            value={task.startDate}
+            value={task.startDate || ''}
             onChange={(e) => {
                const newStartDate = e.target.value;
                if (!newStartDate) return;
@@ -299,10 +300,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
           {/* End Date */}
           <input 
             type="date"
-            value={task.endDate}
+            value={task.endDate || ''}
             onChange={(e) => {
                const newEndDate = e.target.value;
-               if (!newEndDate) return;
+               if (!newEndDate || !task.startDate) return;
                // Calculate new duration
                const start = new Date(task.startDate);
                const end = new Date(newEndDate);

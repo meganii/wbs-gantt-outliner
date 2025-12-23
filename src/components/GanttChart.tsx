@@ -13,7 +13,6 @@ import {
   endOfWeek,
   endOfYear,
   format,
-  getDaysInMonth,
   startOfMonth,
   startOfWeek,
   startOfYear,
@@ -513,7 +512,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                      style={{ left: offset, width: width - 2 }}
                      title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
                      onMouseDown={(e) => {
-                        if (e.button !== 0) return; // Only left click
+                        if (e.button !== 0 || !task.startDate || !task.endDate) return; // Only left click
                         e.stopPropagation();
                         setDragState({
                           taskId: id,
@@ -531,6 +530,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                      <div 
                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
                         onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
                             e.stopPropagation();
                             e.preventDefault();
                              setDragState({
@@ -550,6 +550,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                      <div 
                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
                         onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
                             e.stopPropagation();
                             e.preventDefault();
                              setDragState({
@@ -569,6 +570,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                      <div 
                         className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm"
                         onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
                             e.stopPropagation();
                             e.preventDefault();
                             setDragState({
