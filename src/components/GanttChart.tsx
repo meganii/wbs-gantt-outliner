@@ -1,6 +1,23 @@
 import React, { useMemo, useLayoutEffect, useState, useRef } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
-import { addDays, format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  addYears,
+  differenceInDays,
+  eachDayOfInterval,
+  eachMonthOfInterval,
+  eachWeekOfInterval,
+  eachYearOfInterval,
+  endOfMonth,
+  endOfWeek,
+  endOfYear,
+  format,
+  getDaysInMonth,
+  startOfMonth,
+  startOfWeek,
+  startOfYear,
+} from 'date-fns';
 import { flattenTree } from '../utils/tree';
 import clsx from 'clsx';
 import { isWorkDay } from '../utils/date';
@@ -16,22 +33,40 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const holidays = useTaskStore(state => state.projectConfig.calendar.holidays);
+  const viewMode = useTaskStore(state => state.projectConfig.viewMode);
+  const setViewMode = useTaskStore(state => state.setViewMode);
 
   const flattenedItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
 
   const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Determine timeline range
-  // Find min Start and max End from tasks, or default to current month
-  // For simplicity, let's show -1 week to +4 weeks from now, or based on task range.
-  const range = useMemo(() => {
+  const timeRange = useMemo(() => {
     const today = new Date();
-    // TODO: dynamically calculate from tasks
-    const start = startOfWeek(addDays(today, -7), { weekStartsOn: 1 });
-    const end = endOfWeek(addDays(today, 28), { weekStartsOn: 1 });
-    return eachDayOfInterval({ start, end });
-  }, []);
+    switch (viewMode) {
+      case 'Week': {
+        const start = startOfWeek(addDays(today, -14), { weekStartsOn: 1 });
+        const end = endOfWeek(addDays(today, 28), { weekStartsOn: 1 });
+        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+      }
+      case 'Month': {
+        const start = startOfMonth(addMonths(today, -1));
+        const end = endOfMonth(addMonths(today, 2));
+        return eachMonthOfInterval({ start, end });
+      }
+      case 'Year': {
+        const start = startOfYear(addYears(today, -1));
+        const end = endOfYear(addYears(today, 1));
+        return eachYearOfInterval({ start, end });
+      }
+      case 'Day':
+      default: {
+        const start = startOfWeek(addDays(today, -7), { weekStartsOn: 1 });
+        const end = endOfWeek(addDays(today, 28), { weekStartsOn: 1 });
+        return eachDayOfInterval({ start, end });
+      }
+    }
+  }, [viewMode]);
 
   const updateTask = useTaskStore(state => state.updateTask);
   const addDependency = useTaskStore(state => state.addDependency);
@@ -54,88 +89,100 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   const [mousePos, setMousePos] = React.useState<{x: number, y: number} | null>(null);
 
   React.useEffect(() => {
-    if (!dragState) return;
-
     const handleMouseMove = (e: MouseEvent) => {
-      // Update mouse pos for dependency line
+      if (!dragState) return;
+
       if (dragState.mode === 'dependency') {
         if (containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect();
-            setMousePos({
-                x: e.clientX - rect.left + containerRef.current.scrollLeft, // Adjust for scroll
-                y: e.clientY - rect.top + containerRef.current.scrollTop
-            });
+          const rect = containerRef.current.getBoundingClientRect();
+          setMousePos({
+            x: e.clientX - rect.left + containerRef.current.scrollLeft,
+            y: e.clientY - rect.top + containerRef.current.scrollTop,
+          });
         }
         return;
       }
 
       const deltaX = e.clientX - dragState.startX;
-      const deltaDays = Math.round(deltaX / CELL_WIDTH);
+      const daysPerPixel = differenceInDays(timeRange[timeRange.length - 1], timeRange[0]) / (timeRange.length * CELL_WIDTH);
+      const deltaDays = Math.round(deltaX * daysPerPixel);
 
-      // We only update the visual 'current' dates during drag, not the store
-      if (dragState.mode === 'move') {
-          const newStart = addDays(dragState.initialStartDate, deltaDays);
-          const newEnd = addDays(dragState.initialEndDate, deltaDays);
-          setDragState(prev => prev ? { ...prev, currentStartDate: newStart, currentEndDate: newEnd } : null);
-      } else if (dragState.mode === 'resize-left') {
-          const newStart = addDays(dragState.initialStartDate, deltaDays);
-          // Clamp: Start <= End
-          if (newStart <= dragState.initialEndDate) {
-             setDragState(prev => prev ? { ...prev, currentStartDate: newStart } : null);
+      setDragState(prev => {
+        if (!prev) return null;
+        const newDragState = { ...prev };
+
+        if (prev.mode === 'move') {
+          newDragState.currentStartDate = addDays(prev.initialStartDate, deltaDays);
+          newDragState.currentEndDate = addDays(prev.initialEndDate, deltaDays);
+        } else if (prev.mode === 'resize-left') {
+          const newStart = addDays(prev.initialStartDate, deltaDays);
+          if (newStart <= prev.initialEndDate) {
+            newDragState.currentStartDate = newStart;
           }
-      } else if (dragState.mode === 'resize-right') {
-          const newEnd = addDays(dragState.initialEndDate, deltaDays);
-           // Clamp: End >= Start
-          if (newEnd >= dragState.initialStartDate) {
-             setDragState(prev => prev ? { ...prev, currentEndDate: newEnd } : null);
+        } else if (prev.mode === 'resize-right') {
+          const newEnd = addDays(prev.initialEndDate, deltaDays);
+          if (newEnd >= prev.initialStartDate) {
+            newDragState.currentEndDate = newEnd;
           }
-      } else if (dragState.mode === 'draw-range') {
-          const currentDragDate = addDays(dragState.initialStartDate, deltaDays);
-          setDragState(prev => prev ? { ...prev, currentEndDate: currentDragDate } : null);
-      }
+        } else if (prev.mode === 'draw-range') {
+          newDragState.currentEndDate = addDays(prev.initialStartDate, deltaDays);
+        }
+        return newDragState;
+      });
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (dragState) {
-        if (dragState.mode === 'dependency') {
-             let target = e.target as HTMLElement;
-             while (target && !target.getAttribute?.('data-task-id')) {
-                 target = target.parentElement as HTMLElement;
-             }
-             
-             if (target) {
-                 const targetId = target.getAttribute('data-task-id');
-                 if (targetId && targetId !== dragState.taskId) {
-                     addDependency(dragState.taskId, targetId);
-                 }
-             }
-        } 
-        else if (dragState.mode === 'draw-range') {
-            const { taskId, currentStartDate, currentEndDate } = dragState;
-            const start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
-            const end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
-            
-            const newDuration = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-             updateTask(taskId, {
-                startDate: format(start, 'yyyy-MM-dd'),
-                endDate: format(end, 'yyyy-MM-dd'),
-                duration: newDuration
-             });
+      if (!dragState) return;
+
+      if (dragState.mode === 'dependency') {
+        let target = e.target as HTMLElement;
+        while (target && !target.getAttribute?.('data-task-id')) {
+          target = target.parentElement as HTMLElement;
         }
-        else {
-            // Commit changes for move/resize
-            const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
-            if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
-               const newDuration = Math.round((currentEndDate.getTime() - currentStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-               
-               updateTask(taskId, {
-                 startDate: format(currentStartDate, 'yyyy-MM-dd'),
-                 endDate: format(currentEndDate, 'yyyy-MM-dd'),
-                 duration: newDuration
-               });
-            }
+        if (target) {
+          const targetId = target.getAttribute('data-task-id');
+          if (targetId && targetId !== dragState.taskId) {
+            addDependency(dragState.taskId, targetId);
+          }
+        }
+      } else if (dragState.mode === 'draw-range') {
+        const { taskId, currentStartDate, currentEndDate } = dragState;
+        let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
+        let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
+
+        switch (viewMode) {
+          case 'Week':
+            start = startOfWeek(start, { weekStartsOn: 1 });
+            end = endOfWeek(end, { weekStartsOn: 1 });
+            break;
+          case 'Month':
+            start = startOfMonth(start);
+            end = endOfMonth(end);
+            break;
+          case 'Year':
+            start = startOfYear(start);
+            end = endOfYear(end);
+            break;
+        }
+
+        const newDuration = differenceInDays(end, start) + 1;
+        updateTask(taskId, {
+          startDate: format(start, 'yyyy-MM-dd'),
+          endDate: format(end, 'yyyy-MM-dd'),
+          duration: newDuration,
+        });
+      } else {
+        const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
+        if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
+          const newDuration = differenceInDays(currentEndDate, currentStartDate) + 1;
+          updateTask(taskId, {
+            startDate: format(currentStartDate, 'yyyy-MM-dd'),
+            endDate: format(currentEndDate, 'yyyy-MM-dd'),
+            duration: newDuration,
+          });
         }
       }
+
       setDragState(null);
       setMousePos(null);
     };
@@ -147,64 +194,73 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, updateTask, addDependency, removeDependency]);
+  }, [dragState, updateTask, addDependency, removeDependency, timeRange]);
+
+  const timelineMetrics = useMemo(() => {
+    const timelineStart = timeRange[0];
+    if (!timelineStart) return { timelineStart: new Date(), timelineEnd: new Date(), totalDays: 0, totalWidth: 0, pixelsPerDay: 0 };
+    let timelineEnd: Date;
+
+    switch (viewMode) {
+      case 'Week':
+        timelineEnd = endOfWeek(timeRange[timeRange.length - 1], { weekStartsOn: 1 });
+        break;
+      case 'Month':
+        timelineEnd = endOfMonth(timeRange[timeRange.length - 1]);
+        break;
+      case 'Year':
+        timelineEnd = endOfYear(timeRange[timeRange.length - 1]);
+        break;
+      case 'Day':
+      default:
+        timelineEnd = timeRange[timeRange.length - 1];
+        break;
+    }
+
+    const totalDays = differenceInDays(timelineEnd, timelineStart) + 1;
+    const totalWidth = timeRange.length * CELL_WIDTH;
+    const pixelsPerDay = totalDays > 0 ? totalWidth / totalDays : 0;
+
+    return { timelineStart, timelineEnd, totalDays, totalWidth, pixelsPerDay };
+  }, [timeRange, viewMode]);
 
   useLayoutEffect(() => {
     const lines = [];
     const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect) return;
+    if (!containerRect || !timelineMetrics.pixelsPerDay) return;
 
     for (const { id, task } of flattenedItems) {
         if (task.dependencies) {
             for (const depId of task.dependencies) {
-                const sourceTaskEl = taskBarRefs.current.get(depId);
-                const targetTaskEl = taskBarRefs.current.get(id);
+                const sourceTask = tasks[depId];
+                const targetTask = tasks[id];
 
-                if (sourceTaskEl && targetTaskEl) {
-                    const sourceRect = sourceTaskEl.getBoundingClientRect();
-                    const targetRect = targetTaskEl.getBoundingClientRect();
+                if (sourceTask && targetTask && sourceTask.endDate && targetTask.startDate) {
+                    const sourceEl = taskBarRefs.current.get(depId);
+                    const targetEl = taskBarRefs.current.get(id);
+                    if (!sourceEl || !targetEl) continue;
 
-                    // Adjust for container's scroll position
+                    const sourceRect = sourceEl.getBoundingClientRect();
+                    const targetRect = targetEl.getBoundingClientRect();
+
                     const scrollLeft = containerRef.current?.scrollLeft || 0;
                     const scrollTop = containerRef.current?.scrollTop || 0;
 
-                    // Calculate positions relative to the container's viewport
                     const startX = sourceRect.right - containerRect.left + scrollLeft;
                     const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
                     const endX = targetRect.left - containerRect.left + scrollLeft;
                     const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
 
-                    // Smart Routing
                     let path = '';
-                    const boxPadding = 20; // Distance to go out before turning
-                    // const arrowSpacing = 10; // Space before arrow hits target (Unused)
+                    const boxPadding = 20;
 
-                    // Check if simple routing works (Target is well to the right of Source)
                     if (endX > startX + boxPadding * 2) {
-                        // Simple elbow: Right -> MidX -> Down/Up -> Target
-                         const midX = startX + (endX - startX) / 2;
-                         path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+                        const midX = startX + (endX - startX) / 2;
+                        path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
                     } else {
-                        // Overlap or close routing: Go around
-                        
-                        // Revised "Around" Path:
-                        // 1. Out Right (startX + 10)
-                        // 2. Vertical to (endY +/- 12) (The gap line).
-                        //    If endY > startY (Target below), y = startY + 16 (Bottom of source row).
-                        //    If endY < startY (Target above), y = startY - 16 (Top of source row).
                         const rowHeight = 32;
-                        const verticalLaneY = endY > startY ? startY + (rowHeight/2) : startY - (rowHeight/2);
-                        
-                        // 3. Left to (endX - 10)
-                        // 4. Vertical to endY
-                        // 5. Right to endX
-                        
-                        path = `M ${startX} ${startY} 
-                                L ${startX + boxPadding} ${startY} 
-                                L ${startX + boxPadding} ${verticalLaneY}
-                                L ${endX - boxPadding} ${verticalLaneY}
-                                L ${endX - boxPadding} ${endY}
-                                L ${endX} ${endY}`;
+                        const verticalLaneY = endY > startY ? startY + (rowHeight / 2) : startY - (rowHeight / 2);
+                        path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
                     }
 
                     lines.push({ 
@@ -218,29 +274,61 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         }
     }
     setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar]); // Re-run when layout might change
+  }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none">
       {/* Timeline Header */}
       <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
         {showSidebar && (
-          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100">Task Name</div>
+          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-between items-center">
+            <span>Task Name</span>
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
+              className="text-xs p-1 border rounded"
+            >
+              <option value="Day">Day</option>
+              <option value="Week">Week</option>
+              <option value="Month">Month</option>
+              <option value="Year">Year</option>
+            </select>
+          </div>
         )}
         <div className="flex">
-          {range.map(date => {
+          {timeRange.map(date => {
             const isWknd = !isWorkDay(date, holidays);
+            let label;
+            let subLabel;
+            switch (viewMode) {
+              case 'Week':
+                label = `W${format(date, 'w')}`;
+                subLabel = `${format(date, 'M/d')}`;
+                break;
+              case 'Month':
+                label = format(date, 'MMM');
+                subLabel = format(date, 'yyyy');
+                break;
+              case 'Year':
+                label = format(date, 'yyyy');
+                subLabel = '';
+                break;
+              case 'Day':
+              default:
+                label = format(date, 'd');
+                subLabel = format(date, 'EE');
+            }
              return (
               <div 
                 key={date.toISOString()} 
                 className={clsx(
                   "flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center",
-                  isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
+                  viewMode === 'Day' && isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
                 )}
                 style={{ width: CELL_WIDTH }}
               >
-                <span>{format(date, 'd')}</span>
-                <span className="text-[8px]">{format(date, 'EE')}</span>
+                <span>{label}</span>
+                <span className="text-[8px]">{subLabel}</span>
               </div>
             );
           })}
@@ -292,9 +380,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                     if (startIdx === -1) return null;
                     
                     const task = tasks[dragState.taskId];
+                    if (!task.endDate) return null;
                     const taskEnd = new Date(task.endDate);
-                    const timelineStart = range[0];
-                    const startX = (Math.ceil((taskEnd.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24)) + 1) * CELL_WIDTH;
+                    const { timelineStart, pixelsPerDay } = timelineMetrics;
+
+                    const diffDays = differenceInDays(taskEnd, timelineStart);
+                    const startX = (diffDays + 1) * pixelsPerDay;
                     const startY = startIdx * 32 + 16;
                     
                     return (
@@ -337,8 +428,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left; // relative to row
                     // Calculate date from X
-                    const daysOffset = Math.floor(x / CELL_WIDTH);
-                    const clickedDate = addDays(range[0], daysOffset);
+                    const daysOffset = Math.floor((x / (timeRange.length * CELL_WIDTH)) * timelineMetrics.totalDays);
+                    const clickedDate = addDays(timelineMetrics.timelineStart, daysOffset);
                     
                     setDragState({
                         taskId: id,
@@ -353,8 +444,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                 }}
             >
                {/* Grid Background */}
-               {range.map(date => {
-                 const isWknd = !isWorkDay(date, holidays);
+               {timeRange.map(date => {
+                 const isWknd = viewMode === 'Day' && !isWorkDay(date, holidays);
                  return (
                   <div 
                     key={date.toISOString()}
@@ -373,16 +464,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                         const s = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
                         const e = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
                         
-                        const timelineStart = range[0];
-                        const diffDays = Math.round((s.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
-                        const offset = diffDays * CELL_WIDTH;
-                        const daySpan = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                        const width = daySpan * CELL_WIDTH;
+                        const { timelineStart, pixelsPerDay } = timelineMetrics;
+                        const diffDays = differenceInDays(s, timelineStart);
+                        const offset = diffDays * pixelsPerDay;
+                        const daySpan = differenceInDays(e, s) + 1;
+                        const width = daySpan * pixelsPerDay;
                         
                         return (
                             <div
                                 className="absolute top-1.5 h-5 border-2 border-dashed border-blue-500 bg-blue-100/30 z-30 pointer-events-none"
-                                style={{ left: offset, width: width - 2 }}
+                                style={{ left: offset, width: Math.max(0, width - 2) }}
                             />
                         );
                    })()
@@ -390,17 +481,18 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
                {/* Task Bar - Z-30 */}
                {(() => {
+                 if (!task.startDate || !task.endDate) return null;
                  // Determine which dates to use (drag state or real state)
                  const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                 const taskStart = isDragging && dragState ? dragState.currentStartDate : new Date(task.startDate);
-                 const taskEnd = isDragging && dragState ? dragState.currentEndDate : new Date(task.endDate);
+                 const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate);
+                 const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate);
                  
-                 const timelineStart = range[0];
+                 const { timelineStart, pixelsPerDay } = timelineMetrics;
                  
-                 const diffDays = Math.round((taskStart.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24));
-                 const offset = diffDays * CELL_WIDTH;
-                 const daySpan = Math.round((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                 const width = daySpan * CELL_WIDTH;
+                 const diffDays = differenceInDays(taskStart, timelineStart);
+                 const offset = diffDays * pixelsPerDay;
+                 const daySpan = differenceInDays(taskEnd, taskStart) + 1;
+                 const width = daySpan * pixelsPerDay;
 
                  if (width <= 0) return null;
 

@@ -2,8 +2,8 @@ export interface Task {
   id: string;
   parentId: string | null;
   title: string;
-  startDate: string; // ISO 8601 YYYY-MM-DD
-  endDate: string;   // ISO 8601 YYYY-MM-DD
+  startDate: string | null; // ISO 8601 YYYY-MM-DD
+  endDate: string | null;   // ISO 8601 YYYY-MM-DD
   duration: number;  // Workdays
   progress: number;  // 0-100
   isCollapsed: boolean;
@@ -16,7 +16,7 @@ export interface ProjectConfig {
     workDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
     holidays: string[]; // ISO 8601 YYYY-MM-DD strings
   };
-  viewMode: 'Day' | 'Week' | 'Month';
+  viewMode: 'Day' | 'Week' | 'Month' | 'Year';
 }
 
 export interface TaskStoreState {

@@ -123,7 +123,7 @@ function App() {
               onScroll={handleGanttScroll}
               className="flex-1 overflow-auto"
             >
-              <GanttChart />
+              <GanttChart showSidebar />
             </div>
           </>
         )}
