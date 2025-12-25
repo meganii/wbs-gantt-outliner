@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Task, ProjectConfig } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
+import { addWorkDays, calculateEndDate } from '../utils/date';
 
 interface TaskState {
   tasks: Record<string, Task>;
@@ -134,9 +135,63 @@ export const useTaskStore = create<TaskState>((set) => ({
     });
   },
 
-  updateTask: (id, updates) => set((state) => ({
-    tasks: { ...state.tasks, [id]: { ...state.tasks[id], ...updates } }
-  })),
+  updateTask: (id, updates) => set((state) => {
+    const tasks = { ...state.tasks };
+    const oldTask = tasks[id];
+    const newTask = { ...oldTask, ...updates };
+    tasks[id] = newTask;
+
+    // Date Propagation Logic
+    const needsPropagation = updates.endDate !== undefined;
+
+    if (needsPropagation) {
+      const dependents: string[] = [];
+      Object.values(tasks).forEach(task => {
+        if (task.dependencies.includes(id)) {
+          dependents.push(task.id);
+        }
+      });
+
+      let propagationQueue = [...dependents];
+      const visited = new Set(dependents);
+
+      while (propagationQueue.length > 0) {
+        const currentId = propagationQueue.shift()!;
+        const currentTask = tasks[currentId];
+
+        let maxPredecessorEndDate: Date | null = null;
+        currentTask.dependencies.forEach(depId => {
+          const depTask = tasks[depId];
+          const depEndDate = new Date(depTask.endDate);
+          if (!maxPredecessorEndDate || depEndDate > maxPredecessorEndDate) {
+            maxPredecessorEndDate = depEndDate;
+          }
+        });
+
+        if (maxPredecessorEndDate) {
+          // New start date is the day after the latest predecessor ends
+          const newStartDate = addWorkDays(maxPredecessorEndDate, 1, state.projectConfig.calendar.holidays);
+          const newEndDate = calculateEndDate(newStartDate, currentTask.duration, state.projectConfig.calendar.holidays);
+
+          tasks[currentId] = {
+            ...currentTask,
+            startDate: format(newStartDate, 'yyyy-MM-dd'),
+            endDate: format(newEndDate, 'yyyy-MM-dd'),
+          };
+
+          // Add dependents of the current task to the queue if not visited
+          Object.values(tasks).forEach(task => {
+            if (task.dependencies.includes(currentId) && !visited.has(task.id)) {
+              propagationQueue.push(task.id);
+              visited.add(task.id);
+            }
+          });
+        }
+      }
+    }
+
+    return { tasks };
+  }),
 
   deleteTask: (ids) => set((state) => {
     const idArray = Array.isArray(ids) ? ids : [ids];

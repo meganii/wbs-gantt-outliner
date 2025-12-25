@@ -357,9 +357,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       {/* Gantt Rows */}
       <div className="flex-1 relative" ref={containerRef}>
         {/* SVG Layer for Dependencies - Z-10 */}
-        <svg 
-            className="absolute inset-0 w-full h-full pointer-events-none z-10" 
-            style={{ minHeight: flattenedItems.length * 32 }}
+        <svg
+            className="absolute inset-0 h-full pointer-events-none z-10"
+            style={{
+                minHeight: flattenedItems.length * 32,
+                width: range.length * CELL_WIDTH,
+                minWidth: '100%'
+            }}
         >
             <defs>
                 <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
