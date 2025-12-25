@@ -28,6 +28,7 @@ interface TaskState {
   moveTask: (id: string | string[], direction: 'up' | 'down') => void;
   addDependency: (fromId: string, toId: string) => void;
   removeDependency: (fromId: string, toId: string) => void;
+  setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
 }
 
 const DEFAULT_CONFIG: ProjectConfig = {
@@ -70,8 +71,8 @@ export const useTaskStore = create<TaskState>((set) => ({
       id: newId,
       parentId: null, 
       title: '',
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(new Date(), 'yyyy-MM-dd'),
+      startDate: null,
+      endDate: null,
       duration: 1,
       progress: 0,
       isCollapsed: false,
@@ -525,4 +526,11 @@ export const useTaskStore = create<TaskState>((set) => ({
 
     return { tasks };
   }),
+
+  setViewMode: (viewMode) => set((state) => ({
+    projectConfig: {
+      ...state.projectConfig,
+      viewMode,
+    },
+  })),
 }));
