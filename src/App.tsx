@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
 import { useTaskStore } from './store/useTaskStore';
@@ -10,6 +10,41 @@ function App() {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
+
+  const [outlinerWidth, setOutlinerWidth] = useState(600);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing) {
+      setOutlinerWidth(e.clientX);
+    }
+  }, [isResizing]);
+
+  const outlinerScrollRef = useRef<HTMLDivElement>(null);
+  const ganttScrollRef = useRef<HTMLDivElement>(null);
+
+  const syncScroll = useCallback((source: React.RefObject<HTMLDivElement | null>, target: React.RefObject<HTMLDivElement | null>) => {
+    if (source.current && target.current) {
+      target.current.scrollTop = source.current.scrollTop;
+    }
+  }, []);
+
+  const handleOutlinerScroll = useCallback(() => {
+    syncScroll(outlinerScrollRef, ganttScrollRef);
+  }, [syncScroll]);
+
+  const handleGanttScroll = useCallback(() => {
+    syncScroll(ganttScrollRef, outlinerScrollRef);
+  }, [syncScroll]);
 
   const loadProject = (data: any) => {
     useTaskStore.setState({ 
@@ -41,22 +76,19 @@ function App() {
      exportToExcel(tasks, rootIds);
   };
 
-  const outlinerScrollRef = useRef<HTMLDivElement>(null);
-  const ganttScrollRef = useRef<HTMLDivElement>(null);
-
-  const syncScroll = useCallback((source: React.RefObject<HTMLDivElement | null>, target: React.RefObject<HTMLDivElement | null>) => {
-    if (source.current && target.current) {
-      target.current.scrollTop = source.current.scrollTop;
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
     }
-  }, []);
-
-  const handleOutlinerScroll = useCallback(() => {
-    syncScroll(outlinerScrollRef, ganttScrollRef);
-  }, [syncScroll]);
-
-  const handleGanttScroll = useCallback(() => {
-    syncScroll(ganttScrollRef, outlinerScrollRef);
-  }, [syncScroll]);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
 
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
@@ -114,10 +146,16 @@ function App() {
             <div 
               ref={outlinerScrollRef} 
               onScroll={handleOutlinerScroll}
-              className="w-[600px] border-r border-gray-200 overflow-y-auto no-scrollbar"
+              style={{ width: outlinerWidth }}
+              className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0"
             >
               <Outliner />
             </div>
+            {/* Resize Handle */}
+            <div
+              className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors z-50 flex-shrink-0"
+              onMouseDown={startResizing}
+            />
             <div 
               ref={ganttScrollRef} 
               onScroll={handleGanttScroll}
