@@ -1,4 +1,4 @@
-import React, { useMemo, useLayoutEffect, useState, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addDays,
@@ -105,6 +105,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
   }, [timeRange, viewMode, CELL_WIDTH]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  // Sync header horizontal scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (headerRef.current) {
+        headerRef.current.scrollLeft = container.scrollLeft;
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Scroll to today on mount or viewMode change
   useLayoutEffect(() => {
@@ -296,12 +312,21 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
     setDependencyLines(lines);
   }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
 
+  const sidebarWidth = showSidebar ? 100 : 0;
+
   return (
-    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none">
+    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden">
       {/* Timeline Header */}
-      <div className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300" style={{ height: HEADER_HEIGHT }}>
+      <div 
+        className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden" 
+        style={{ height: HEADER_HEIGHT }}
+        ref={headerRef}
+      >
         {showSidebar && (
-          <div className="w-48 flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-end items-center">
+          <div 
+            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-end items-center"
+            style={{ width: sidebarWidth }}
+          >
             <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
@@ -314,7 +339,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
             </select>
           </div>
         )}
-        <div className="flex">
+        <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
           {timeRange.map(date => {
             const isWknd = !isWorkDay(date, holidays);
             let label;
@@ -355,14 +380,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       </div>
 
       {/* Gantt Rows */}
-      <div className="flex-1 relative" ref={containerRef}>
+      <div className="flex-1 relative overflow-auto" ref={containerRef}>
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
-            className="absolute inset-0 h-full pointer-events-none z-10"
+            className="absolute inset-0 pointer-events-none z-10"
             style={{
                 minHeight: flattenedItems.length * 32,
-                width: range.length * CELL_WIDTH,
-                minWidth: '100%'
+                width: timeRange.length * CELL_WIDTH,
+                left: sidebarWidth
             }}
         >
             <defs>
@@ -427,10 +452,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         </svg>
 
         {flattenedItems.map(({ id, task }) => (
-          <div key={id} className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"> 
+          <div 
+            key={id} 
+            className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"
+            style={{ width: sidebarWidth + timeRange.length * CELL_WIDTH }}
+          > 
+            {showSidebar && (
+              <div 
+                className="flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-20 bg-white" 
+                style={{ width: sidebarWidth }}
+              />
+            )}
             {/* Bars Area */}
             <div 
-                className="relative flex pointer-events-auto cursor-crosshair"
+                className="relative flex pointer-events-auto cursor-crosshair h-full flex-1"
                 onMouseDown={(e) => {
                     if (e.button !== 0) return;
                     
@@ -453,19 +488,21 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                 }}
             >
                {/* Grid Background */}
-               {timeRange.map(date => {
-                 const isWknd = viewMode === 'Day' && !isWorkDay(date, holidays);
-                 return (
-                  <div 
-                    key={date.toISOString()}
-                    className={clsx(
-                      "flex-shrink-0 border-r border-gray-100 h-full",
-                      isWknd && "bg-gray-100/50"
-                    )}
-                    style={{ width: CELL_WIDTH }} 
-                  />
-                 );
-               })}
+               <div className="absolute inset-0 flex pointer-events-none">
+                  {timeRange.map(date => {
+                    const isWknd = viewMode === 'Day' && !isWorkDay(date, holidays);
+                    return (
+                      <div 
+                        key={date.toISOString()}
+                        className={clsx(
+                          "flex-shrink-0 border-r border-gray-100 h-full",
+                          isWknd && "bg-gray-100/50"
+                        )}
+                        style={{ width: CELL_WIDTH }} 
+                      />
+                    );
+                  })}
+               </div>
 
                 {/* Drawing Preview Box */}
                {dragState?.taskId === id && dragState?.mode === 'draw-range' && (
