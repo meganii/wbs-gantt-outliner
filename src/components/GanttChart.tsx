@@ -25,9 +25,17 @@ const HEADER_HEIGHT = 40;
 
 interface GanttChartProps {
   showSidebar?: boolean;
+  showNames?: boolean;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
+  onScroll?: React.UIEventHandler<HTMLDivElement>;
 }
 
-export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) => {
+export const GanttChart: React.FC<GanttChartProps> = ({ 
+  showSidebar = false,
+  showNames = false,
+  scrollRef,
+  onScroll
+}) => {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const holidays = useTaskStore(state => state.projectConfig.calendar.holidays);
@@ -38,7 +46,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
   const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const sidebarWidth = showSidebar ? 100 : 0;
+  const NAME_COLUMN_WIDTH = 200;
+  const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
 
   const CELL_WIDTH = useMemo(() => {
     switch (viewMode) {
@@ -105,7 +114,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
     return { timelineStart, timelineEnd, totalDays, totalWidth, pixelsPerDay };
   }, [timeRange, viewMode, CELL_WIDTH]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const internalContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = scrollRef || internalContainerRef;
   const headerRef = useRef<HTMLDivElement>(null);
 
   // Sync header horizontal scroll
@@ -161,7 +171,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         if (containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
           setMousePos({
-            x: e.clientX - rect.left + containerRef.current.scrollLeft - sidebarWidth,
+            x: e.clientX - rect.left + containerRef.current.scrollLeft - nameOffset,
             y: e.clientY - rect.top + containerRef.current.scrollTop,
           });
         }
@@ -259,7 +269,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode, sidebarWidth]);
+  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode]);
 
   useLayoutEffect(() => {
     const lines = [];
@@ -283,9 +293,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                     const scrollLeft = containerRef.current?.scrollLeft || 0;
                     const scrollTop = containerRef.current?.scrollTop || 0;
 
-                    const startX = sourceRect.right - containerRect.left + scrollLeft - sidebarWidth;
+                    const startX = sourceRect.right - containerRect.left + scrollLeft - nameOffset;
                     const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-                    const endX = targetRect.left - containerRect.left + scrollLeft - sidebarWidth;
+                    const endX = targetRect.left - containerRect.left + scrollLeft - nameOffset;
                     const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
 
                     let path = '';
@@ -311,31 +321,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         }
     }
     setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar, timelineMetrics, sidebarWidth]);
+  }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
 
   return (
-    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden">
+    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden relative">
       {/* Timeline Header */}
       <div 
         className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden" 
         style={{ height: HEADER_HEIGHT }}
         ref={headerRef}
       >
-        {showSidebar && (
+        {showNames && (
           <div 
-            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-20 bg-gray-100 flex justify-end items-center"
-            style={{ width: sidebarWidth }}
+            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center"
+            style={{ width: NAME_COLUMN_WIDTH }}
           >
-            <select
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
-              className="text-xs p-1 border rounded"
-            >
-              <option value="Day">Day</option>
-              <option value="Week">Week</option>
-              <option value="Month">Month</option>
-              <option value="Year">Year</option>
-            </select>
+            Task Name
           </div>
         )}
         <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
@@ -376,17 +377,40 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
             );
           })}
         </div>
+        
+        {/* Toggle Selector on the right */}
+        {showSidebar && (
+          <div className="sticky right-0 top-0 h-full bg-gray-100/90 backdrop-blur-sm border-l border-gray-300 px-3 flex items-center z-40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
+             <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
+              className="text-xs p-1.5 border border-gray-300 rounded bg-white font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all"
+            >
+              <option value="Day">Day</option>
+              <option value="Week">Week</option>
+              <option value="Month">Month</option>
+              <option value="Year">Year</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Gantt Rows */}
-      <div className="flex-1 relative overflow-auto" ref={containerRef}>
+      <div 
+        className="flex-1 relative overflow-auto" 
+        ref={containerRef}
+        onScroll={(e) => {
+            if (onScroll) onScroll(e);
+            // Internal logic for header sync is already handled by the scroll listener in useEffect
+        }}
+      >
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
             className="absolute inset-0 pointer-events-none z-10"
             style={{
                 minHeight: flattenedItems.length * 32,
                 width: timeRange.length * CELL_WIDTH,
-                left: sidebarWidth
+                left: nameOffset
             }}
         >
             <defs>
@@ -454,13 +478,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
           <div 
             key={id} 
             className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"
-            style={{ width: sidebarWidth + timeRange.length * CELL_WIDTH }}
+            style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
           > 
-            {showSidebar && (
+            {showNames && (
               <div 
-                className="flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-20 bg-white" 
-                style={{ width: sidebarWidth }}
-              />
+                className="flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 bg-white px-2 flex items-center text-xs truncate" 
+                style={{ width: NAME_COLUMN_WIDTH }}
+              >
+                {task.title}
+              </div>
             )}
             {/* Bars Area */}
             <div 
