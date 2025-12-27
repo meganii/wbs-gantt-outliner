@@ -38,6 +38,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
 
   const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const sidebarWidth = showSidebar ? 100 : 0;
 
   const CELL_WIDTH = useMemo(() => {
     switch (viewMode) {
@@ -160,7 +161,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         if (containerRef.current) {
           const rect = containerRef.current.getBoundingClientRect();
           setMousePos({
-            x: e.clientX - rect.left + containerRef.current.scrollLeft,
+            x: e.clientX - rect.left + containerRef.current.scrollLeft - sidebarWidth,
             y: e.clientY - rect.top + containerRef.current.scrollTop,
           });
         }
@@ -258,7 +259,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode]);
+  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode, sidebarWidth]);
 
   useLayoutEffect(() => {
     const lines = [];
@@ -282,9 +283,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
                     const scrollLeft = containerRef.current?.scrollLeft || 0;
                     const scrollTop = containerRef.current?.scrollTop || 0;
 
-                    const startX = sourceRect.right - containerRect.left + scrollLeft;
+                    const startX = sourceRect.right - containerRect.left + scrollLeft - sidebarWidth;
                     const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-                    const endX = targetRect.left - containerRect.left + scrollLeft;
+                    const endX = targetRect.left - containerRect.left + scrollLeft - sidebarWidth;
                     const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
 
                     let path = '';
@@ -310,9 +311,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ showSidebar = false }) =
         }
     }
     setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
-
-  const sidebarWidth = showSidebar ? 100 : 0;
+  }, [flattenedItems, tasks, showSidebar, timelineMetrics, sidebarWidth]);
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden">
