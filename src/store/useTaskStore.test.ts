@@ -12,6 +12,9 @@ describe('useTaskStore', () => {
   beforeEach(() => {
     act(() => {
       useTaskStore.setState(initialState, true);
+      // Also clear history
+      // @ts-ignore
+      useTaskStore.temporal?.getState().clear();
     });
   });
 
@@ -216,6 +219,102 @@ describe('useTaskStore', () => {
       const { tasks: updatedTasks } = useTaskStore.getState();
       // task2's start date should be the next workday after task1's new end date
       expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
+    });
+  });
+
+  describe('Undo/Redo', () => {
+    it('should undo a task addition', () => {
+        const { rootIds } = useTaskStore.getState();
+        const initialCount = rootIds.length;
+        const targetId = rootIds[0];
+
+        act(() => {
+            useTaskStore.getState().addTask(targetId, 'after');
+        });
+
+        const { rootIds: newRootIds } = useTaskStore.getState();
+        expect(newRootIds.length).toBe(initialCount + 1);
+
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+
+        const { rootIds: finalRootIds } = useTaskStore.getState();
+        expect(finalRootIds.length).toBe(initialCount);
+    });
+
+    it('should redo a task addition after undo', () => {
+        const { rootIds } = useTaskStore.getState();
+        const targetId = rootIds[0];
+
+        act(() => {
+            useTaskStore.getState().addTask(targetId, 'after');
+        });
+
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+
+        // Back to initial
+        expect(useTaskStore.getState().rootIds.length).toBe(1);
+
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().redo();
+        });
+
+        expect(useTaskStore.getState().rootIds.length).toBe(2);
+    });
+
+    it('should undo a task update', () => {
+        const { rootIds, tasks } = useTaskStore.getState();
+        const taskId = rootIds[0];
+        const initialTitle = tasks[taskId].title;
+
+        act(() => {
+            useTaskStore.getState().updateTask(taskId, { title: 'Updated Title' });
+        });
+
+        expect(useTaskStore.getState().tasks[taskId].title).toBe('Updated Title');
+
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+
+        expect(useTaskStore.getState().tasks[taskId].title).toBe(initialTitle);
+    });
+
+    it('should track history correctly through multiple changes', () => {
+        const { rootIds } = useTaskStore.getState();
+        const taskId = rootIds[0];
+
+        // Change 1
+        act(() => {
+            useTaskStore.getState().updateTask(taskId, { title: '1' });
+        });
+        // Change 2
+        act(() => {
+            useTaskStore.getState().updateTask(taskId, { title: '2' });
+        });
+
+        expect(useTaskStore.getState().tasks[taskId].title).toBe('2');
+
+        // Undo 2 -> 1
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+        expect(useTaskStore.getState().tasks[taskId].title).toBe('1');
+
+        // Undo 1 -> Initial
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+        expect(useTaskStore.getState().tasks[taskId].title).toBe('Project Root');
     });
   });
 });
