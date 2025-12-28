@@ -53,6 +53,22 @@ const initialTask: Task = {
   dependencies: [],
 };
 
+const getTaskDepth = (tasks: Record<string, Task>, id: string): number => {
+  let depth = 0;
+  let current = tasks[id];
+  while (current && current.parentId) {
+    depth++;
+    current = tasks[current.parentId];
+  }
+  return depth;
+};
+
+const getSubtreeMaxDepth = (tasks: Record<string, Task>, id: string): number => {
+  const task = tasks[id];
+  if (!task || task.children.length === 0) return 0;
+  return 1 + Math.max(...task.children.map(childId => getSubtreeMaxDepth(tasks, childId)));
+};
+
 export const useTaskStore = create<TaskState>((set) => ({
   tasks: {
     [initialTaskId]: initialTask,
@@ -84,12 +100,15 @@ export const useTaskStore = create<TaskState>((set) => ({
       const tasks = { ...state.tasks };
       const rootIds = [...state.rootIds];
       
-      // Helper to find and remove from current list is complex if not tracking parent
-      // But we have parentId in Task.
-      
       const targetTask = tasks[targetId];
       
       if (position === 'inside') {
+        // Limit depth to Level 4 (depth 3)
+        if (getTaskDepth(tasks, targetId) >= 3) {
+          console.warn('Cannot add child: Maximum depth reached (Level 4)');
+          return {};
+        }
+
         // Add as first child of targetId
         newTask.parentId = targetId;
         tasks[newId] = newTask;
@@ -136,6 +155,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   },
 
   updateTask: (id, updates) => set((state) => {
+    // ... existing updateTask logic ...
     const tasks = { ...state.tasks };
     const oldTask = tasks[id];
     const newTask = { ...oldTask, ...updates };
@@ -214,8 +234,6 @@ export const useTaskStore = create<TaskState>((set) => ({
          rootIds = rootIds.filter(rid => rid !== id);
        }
        delete tasks[id];
-       // Note: Children of deleted tasks become orphans or are deleted - currently orphan if validation doesn't clean up
-       // Ideally we should delete children recursively.
     });
     
     return { tasks, rootIds, selectedTaskIds: [] }; 
@@ -249,9 +267,6 @@ export const useTaskStore = create<TaskState>((set) => ({
     
     const tasks = { ...state.tasks };
     
-    // Sort ids by visual order (assuming they share parent, which is required for block indent usually)
-    // If mixed parents, we probably shouldn't indent mixed block.
-    // Let's assume first item defines the context.
     const firstId = idArray[0];
     const task = tasks[firstId];
     if (!task) return {};
@@ -264,31 +279,33 @@ export const useTaskStore = create<TaskState>((set) => ({
       siblings = state.rootIds;
     }
 
-    // Filter to only ids that are actually in this sibling list (sanity check)
-    // And Sort them by index
     const sortedIds = idArray
       .filter(id => siblings.includes(id))
       .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
       
     if (sortedIds.length === 0) return {};
 
-    // Logic uses the *first* (top-most) item to determine new parent (prev sibling)
     const firstIdx = siblings.indexOf(sortedIds[0]);
     if (firstIdx <= 0) return {};
     
     const newParentId = siblings[firstIdx - 1];
-    // Check if newParent is part of selection? (Cannot indent under itself)
     if (idArray.includes(newParentId)) return {}; 
     
     const newParent = tasks[newParentId];
+
+    // Limit depth check
+    const newParentDepth = getTaskDepth(tasks, newParentId);
+    for (const id of sortedIds) {
+      const subtreeDepth = getSubtreeMaxDepth(tasks, id);
+      if (newParentDepth + 1 + subtreeDepth > 3) {
+        console.warn('Cannot indent: Resulting depth exceeds Level 4');
+        return {};
+      }
+    }
     
-    // Remove all sortedIds from current siblings
     const newSiblings = siblings.filter(sid => !sortedIds.includes(sid));
-    
-    // Add all sortedIds to newParent
     const newParentChildren = [...newParent.children, ...sortedIds];
     
-    // Update relationships
     const updates: Partial<TaskState> = { tasks };
     
     if (parentId) {
