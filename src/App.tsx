@@ -73,7 +73,7 @@ function App() {
 
   const handleExport = async () => {
      const { exportToExcel } = await import('./utils/export');
-     exportToExcel(tasks, rootIds);
+     exportToExcel(tasks, rootIds, projectConfig);
   };
 
   useEffect(() => {
