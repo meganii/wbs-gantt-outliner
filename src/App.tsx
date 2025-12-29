@@ -1,8 +1,10 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
+import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
 import { useTaskStore } from './store/useTaskStore';
 import clsx from 'clsx';
+import { Undo, Redo } from 'lucide-react';
 
 function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
@@ -10,6 +12,16 @@ function App() {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
+
+  // @ts-ignore - zundo adds .temporal to the store
+  const temporalState = useTaskStore.temporal
+    ? useStore(useTaskStore.temporal, (state: any) => state)
+    : { pastStates: [], futureStates: [] };
+
+  const { undo, redo, pastStates, futureStates } = temporalState;
+
+  const canUndo = pastStates.length > 0;
+  const canRedo = futureStates.length > 0;
 
   const [outlinerWidth, setOutlinerWidth] = useState(600);
   const [isResizing, setIsResizing] = useState(false);
@@ -76,6 +88,27 @@ function App() {
      exportToExcel(tasks, rootIds);
   };
 
+  // Keyboard Shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo: Cmd+Z or Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        // @ts-ignore
+        if (useTaskStore.temporal?.getState().pastStates.length > 0) useTaskStore.temporal.getState().undo();
+      }
+      // Redo: Cmd+Shift+Z, Ctrl+Shift+Z, Cmd+Y, or Ctrl+Y
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+        e.preventDefault();
+        // @ts-ignore
+        if (useTaskStore.temporal?.getState().futureStates.length > 0) useTaskStore.temporal.getState().redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useEffect(() => {
     if (isResizing) {
       window.addEventListener('mousemove', resize);
@@ -96,7 +129,7 @@ function App() {
       <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
         <span className="font-bold text-gray-700 text-sm mr-6">WBS Gantt Outliner</span>
         
-        <div className="flex space-x-1 no-drag">
+        <div className="flex space-x-1 no-drag items-center">
           <button 
             onClick={() => setView('wbs')}
             className={clsx(
@@ -127,6 +160,25 @@ function App() {
           
           <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
           
+          <button
+            onClick={() => undo?.()}
+            disabled={!canUndo}
+            className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+            title="Undo (Cmd+Z)"
+          >
+            <Undo size={14} />
+          </button>
+          <button
+            onClick={() => redo?.()}
+            disabled={!canRedo}
+            className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+            title="Redo (Cmd+Y or Cmd+Shift+Z)"
+          >
+            <Redo size={14} />
+          </button>
+
+          <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
+
           <button onClick={handleSave} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Save</button>
           <button onClick={handleLoad} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Load</button>
           <button onClick={handleExport} className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag">Export</button>
