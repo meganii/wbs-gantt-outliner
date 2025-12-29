@@ -127,7 +127,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     
     if (e.key === 'Enter') {
       e.preventDefault();
-      // Ensure title is saved before adding new task
+      // Only update if changed; addTask will trigger focus move (and thus blur)
+      // but to be safe and atomic, we could have a combined action.
+      // For now, let's just make sure we don't double-trigger.
       if (task.title !== localTitle) {
         updateTask(taskId, { title: localTitle });
       }
@@ -135,7 +137,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     }
     if (e.key === 'Tab') {
       e.preventDefault();
-      // Save title before structural change
       if (task.title !== localTitle) {
          updateTask(taskId, { title: localTitle });
       }
