@@ -98,13 +98,13 @@ function App() {
   // Keyboard Shortcuts for Undo/Redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo: Ctrl+Z
+      // Undo: Cmd+Z or Ctrl+Z
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         // @ts-ignore
         if (useTaskStore.temporal?.getState().pastStates.length > 0) useTaskStore.temporal.getState().undo();
       }
-      // Redo: Ctrl+Shift+Z or Ctrl+Y
+      // Redo: Cmd+Shift+Z, Ctrl+Shift+Z, Cmd+Y, or Ctrl+Y
       if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
         e.preventDefault();
         // @ts-ignore
@@ -171,7 +171,7 @@ function App() {
             onClick={() => undo?.()}
             disabled={!canUndo}
             className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-            title="Undo (Ctrl+Z)"
+            title="Undo (Cmd+Z)"
           >
             <Undo size={14} />
           </button>
@@ -179,7 +179,7 @@ function App() {
             onClick={() => redo?.()}
             disabled={!canRedo}
             className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-            title="Redo (Ctrl+Shift+Z)"
+            title="Redo (Cmd+Y or Cmd+Shift+Z)"
           >
             <Redo size={14} />
           </button>

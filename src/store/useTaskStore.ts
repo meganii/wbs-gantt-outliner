@@ -544,6 +544,9 @@ export const useTaskStore = create<TaskState>()(
         tasks: state.tasks,
         rootIds: state.rootIds
       }),
+      equality: (a, b) => 
+        a.tasks === b.tasks && 
+        a.rootIds === b.rootIds
     }
   )
 );
