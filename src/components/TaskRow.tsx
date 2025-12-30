@@ -277,7 +277,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
             onChange={(e) => {
               const newDuration = parseInt(e.target.value) || 0;
               if (!task.startDate) return;
-              const newEndDate = calculateEndDate(new Date(task.startDate), newDuration, []);
+              const newEndDate = calculateEndDate(new Date(task.startDate), newDuration, useTaskStore.getState().projectConfig.calendar.holidays);
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
             }}
@@ -292,7 +292,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
             onChange={(e) => {
                const newStartDate = e.target.value;
                if (!newStartDate) return;
-               const newEndDate = calculateEndDate(new Date(newStartDate), task.duration, []);
+               const newEndDate = calculateEndDate(new Date(newStartDate), task.duration, useTaskStore.getState().projectConfig.calendar.holidays);
                const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
                updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
             }}
@@ -313,7 +313,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                const end = new Date(newEndDate);
                if (end < start) return; // Basic validation
                
-               const newDuration = getWorkDaysCount(start, end, []);
+               const newDuration = getWorkDaysCount(start, end, useTaskStore.getState().projectConfig.calendar.holidays);
                updateTask(taskId, { endDate: newEndDate, duration: newDuration });
             }}
             className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"

@@ -316,5 +316,44 @@ describe('useTaskStore', () => {
         });
         expect(useTaskStore.getState().tasks[taskId].title).toBe('Project Root');
     });
+
+    it('should restore focusedTaskId and selectedTaskIds after undo', () => {
+        const { rootIds } = useTaskStore.getState();
+        const taskId = rootIds[0];
+
+        // 1. Initial state (focused/selected are empty/null)
+        expect(useTaskStore.getState().focusedTaskId).toBeNull();
+        expect(useTaskStore.getState().selectedTaskIds).toEqual([]);
+
+        // 2. Focus and select a task
+        act(() => {
+            useTaskStore.getState().setFocusedTaskId(taskId);
+            useTaskStore.getState().setSelectedTaskIds([taskId]);
+        });
+
+        // 3. Make a change to trigger history record (zundo ignores states with only focus change due to equality check)
+        act(() => {
+            useTaskStore.getState().updateTask(taskId, { title: 'Focused Change' });
+        });
+
+        expect(useTaskStore.getState().focusedTaskId).toBe(taskId);
+        expect(useTaskStore.getState().selectedTaskIds).toEqual([taskId]);
+
+        // 4. Clear focus/selection
+        act(() => {
+            useTaskStore.getState().setFocusedTaskId(null);
+            useTaskStore.getState().setSelectedTaskIds([]);
+        });
+
+        // 5. Undo to restore title AND focus/selection
+        act(() => {
+            // @ts-ignore
+            useTaskStore.temporal?.getState().undo();
+        });
+
+        expect(useTaskStore.getState().tasks[taskId].title).toBe('Project Root');
+        expect(useTaskStore.getState().focusedTaskId).toBe(taskId);
+        expect(useTaskStore.getState().selectedTaskIds).toEqual([taskId]);
+    });
   });
 });

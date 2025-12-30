@@ -98,17 +98,26 @@ function App() {
   // Keyboard Shortcuts for Undo/Redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo: Cmd+Z or Ctrl+Z
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
+      const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
+      const isRedo = (e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y');
+
+      if (isUndo) {
         // @ts-ignore
-        if (useTaskStore.temporal?.getState().pastStates.length > 0) useTaskStore.temporal.getState().undo();
+        const temporalApi = useTaskStore.temporal?.getState();
+        if (temporalApi && temporalApi.pastStates.length > 0) {
+          e.preventDefault();
+          temporalApi.undo();
+        }
+        // If no history, we DON'T preventDefault, allowing browser-native undo in inputs
       }
-      // Redo: Cmd+Shift+Z, Ctrl+Shift+Z, Cmd+Y, or Ctrl+Y
-      if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
-        e.preventDefault();
+
+      if (isRedo) {
         // @ts-ignore
-        if (useTaskStore.temporal?.getState().futureStates.length > 0) useTaskStore.temporal.getState().redo();
+        const temporalApi = useTaskStore.temporal?.getState();
+        if (temporalApi && temporalApi.futureStates.length > 0) {
+          e.preventDefault();
+          temporalApi.redo();
+        }
       }
     };
 

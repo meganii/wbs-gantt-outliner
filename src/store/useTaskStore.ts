@@ -192,9 +192,10 @@ export const useTaskStore = create<TaskState>()(
             });
 
             if (maxPredecessorEndDate) {
+              const holidays = state.projectConfig.calendar.holidays;
               // New start date is the day after the latest predecessor ends
-              const newStartDate = addWorkDays(maxPredecessorEndDate, 1, state.projectConfig.calendar.holidays);
-              const newEndDate = calculateEndDate(newStartDate, currentTask.duration, state.projectConfig.calendar.holidays);
+              const newStartDate = addWorkDays(maxPredecessorEndDate, 1, holidays);
+              const newEndDate = calculateEndDate(newStartDate, currentTask.duration, holidays);
 
               tasks[currentId] = {
                 ...currentTask,
@@ -551,7 +552,9 @@ export const useTaskStore = create<TaskState>()(
     {
       partialize: (state) => ({
         tasks: state.tasks,
-        rootIds: state.rootIds
+        rootIds: state.rootIds,
+        focusedTaskId: state.focusedTaskId,
+        selectedTaskIds: state.selectedTaskIds
       }),
       equality: (a, b) =>
         a.tasks === b.tasks &&
