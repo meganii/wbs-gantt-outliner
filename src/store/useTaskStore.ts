@@ -15,12 +15,10 @@ interface TaskState {
   // Actions
   setFocusedTaskId: (id: string | null) => void;
   setSelectedTaskIds: (ids: string[]) => void;
-  // selectTask: (id: string, toggle: boolean, range: boolean) => void; // Implemented in component via helpers usually, or store. 
-  // Store needs sorted list for range.
   
   addTask: (targetId: string, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (ids: string | string[]) => void; // Updated signature
+  deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
   setCollapsed: (ids: string[], isCollapsed: boolean) => void;
   indentTask: (ids: string | string[]) => void;
@@ -52,6 +50,22 @@ const initialTask: Task = {
   isCollapsed: false,
   children: [],
   dependencies: [],
+};
+
+const getTaskDepth = (tasks: Record<string, Task>, id: string): number => {
+  let depth = 0;
+  let current = tasks[id];
+  while (current && current.parentId) {
+    depth++;
+    current = tasks[current.parentId];
+  }
+  return depth;
+};
+
+const getSubtreeMaxDepth = (tasks: Record<string, Task>, id: string): number => {
+  const task = tasks[id];
+  if (!task || task.children.length === 0) return 0;
+  return 1 + Math.max(...task.children.map(childId => getSubtreeMaxDepth(tasks, childId)));
 };
 
 export const useTaskStore = create<TaskState>()(
@@ -87,12 +101,15 @@ export const useTaskStore = create<TaskState>()(
           const tasks = { ...state.tasks };
           const rootIds = [...state.rootIds];
 
-          // Helper to find and remove from current list is complex if not tracking parent
-          // But we have parentId in Task.
-
           const targetTask = tasks[targetId];
 
           if (position === 'inside') {
+            // Limit depth to Level 4 (depth 3)
+            if (getTaskDepth(tasks, targetId) >= 3) {
+              console.warn('Cannot add child: Maximum depth reached (Level 4)');
+              return {};
+            }
+
             // Add as first child of targetId
             newTask.parentId = targetId;
             tasks[newId] = newTask;
@@ -165,11 +182,12 @@ export const useTaskStore = create<TaskState>()(
             let maxPredecessorEndDate: Date | null = null;
             currentTask.dependencies.forEach(depId => {
               const depTask = tasks[depId];
-          if (depTask.endDate) {
-            const depEndDate = new Date(depTask.endDate);
-            if (!maxPredecessorEndDate || depEndDate > maxPredecessorEndDate) {
-              maxPredecessorEndDate = depEndDate;
-            }
+              // Safety check for date existence
+              if (depTask && depTask.endDate) {
+                const depEndDate = new Date(depTask.endDate);
+                if (!maxPredecessorEndDate || depEndDate > maxPredecessorEndDate) {
+                  maxPredecessorEndDate = depEndDate;
+                }
               }
             });
 
@@ -287,13 +305,19 @@ export const useTaskStore = create<TaskState>()(
 
         const newParent = tasks[newParentId];
 
-        // Remove all sortedIds from current siblings
-        const newSiblings = siblings.filter(sid => !sortedIds.includes(sid));
+        // Limit depth check
+        const newParentDepth = getTaskDepth(tasks, newParentId);
+        for (const id of sortedIds) {
+          const subtreeDepth = getSubtreeMaxDepth(tasks, id);
+          if (newParentDepth + 1 + subtreeDepth > 3) {
+            console.warn('Cannot indent: Resulting depth exceeds Level 4');
+            return {};
+          }
+        }
 
-        // Add all sortedIds to newParent
+        const newSiblings = siblings.filter(sid => !sortedIds.includes(sid));
         const newParentChildren = [...newParent.children, ...sortedIds];
 
-        // Update relationships
         const updates: Partial<TaskState> = { tasks };
 
         if (parentId) {
@@ -379,14 +403,12 @@ export const useTaskStore = create<TaskState>()(
         const activeTask = tasks[activeId];
         const overTask = tasks[overId];
 
-        // Prevent moving parent into its own child (cycle check)
         let current = overTask;
         while (current.parentId) {
-          if (current.parentId === activeId) return {}; // Cycle detected
+          if (current.parentId === activeId) return {};
           current = tasks[current.parentId];
         }
 
-        // 1. Remove active from old location
         if (activeTask.parentId) {
           const parent = tasks[activeTask.parentId];
           tasks[activeTask.parentId] = {
@@ -454,25 +476,12 @@ export const useTaskStore = create<TaskState>()(
 
         if (direction === 'up') {
            if (firstIdx === 0) return {};
-           // Start of block is at firstIdx.
-           // Prev sibling is at firstIdx - 1.
-
-           // Remove block
            siblings.splice(firstIdx, sortedIds.length);
-           // Insert block before prev sibling (at firstIdx - 1)
            siblings.splice(firstIdx - 1, 0, ...sortedIds);
 
         } else {
-           // Move Down
            if (lastIdx === siblings.length - 1) return {};
-
-           // Remove block
            siblings.splice(firstIdx, sortedIds.length);
-           // Insert block after next sibling
-           // Next sibling was at lastIdx + 1.
-           // After removal, next sibling is at firstIdx (since we removed 'length' items, and next was at first + length)
-           // So we want to insert AFTER next sibling.
-           // Insert at firstIdx + 1.
            siblings.splice(firstIdx + 1, 0, ...sortedIds);
         }
 
@@ -544,8 +553,8 @@ export const useTaskStore = create<TaskState>()(
         tasks: state.tasks,
         rootIds: state.rootIds
       }),
-      equality: (a, b) => 
-        a.tasks === b.tasks && 
+      equality: (a, b) =>
+        a.tasks === b.tasks &&
         a.rootIds === b.rootIds
     }
   )

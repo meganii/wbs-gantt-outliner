@@ -67,7 +67,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    paddingLeft: `${depth * 20 + 8}px`
   };
 
   if (!task) return null;
@@ -205,67 +204,72 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
       <div className={rowStyle}>
-        {/* Drag Handle */}
-        <button 
-           className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none"
-           {...attributes} 
-           {...listeners}
-           onPointerDown={(e) => {
-             // Prioritize selection with modifiers over dragging
-             if (e.shiftKey || e.metaKey || e.ctrlKey) {
-               e.preventDefault();
-               e.stopPropagation();
-               if (onSelectionChange) {
-                 onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
+        <div 
+          className="flex items-center flex-1 min-w-0" 
+          style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        >
+          {/* Drag Handle */}
+          <button 
+             className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none flex-shrink-0"
+             {...attributes} 
+             {...listeners}
+             onPointerDown={(e) => {
+               // Prioritize selection with modifiers over dragging
+               if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                 e.preventDefault();
+                 e.stopPropagation();
+                 if (onSelectionChange) {
+                   onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
+                 }
+                 return;
                }
-               return;
-             }
-             // Otherwise, pass to dnd-kit
-             listeners?.onPointerDown(e);
-           }}
-           onClick={(e) => {
-             // Click without drag (fallback for simple click if dnd doesn't consume)
-             if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
-                onSelectionChange(taskId, false, false);
-             }
-           }}
-        >
-          <GripVertical size={14} />
-        </button>
+               // Otherwise, pass to dnd-kit
+               listeners?.onPointerDown(e);
+             }}
+             onClick={(e) => {
+               // Click without drag (fallback for simple click if dnd doesn't consume)
+               if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
+                  onSelectionChange(taskId, false, false);
+               }
+             }}
+          >
+            <GripVertical size={14} />
+          </button>
 
-        {/* Collapse/Expand */}
-        <button 
-          onClick={() => toggleCollapse(taskId)}
-          className={clsx(
-            "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1",
-            task.children.length === 0 && "invisible"
-          )}
-        >
-          {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-        </button>
+          {/* Collapse/Expand */}
+          <button 
+            onClick={() => toggleCollapse(taskId)}
+            className={clsx(
+              "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1 flex-shrink-0",
+              task.children.length === 0 && "invisible"
+            )}
+          >
+            {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
 
-        {/* WBS Number */}
-        <span className="text-xs text-gray-500 font-mono mr-2 min-w-[24px] text-right select-none">
-          {wbsNumber}
-        </span>
+          {/* WBS Number */}
+          <span className="text-xs text-gray-500 font-mono mr-2 min-w-[36px] text-right select-none flex-shrink-0">
+            {wbsNumber}
+          </span>
 
-        {/* Title Input */}
-        <input
-          ref={inputRef}
-          type="text"
-          value={localTitle}
-          onChange={(e) => setLocalTitle(e.target.value)}
-          onBlur={handleBlur}
-          onFocus={() => setFocusedTaskId(taskId)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => { isComposing.current = true; }}
-          onCompositionEnd={() => { isComposing.current = false; }}
-          placeholder="New Task"
-          className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300"
-        />
+          {/* Title Input */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={localTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={handleBlur}
+            onFocus={() => setFocusedTaskId(taskId)}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => { isComposing.current = true; }}
+            onCompositionEnd={() => { isComposing.current = false; }}
+            placeholder="New Task"
+            className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300 truncate"
+          />
+        </div>
 
         {/* Dates & Metadata */}
-        <div className="flex items-center space-x-2 text-xs text-gray-500 mr-4 opacity-50 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center space-x-2 text-xs text-gray-500 mr-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
           {/* Duration */}
           <input 
             type="number" 
@@ -277,10 +281,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
             }}
-            className="bg-transparent w-12 text-right outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
+            className="bg-transparent w-8 text-right outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
             title="Duration (days)"
           />
-          <span className="text-gray-400">days</span>
           
           {/* Start Date */}
           <input 
@@ -293,7 +296,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
                updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600"
+            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
 
           <span className="text-gray-400">-</span>
@@ -313,7 +316,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                const newDuration = getWorkDaysCount(start, end, []);
                updateTask(taskId, { endDate: newEndDate, duration: newDuration });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600"
+            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
         </div>
       </div>
