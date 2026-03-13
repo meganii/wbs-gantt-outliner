@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useTaskStore } from './useTaskStore';
+import { getTemporalState, loadProjectState, useTaskStore } from './useTaskStore';
 import { act } from '@testing-library/react';
 
 // To properly test the store, we need to interact with it outside of a React component.
@@ -12,9 +12,7 @@ describe('useTaskStore', () => {
   beforeEach(() => {
     act(() => {
       useTaskStore.setState(initialState, true);
-      // Also clear history
-      // @ts-ignore
-      useTaskStore.temporal?.getState().clear();
+      getTemporalState().clear();
     });
   });
 
@@ -72,6 +70,44 @@ describe('useTaskStore', () => {
       const { tasks, rootIds: newRootIds } = useTaskStore.getState();
       expect(newRootIds.length).toBe(0);
       expect(tasks[targetId]).toBeUndefined();
+    });
+
+    it('should delete descendants and dependency references together', () => {
+      const parentId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parentId, 'inside');
+      });
+      const childId = useTaskStore.getState().tasks[parentId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(childId, 'inside');
+      });
+      const grandChildId = useTaskStore.getState().tasks[childId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parentId, 'after');
+      });
+      const siblingId = useTaskStore.getState().rootIds[1];
+
+      act(() => {
+        useTaskStore.getState().addDependency(childId, siblingId);
+        useTaskStore.getState().setFocusedTaskId(childId);
+        useTaskStore.getState().setSelectedTaskIds([parentId, childId]);
+      });
+
+      act(() => {
+        useTaskStore.getState().deleteTask(parentId);
+      });
+
+      const { tasks, rootIds, focusedTaskId, selectedTaskIds } = useTaskStore.getState();
+      expect(tasks[parentId]).toBeUndefined();
+      expect(tasks[childId]).toBeUndefined();
+      expect(tasks[grandChildId]).toBeUndefined();
+      expect(rootIds).toEqual([siblingId]);
+      expect(tasks[siblingId].dependencies).toEqual([]);
+      expect(focusedTaskId).toBeNull();
+      expect(selectedTaskIds).toEqual([]);
     });
   });
 
@@ -236,8 +272,7 @@ describe('useTaskStore', () => {
         expect(newRootIds.length).toBe(initialCount + 1);
 
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
 
         const { rootIds: finalRootIds } = useTaskStore.getState();
@@ -253,16 +288,14 @@ describe('useTaskStore', () => {
         });
 
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
 
         // Back to initial
         expect(useTaskStore.getState().rootIds.length).toBe(1);
 
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().redo();
+            getTemporalState().redo();
         });
 
         expect(useTaskStore.getState().rootIds.length).toBe(2);
@@ -280,8 +313,7 @@ describe('useTaskStore', () => {
         expect(useTaskStore.getState().tasks[taskId].title).toBe('Updated Title');
 
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
 
         expect(useTaskStore.getState().tasks[taskId].title).toBe(initialTitle);
@@ -304,15 +336,13 @@ describe('useTaskStore', () => {
 
         // Undo 2 -> 1
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
         expect(useTaskStore.getState().tasks[taskId].title).toBe('1');
 
         // Undo 1 -> Initial
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
         expect(useTaskStore.getState().tasks[taskId].title).toBe('Project Root');
     });
@@ -347,13 +377,46 @@ describe('useTaskStore', () => {
 
         // 5. Undo to restore title AND focus/selection
         act(() => {
-            // @ts-ignore
-            useTaskStore.temporal?.getState().undo();
+            getTemporalState().undo();
         });
 
         expect(useTaskStore.getState().tasks[taskId].title).toBe('Project Root');
         expect(useTaskStore.getState().focusedTaskId).toBe(taskId);
         expect(useTaskStore.getState().selectedTaskIds).toEqual([taskId]);
+    });
+
+    it('should clear undo history after loading a project', () => {
+        const rootTaskId = useTaskStore.getState().rootIds[0];
+
+        act(() => {
+            useTaskStore.getState().updateTask(rootTaskId, { title: 'Before Load' });
+        });
+
+        expect(getTemporalState().pastStates.length).toBeGreaterThan(0);
+
+        act(() => {
+            loadProjectState({
+                tasks: {
+                    imported: {
+                        id: 'imported',
+                        parentId: null,
+                        title: 'Imported Root',
+                        startDate: '2024-02-01',
+                        endDate: '2024-02-01',
+                        duration: 1,
+                        progress: 0,
+                        isCollapsed: false,
+                        children: [],
+                        dependencies: [],
+                    },
+                },
+                rootIds: ['imported'],
+            });
+        });
+
+        expect(useTaskStore.getState().rootIds).toEqual(['imported']);
+        expect(getTemporalState().pastStates).toEqual([]);
+        expect(getTemporalState().futureStates).toEqual([]);
     });
   });
 });

@@ -1,38 +1,32 @@
-import { create } from 'zustand';
-import { temporal } from 'zundo';
-import type { Task, ProjectConfig } from '../types';
+import { create, type StoreApi } from 'zustand';
+import { temporal, type TemporalState } from 'zundo';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
-import { addWorkDays, calculateEndDate } from '../utils/date';
+import type { ProjectConfig, Task, TaskStoreState } from '../types';
+import {
+  deleteTasksAndCleanup,
+  getSubtreeMaxDepth,
+  getTaskDepth,
+  normalizeProjectState,
+  propagateDependencyDates,
+} from './taskStoreUtils';
 
-interface TaskState {
+export interface ProjectData {
   tasks: Record<string, Task>;
-  rootIds: string[]; // Top-level ordered IDs
-  projectConfig: ProjectConfig;
-  focusedTaskId: string | null;
-  selectedTaskIds: string[]; // Set of selected IDs
-
-  // Actions
-  setFocusedTaskId: (id: string | null) => void;
-  setSelectedTaskIds: (ids: string[]) => void;
-  
-  addTask: (targetId: string, position?: 'after' | 'inside') => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (ids: string | string[]) => void;
-  toggleCollapse: (id: string) => void;
-  setCollapsed: (ids: string[], isCollapsed: boolean) => void;
-  indentTask: (ids: string | string[]) => void;
-  outdentTask: (ids: string | string[]) => void;
-  reorderTask: (activeId: string, overId: string) => void;
-  moveTask: (id: string | string[], direction: 'up' | 'down') => void;
-  addDependency: (fromId: string, toId: string) => void;
-  removeDependency: (fromId: string, toId: string) => void;
-  setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
+  rootIds: string[];
+  projectConfig?: ProjectConfig;
 }
+
+type TaskStoreHistoryState = Pick<
+  TaskStoreState,
+  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'selectedTaskIds'
+>;
+
+type TaskTemporalStore = StoreApi<TemporalState<TaskStoreHistoryState>>;
 
 const DEFAULT_CONFIG: ProjectConfig = {
   calendar: {
-    workDays: [1, 2, 3, 4, 5], 
+    workDays: [1, 2, 3, 4, 5],
     holidays: [],
   },
   viewMode: 'Day',
@@ -52,23 +46,7 @@ const initialTask: Task = {
   dependencies: [],
 };
 
-const getTaskDepth = (tasks: Record<string, Task>, id: string): number => {
-  let depth = 0;
-  let current = tasks[id];
-  while (current && current.parentId) {
-    depth++;
-    current = tasks[current.parentId];
-  }
-  return depth;
-};
-
-const getSubtreeMaxDepth = (tasks: Record<string, Task>, id: string): number => {
-  const task = tasks[id];
-  if (!task || task.children.length === 0) return 0;
-  return 1 + Math.max(...task.children.map(childId => getSubtreeMaxDepth(tasks, childId)));
-};
-
-export const useTaskStore = create<TaskState>()(
+const taskStore = create<TaskStoreState>()(
   temporal(
     (set) => ({
       tasks: {
@@ -100,118 +78,76 @@ export const useTaskStore = create<TaskState>()(
         set((state) => {
           const tasks = { ...state.tasks };
           const rootIds = [...state.rootIds];
-
           const targetTask = tasks[targetId];
 
+          if (!targetTask) {
+            return {};
+          }
+
           if (position === 'inside') {
-            // Limit depth to Level 4 (depth 3)
             if (getTaskDepth(tasks, targetId) >= 3) {
               console.warn('Cannot add child: Maximum depth reached (Level 4)');
               return {};
             }
 
-            // Add as first child of targetId
             newTask.parentId = targetId;
             tasks[newId] = newTask;
-
-            // Update parent's children
             tasks[targetId] = {
-              ...tasks[targetId],
-              children: [newTask.id, ...tasks[targetId].children],
-              isCollapsed: false, // Auto-expand
+              ...targetTask,
+              children: [newTask.id, ...targetTask.children],
+              isCollapsed: false,
             };
 
             return { tasks, focusedTaskId: newId };
           }
-          else {
-            // 'after': Add as sibling after targetId
-            const parentId = targetTask.parentId;
-            newTask.parentId = parentId;
-            tasks[newId] = newTask;
 
-            if (parentId === null) {
-              // It's a root task
-              const idx = rootIds.indexOf(targetId);
-              if (idx !== -1) {
-                rootIds.splice(idx + 1, 0, newId);
-              } else {
-                rootIds.push(newId);
-              }
-              return { tasks, rootIds, focusedTaskId: newId };
+          const parentId = targetTask.parentId;
+          newTask.parentId = parentId;
+          tasks[newId] = newTask;
+
+          if (parentId === null) {
+            const idx = rootIds.indexOf(targetId);
+            if (idx !== -1) {
+              rootIds.splice(idx + 1, 0, newId);
             } else {
-              // It's a child task
-              const parent = tasks[parentId];
-              const siblings = [...parent.children];
-              const idx = siblings.indexOf(targetId);
-              if (idx !== -1) {
-                siblings.splice(idx + 1, 0, newId);
-              } else {
-                siblings.push(newId);
-              }
-               tasks[parentId] = { ...parent, children: siblings };
-               return { tasks, focusedTaskId: newId };
+              rootIds.push(newId);
             }
+            return { tasks, rootIds, focusedTaskId: newId };
           }
+
+          const parent = tasks[parentId];
+          if (!parent) {
+            rootIds.push(newId);
+            tasks[newId] = { ...newTask, parentId: null };
+            return { tasks, rootIds, focusedTaskId: newId };
+          }
+
+          const siblings = [...parent.children];
+          const idx = siblings.indexOf(targetId);
+          if (idx !== -1) {
+            siblings.splice(idx + 1, 0, newId);
+          } else {
+            siblings.push(newId);
+          }
+          tasks[parentId] = { ...parent, children: siblings };
+
+          return { tasks, focusedTaskId: newId };
         });
       },
 
       updateTask: (id, updates) => set((state) => {
-        const tasks = { ...state.tasks };
-        const oldTask = tasks[id];
-        const newTask = { ...oldTask, ...updates };
-        tasks[id] = newTask;
+        const oldTask = state.tasks[id];
+        if (!oldTask) {
+          return {};
+        }
 
-        // Date Propagation Logic
-        const needsPropagation = updates.endDate !== undefined;
+        let tasks = {
+          ...state.tasks,
+          [id]: { ...oldTask, ...updates },
+        };
 
-        if (needsPropagation) {
-          const dependents: string[] = [];
-          Object.values(tasks).forEach(task => {
-            if (task.dependencies.includes(id)) {
-              dependents.push(task.id);
-            }
-          });
-
-          let propagationQueue = [...dependents];
-          const visited = new Set(dependents);
-
-          while (propagationQueue.length > 0) {
-            const currentId = propagationQueue.shift()!;
-            const currentTask = tasks[currentId];
-
-            let maxPredecessorEndDate: Date | null = null;
-            currentTask.dependencies.forEach(depId => {
-              const depTask = tasks[depId];
-              // Safety check for date existence
-              if (depTask && depTask.endDate) {
-                const depEndDate = new Date(depTask.endDate);
-                if (!maxPredecessorEndDate || depEndDate > maxPredecessorEndDate) {
-                  maxPredecessorEndDate = depEndDate;
-                }
-              }
-            });
-
-            if (maxPredecessorEndDate) {
-              const holidays = state.projectConfig.calendar.holidays;
-              // New start date is the day after the latest predecessor ends
-              const newStartDate = addWorkDays(maxPredecessorEndDate, 1, holidays);
-              const newEndDate = calculateEndDate(newStartDate, currentTask.duration, holidays);
-
-              tasks[currentId] = {
-                ...currentTask,
-                startDate: format(newStartDate, 'yyyy-MM-dd'),
-                endDate: format(newEndDate, 'yyyy-MM-dd'),
-              };
-
-              // Add dependents of the current task to the queue if not visited
-              Object.values(tasks).forEach(task => {
-                if (task.dependencies.includes(currentId) && !visited.has(task.id)) {
-                  propagationQueue.push(task.id);
-                  visited.add(task.id);
-                }
-              });
-            }
-          }
+        if (updates.endDate !== undefined) {
+          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar);
         }
 
         return { tasks };
@@ -219,47 +155,36 @@ export const useTaskStore = create<TaskState>()(
 
       deleteTask: (ids) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
-        const tasks = { ...state.tasks };
-        let rootIds = [...state.rootIds];
+        const nextGraph = deleteTasksAndCleanup(
+          { tasks: state.tasks, rootIds: state.rootIds },
+          idArray
+        );
 
-        idArray.forEach(id => {
-           const task = tasks[id];
-           if (!task) return;
-
-           if (task.parentId) {
-             const parent = tasks[task.parentId];
-             if (parent) {
-               tasks[task.parentId] = {
-                 ...parent,
-                 children: parent.children.filter(childId => childId !== id)
-               };
-             }
-           } else {
-             rootIds = rootIds.filter(rid => rid !== id);
-           }
-           delete tasks[id];
-           // Note: Children of deleted tasks become orphans or are deleted - currently orphan if validation doesn't clean up
-           // Ideally we should delete children recursively.
-        });
-
-        return { tasks, rootIds, selectedTaskIds: [] };
+        return {
+          tasks: nextGraph.tasks,
+          rootIds: nextGraph.rootIds,
+          focusedTaskId: state.focusedTaskId && nextGraph.tasks[state.focusedTaskId] ? state.focusedTaskId : null,
+          selectedTaskIds: state.selectedTaskIds.filter((id) => nextGraph.tasks[id]),
+        };
       }),
 
       toggleCollapse: (id) => set((state) => {
         const task = state.tasks[id];
-        if (!task) return {};
+        if (!task) {
+          return {};
+        }
 
         return {
           tasks: {
             ...state.tasks,
-            [id]: { ...task, isCollapsed: !task.isCollapsed }
-          }
+            [id]: { ...task, isCollapsed: !task.isCollapsed },
+          },
         };
       }),
 
-      setCollapsed: (ids: string[], isCollapsed: boolean) => set((state) => {
+      setCollapsed: (ids, isCollapsed) => set((state) => {
         const tasks = { ...state.tasks };
-        ids.forEach(id => {
+        ids.forEach((id) => {
           if (tasks[id]) {
             tasks[id] = { ...tasks[id], isCollapsed };
           }
@@ -267,46 +192,48 @@ export const useTaskStore = create<TaskState>()(
         return { tasks };
       }),
 
-      indentTask: (ids: string | string[]) => set((state) => {
+      indentTask: (ids) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) return {};
-
-        const tasks = { ...state.tasks };
-
-        // Sort ids by visual order (assuming they share parent, which is required for block indent usually)
-        // If mixed parents, we probably shouldn't indent mixed block.
-        // Let's assume first item defines the context.
-        const firstId = idArray[0];
-        const task = tasks[firstId];
-        if (!task) return {};
-
-        const parentId = task.parentId;
-        let siblings: string[];
-        if (parentId) {
-          siblings = tasks[parentId].children;
-        } else {
-          siblings = state.rootIds;
+        if (idArray.length === 0) {
+          return {};
         }
 
-        // Filter to only ids that are actually in this sibling list (sanity check)
-        // And Sort them by index
+        const tasks = { ...state.tasks };
+        const firstId = idArray[0];
+        const task = tasks[firstId];
+        if (!task) {
+          return {};
+        }
+
+        const parentId = task.parentId;
+        const siblings = parentId ? tasks[parentId]?.children : state.rootIds;
+        if (!siblings) {
+          return {};
+        }
+
         const sortedIds = idArray
-          .filter(id => siblings.includes(id))
+          .filter((id) => siblings.includes(id))
           .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
 
-        if (sortedIds.length === 0) return {};
+        if (sortedIds.length === 0) {
+          return {};
+        }
 
-        // Logic uses the *first* (top-most) item to determine new parent (prev sibling)
         const firstIdx = siblings.indexOf(sortedIds[0]);
-        if (firstIdx <= 0) return {};
+        if (firstIdx <= 0) {
+          return {};
+        }
 
         const newParentId = siblings[firstIdx - 1];
-        // Check if newParent is part of selection? (Cannot indent under itself)
-        if (idArray.includes(newParentId)) return {};
+        if (idArray.includes(newParentId)) {
+          return {};
+        }
 
         const newParent = tasks[newParentId];
+        if (!newParent) {
+          return {};
+        }
 
-        // Limit depth check
         const newParentDepth = getTaskDepth(tasks, newParentId);
         for (const id of sortedIds) {
           const subtreeDepth = getSubtreeMaxDepth(tasks, id);
@@ -316,10 +243,9 @@ export const useTaskStore = create<TaskState>()(
           }
         }
 
-        const newSiblings = siblings.filter(sid => !sortedIds.includes(sid));
+        const newSiblings = siblings.filter((sid) => !sortedIds.includes(sid));
         const newParentChildren = [...newParent.children, ...sortedIds];
-
-        const updates: Partial<TaskState> = { tasks };
+        const updates: Partial<TaskStoreState> = { tasks };
 
         if (parentId) {
           tasks[parentId] = { ...tasks[parentId], children: newSiblings };
@@ -330,59 +256,65 @@ export const useTaskStore = create<TaskState>()(
         tasks[newParentId] = {
           ...newParent,
           children: newParentChildren,
-          isCollapsed: false
+          isCollapsed: false,
         };
 
-        sortedIds.forEach(id => {
+        sortedIds.forEach((id) => {
           tasks[id] = { ...tasks[id], parentId: newParentId };
         });
 
         return updates;
       }),
 
-      outdentTask: (ids: string | string[]) => set((state) => {
+      outdentTask: (ids) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) return {};
+        if (idArray.length === 0) {
+          return {};
+        }
 
         const tasks = { ...state.tasks };
         const firstId = idArray[0];
         const task = tasks[firstId];
-        if (!task.parentId) return {}; // Already root
+        if (!task?.parentId) {
+          return {};
+        }
 
         const currentParent = tasks[task.parentId];
+        if (!currentParent) {
+          return {};
+        }
 
-        // Same logic: Verify and sort
         const currentSiblings = currentParent.children;
         const sortedIds = idArray
-          .filter(id => currentSiblings.includes(id))
+          .filter((id) => currentSiblings.includes(id))
           .sort((a, b) => currentSiblings.indexOf(a) - currentSiblings.indexOf(b));
 
-        if (sortedIds.length === 0) return {};
+        if (sortedIds.length === 0) {
+          return {};
+        }
 
-        // Remove all ids from current parent
-        const newSiblings = currentSiblings.filter(sid => !sortedIds.includes(sid));
-
-        // Identify new context
+        const newSiblings = currentSiblings.filter((sid) => !sortedIds.includes(sid));
         let newContextIds: string[];
         let grandParentId: string | null = null;
 
         if (currentParent.parentId) {
           grandParentId = currentParent.parentId;
-          newContextIds = [...tasks[grandParentId].children];
+          const grandParent = tasks[grandParentId];
+          if (!grandParent) {
+            return {};
+          }
+          newContextIds = [...grandParent.children];
         } else {
           newContextIds = [...state.rootIds];
         }
 
-        // Insert after current parent
         const parentIdx = newContextIds.indexOf(task.parentId);
         newContextIds.splice(parentIdx + 1, 0, ...sortedIds);
 
-        // Update
-        const updates: Partial<TaskState> = { tasks };
+        const updates: Partial<TaskStoreState> = { tasks };
 
         tasks[task.parentId] = { ...currentParent, children: newSiblings };
-
-        sortedIds.forEach(id => {
+        sortedIds.forEach((id) => {
           tasks[id] = { ...tasks[id], parentId: grandParentId };
         });
 
@@ -395,42 +327,56 @@ export const useTaskStore = create<TaskState>()(
         return updates;
       }),
 
-      reorderTask: (activeId: string, overId: string) => set((state) => {
-        if (activeId === overId) return {};
+      reorderTask: (activeId, overId) => set((state) => {
+        if (activeId === overId) {
+          return {};
+        }
 
         const tasks = { ...state.tasks };
         const rootIds = [...state.rootIds];
-
         const activeTask = tasks[activeId];
         const overTask = tasks[overId];
 
+        if (!activeTask || !overTask) {
+          return {};
+        }
+
         let current = overTask;
         while (current.parentId) {
-          if (current.parentId === activeId) return {};
-          current = tasks[current.parentId];
+          if (current.parentId === activeId) {
+            return {};
+          }
+          const parent = tasks[current.parentId];
+          if (!parent) {
+            break;
+          }
+          current = parent;
         }
 
         if (activeTask.parentId) {
           const parent = tasks[activeTask.parentId];
-          tasks[activeTask.parentId] = {
-            ...parent,
-            children: parent.children.filter(id => id !== activeId)
-          };
+          if (parent) {
+            tasks[activeTask.parentId] = {
+              ...parent,
+              children: parent.children.filter((id) => id !== activeId),
+            };
+          }
         } else {
           const idx = rootIds.indexOf(activeId);
-          if (idx !== -1) rootIds.splice(idx, 1);
+          if (idx !== -1) {
+            rootIds.splice(idx, 1);
+          }
         }
 
-        // 2. Insert at new location (after overTask)
-        // We want to insert AFTER the overTask among its siblings.
-        let newParentId = overTask.parentId;
-
-        // If we are moving it to root level
+        const newParentId = overTask.parentId;
         if (!newParentId) {
           const idx = rootIds.indexOf(overId);
           rootIds.splice(idx + 1, 0, activeId);
         } else {
           const parent = tasks[newParentId];
+          if (!parent) {
+            return {};
+          }
           const siblings = [...parent.children];
           const idx = siblings.indexOf(overId);
           siblings.splice(idx + 1, 0, activeId);
@@ -444,69 +390,84 @@ export const useTaskStore = create<TaskState>()(
 
       moveTask: (ids, direction) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) return {};
-
-        const tasks = { ...state.tasks };
-
-        const firstId = idArray[0];
-        const task = tasks[firstId];
-        const parentId = task.parentId;
-
-        let siblings: string[];
-        if (parentId) {
-           siblings = [...tasks[parentId].children];
-        } else {
-           siblings = [...state.rootIds];
+        if (idArray.length === 0) {
+          return {};
         }
 
-        // Sort and Check Connectivity
+        const tasks = { ...state.tasks };
+        const firstId = idArray[0];
+        const task = tasks[firstId];
+        if (!task) {
+          return {};
+        }
+
+        const parentId = task.parentId;
+        const siblings = parentId ? [...(tasks[parentId]?.children ?? [])] : [...state.rootIds];
+        if (siblings.length === 0) {
+          return {};
+        }
+
         const sortedIds = idArray
-          .filter(id => siblings.includes(id)) // Ensure same parent/level
+          .filter((id) => siblings.includes(id))
           .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
 
-        if (sortedIds.length === 0) return {};
+        if (sortedIds.length === 0) {
+          return {};
+        }
 
         const firstIdx = siblings.indexOf(sortedIds[0]);
         const lastIdx = siblings.indexOf(sortedIds[sortedIds.length - 1]);
 
-        // Check contiguous
         if ((lastIdx - firstIdx + 1) !== sortedIds.length) {
-           // Not contiguous - abort move to avoid corruption
-           return {};
+          return {};
         }
 
         if (direction === 'up') {
-           if (firstIdx === 0) return {};
-           siblings.splice(firstIdx, sortedIds.length);
-           siblings.splice(firstIdx - 1, 0, ...sortedIds);
-
+          if (firstIdx === 0) {
+            return {};
+          }
+          siblings.splice(firstIdx, sortedIds.length);
+          siblings.splice(firstIdx - 1, 0, ...sortedIds);
         } else {
-           if (lastIdx === siblings.length - 1) return {};
-           siblings.splice(firstIdx, sortedIds.length);
-           siblings.splice(firstIdx + 1, 0, ...sortedIds);
+          if (lastIdx === siblings.length - 1) {
+            return {};
+          }
+          siblings.splice(firstIdx, sortedIds.length);
+          siblings.splice(firstIdx + 1, 0, ...sortedIds);
         }
 
         if (parentId) {
           tasks[parentId] = { ...tasks[parentId], children: siblings };
           return { tasks };
-        } else {
-          return { tasks, rootIds: siblings };
         }
+
+        return { tasks, rootIds: siblings };
       }),
 
       addDependency: (fromId, toId) => set((state) => {
-        if (fromId === toId) return {};
+        if (fromId === toId) {
+          return {};
+        }
 
-        // Cycle check: fromId depends on toId?
-        const checkCycle = (currentId: string, targetId: string, visited: Set<string> = new Set()): boolean => {
-          if (currentId === targetId) return true;
-          if (visited.has(currentId)) return false;
+        const checkCycle = (
+          currentId: string,
+          targetId: string,
+          visited: Set<string> = new Set()
+        ): boolean => {
+          if (currentId === targetId) {
+            return true;
+          }
+          if (visited.has(currentId)) {
+            return false;
+          }
           visited.add(currentId);
 
           const task = state.tasks[currentId];
-          if (!task || !task.dependencies) return false;
+          if (!task) {
+            return false;
+          }
 
-          return task.dependencies.some(depId => checkCycle(depId, targetId, visited));
+          return task.dependencies.some((depId) => checkCycle(depId, targetId, visited));
         };
 
         if (checkCycle(fromId, toId)) {
@@ -516,14 +477,13 @@ export const useTaskStore = create<TaskState>()(
 
         const tasks = { ...state.tasks };
         const targetTask = tasks[toId];
-        if (!targetTask) return {};
-
-        // Avoid duplicate
-        if (targetTask.dependencies.includes(fromId)) return {};
+        if (!targetTask || targetTask.dependencies.includes(fromId)) {
+          return {};
+        }
 
         tasks[toId] = {
           ...targetTask,
-          dependencies: [...targetTask.dependencies, fromId]
+          dependencies: [...targetTask.dependencies, fromId],
         };
 
         return { tasks };
@@ -532,11 +492,13 @@ export const useTaskStore = create<TaskState>()(
       removeDependency: (fromId, toId) => set((state) => {
         const tasks = { ...state.tasks };
         const targetTask = tasks[toId];
-        if (!targetTask) return {};
+        if (!targetTask) {
+          return {};
+        }
 
         tasks[toId] = {
           ...targetTask,
-          dependencies: targetTask.dependencies.filter(id => id !== fromId)
+          dependencies: targetTask.dependencies.filter((id) => id !== fromId),
         };
 
         return { tasks };
@@ -553,12 +515,36 @@ export const useTaskStore = create<TaskState>()(
       partialize: (state) => ({
         tasks: state.tasks,
         rootIds: state.rootIds,
+        projectConfig: state.projectConfig,
         focusedTaskId: state.focusedTaskId,
-        selectedTaskIds: state.selectedTaskIds
+        selectedTaskIds: state.selectedTaskIds,
       }),
-      equality: (a, b) =>
+      equality: (a, b) => (
         a.tasks === b.tasks &&
-        a.rootIds === b.rootIds
+        a.rootIds === b.rootIds &&
+        a.projectConfig === b.projectConfig
+      ),
     }
   )
 );
+
+export const useTaskStore = taskStore as typeof taskStore & {
+  temporal: TaskTemporalStore;
+};
+
+export function getTemporalState(): TemporalState<TaskStoreHistoryState> {
+  return useTaskStore.temporal.getState();
+}
+
+export function loadProjectState(data: ProjectData): void {
+  const normalized = normalizeProjectState(data.tasks, data.rootIds);
+  useTaskStore.setState({
+    ...useTaskStore.getState(),
+    tasks: normalized.tasks,
+    rootIds: normalized.rootIds,
+    projectConfig: data.projectConfig ?? DEFAULT_CONFIG,
+    focusedTaskId: null,
+    selectedTaskIds: [],
+  });
+  getTemporalState().clear();
+}

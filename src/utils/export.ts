@@ -81,7 +81,7 @@ export async function exportToExcel(tasks: Record<string, Task>, rootIds: string
     // Add Month/Year info to tooltip or maybe a row above?
     // For now, let's just color the header cell if it's a holiday/weekend
     const isWeekendDay = current.getDay() === 0 || current.getDay() === 6;
-    const isHolidayDay = isHoliday(current, projectConfig.calendar.holidays);
+    const isHolidayDay = isHoliday(current, projectConfig.calendar);
 
     if (isWeekendDay || isHolidayDay) {
       cell.fill = {
@@ -144,7 +144,7 @@ export async function exportToExcel(tasks: Record<string, Task>, rootIds: string
         const cell = row.getCell(colIndex);
 
         const isWeekendDay = current.getDay() === 0 || current.getDay() === 6;
-        const isHolidayDay = isHoliday(current, projectConfig.calendar.holidays);
+        const isHolidayDay = isHoliday(current, projectConfig.calendar);
 
         // Only color if not already colored by task bar
         // Note: ExcelJS fill object is null/undefined if no fill

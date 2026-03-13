@@ -2,7 +2,7 @@ import { useRef, useCallback, useState, useEffect } from 'react';
 import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
-import { useTaskStore } from './store/useTaskStore';
+import { getTemporalState, loadProjectState, useTaskStore } from './store/useTaskStore';
 import clsx from 'clsx';
 import { Undo, Redo } from 'lucide-react';
 
@@ -13,17 +13,7 @@ function App() {
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
 
-  // Debug: Check if temporal exists
-  // @ts-ignore
-  if (!useTaskStore.temporal) {
-    console.error("Critical: useTaskStore.temporal is undefined!", useTaskStore);
-  }
-
-  // Subscribe to temporal state changes correctly using useStore
-  // @ts-ignore - TS might not know about .temporal property on the hook depending on declaration merging
-  const temporalState = useTaskStore.temporal
-    ? useStore(useTaskStore.temporal, (state: any) => state)
-    : { pastStates: [], futureStates: [] }; // Fallback to avoid crash if missing
+  const temporalState = useStore(useTaskStore.temporal, (state) => state);
 
   const { undo, redo, pastStates, futureStates } = temporalState;
 
@@ -65,14 +55,6 @@ function App() {
     syncScroll(ganttScrollRef, outlinerScrollRef);
   }, [syncScroll]);
 
-  const loadProject = (data: any) => {
-    useTaskStore.setState({ 
-      tasks: data.tasks, 
-      rootIds: data.rootIds, 
-      projectConfig: data.projectConfig 
-    });
-  };
-
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
     await window.ipcRenderer.invoke('save-file', data);
@@ -83,7 +65,7 @@ function App() {
     if (content) {
       try {
         const data = JSON.parse(content);
-        loadProject(data);
+        loadProjectState(data);
       } catch (e) {
         console.error('Failed to parse project file', e);
       }
@@ -102,19 +84,16 @@ function App() {
       const isRedo = (e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y');
 
       if (isUndo) {
-        // @ts-ignore
-        const temporalApi = useTaskStore.temporal?.getState();
-        if (temporalApi && temporalApi.pastStates.length > 0) {
+        const temporalApi = getTemporalState();
+        if (temporalApi.pastStates.length > 0) {
           e.preventDefault();
           temporalApi.undo();
         }
-        // If no history, we DON'T preventDefault, allowing browser-native undo in inputs
       }
 
       if (isRedo) {
-        // @ts-ignore
-        const temporalApi = useTaskStore.temporal?.getState();
-        if (temporalApi && temporalApi.futureStates.length > 0) {
+        const temporalApi = getTemporalState();
+        if (temporalApi.futureStates.length > 0) {
           e.preventDefault();
           temporalApi.redo();
         }
