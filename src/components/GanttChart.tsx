@@ -38,7 +38,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 }) => {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
-  const holidays = useTaskStore(state => state.projectConfig.calendar.holidays);
+  const calendar = useTaskStore(state => state.projectConfig.calendar);
   const viewMode = useTaskStore(state => state.projectConfig.viewMode);
   const setViewMode = useTaskStore(state => state.setViewMode);
 
@@ -341,7 +341,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         )}
         <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
           {timeRange.map(date => {
-            const isWknd = !isWorkDay(date, holidays);
+            const isWknd = !isWorkDay(date, calendar);
             let label;
             let subLabel;
             switch (viewMode) {
@@ -515,7 +515,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                {/* Grid Background */}
                <div className="absolute inset-0 flex pointer-events-none">
                   {timeRange.map(date => {
-                    const isWknd = viewMode === 'Day' && !isWorkDay(date, holidays);
+                    const isWknd = viewMode === 'Day' && !isWorkDay(date, calendar);
                     return (
                       <div 
                         key={date.toISOString()}
