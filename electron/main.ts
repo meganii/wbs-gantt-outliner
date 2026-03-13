@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { Task, ProjectConfig } from "../src/types";
+import { buildExcelExportFile } from "../src/utils/export";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -93,4 +95,27 @@ app.whenReady().then(() => {
     const content = fs.readFileSync(filePaths[0], 'utf-8');
     return content;
   });
+
+  ipcMain.handle(
+    'export-excel',
+    async (
+      _event,
+      data: {
+        tasks: Record<string, Task>;
+        rootIds: string[];
+        projectConfig: ProjectConfig;
+      }
+    ) => {
+      const { buffer, fileName } = await buildExcelExportFile(data);
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath: fileName,
+        filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
+      });
+
+      if (canceled || !filePath) return false;
+
+      fs.writeFileSync(filePath, buffer);
+      return true;
+    }
+  );
 });

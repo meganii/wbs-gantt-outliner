@@ -4,7 +4,22 @@ import type { Task, ProjectConfig } from '../types';
 import { flattenTree } from './tree';
 import { isHoliday } from './date';
 
-export async function exportToExcel(tasks: Record<string, Task>, rootIds: string[], projectConfig: ProjectConfig) {
+export interface ExcelExportPayload {
+  tasks: Record<string, Task>;
+  rootIds: string[];
+  projectConfig: ProjectConfig;
+}
+
+export interface ExcelExportFile {
+  buffer: Uint8Array;
+  fileName: string;
+}
+
+export async function buildExcelExportFile({
+  tasks,
+  rootIds,
+  projectConfig,
+}: ExcelExportPayload): Promise<ExcelExportFile> {
   const flattened = flattenTree(tasks, rootIds);
   
   // 1. Calculate Date Range
@@ -159,13 +174,10 @@ export async function exportToExcel(tasks: Record<string, Task>, rootIds: string
   });
 
   // 6. Generate and Download
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const buffer = new Uint8Array(await workbook.xlsx.writeBuffer());
 
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `project_gantt_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`;
-  a.click();
-  window.URL.revokeObjectURL(url);
+  return {
+    buffer,
+    fileName: `project_gantt_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`,
+  };
 }
