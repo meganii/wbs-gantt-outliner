@@ -8,7 +8,7 @@ import { Undo, Redo } from 'lucide-react';
 
 function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
-  
+
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
@@ -125,10 +125,8 @@ function App() {
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
       {/* Header / Tabs */}
       <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
-        <span className="font-bold text-gray-700 text-sm mr-6">WBS Gantt Outliner</span>
-        
         <div className="flex space-x-1 no-drag items-center">
-          <button 
+          <button
             onClick={() => setView('wbs')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
@@ -137,7 +135,7 @@ function App() {
           >
             WBS
           </button>
-          <button 
+          <button
             onClick={() => setView('integrated')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
@@ -146,7 +144,7 @@ function App() {
           >
             Integrated
           </button>
-          <button 
+          <button
             onClick={() => setView('gantt')}
             className={clsx(
               "px-3 py-1 text-xs rounded-sm transition-colors",
@@ -155,9 +153,9 @@ function App() {
           >
             Gantt
           </button>
-          
+
           <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
-          
+
           <button
             onClick={() => undo?.()}
             disabled={!canUndo}
@@ -190,11 +188,11 @@ function App() {
             <Outliner />
           </div>
         )}
-        
+
         {view === 'integrated' && (
           <>
-            <div 
-              ref={outlinerScrollRef} 
+            <div
+              ref={outlinerScrollRef}
               onScroll={handleOutlinerScroll}
               style={{ width: outlinerWidth }}
               className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0"
@@ -207,8 +205,8 @@ function App() {
               onMouseDown={startResizing}
             />
             <div className="flex-1 relative overflow-hidden">
-              <GanttChart 
-                showSidebar 
+              <GanttChart
+                showSidebar
                 scrollRef={ganttScrollRef}
                 onScroll={handleGanttScroll}
               />
@@ -222,7 +220,7 @@ function App() {
           </div>
         )}
       </main>
-      
+
       {/* Status Bar */}
       <footer className="h-6 bg-gray-100 border-t border-gray-300 flex items-center px-2 text-[10px] text-gray-500 select-none">
         <span>Ready</span>
