@@ -80,8 +80,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
        return;
     }
     
-    // Row Reordering (Move Task): Shift + Cmd + Arrow Keys
-    if (e.shiftKey && e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    // Row Reordering (Move Task): Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys
+    if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
       return;
