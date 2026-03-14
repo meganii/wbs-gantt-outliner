@@ -11,6 +11,7 @@
   - 営業日ロジックの `workDays + holidays` 統一
   - Undo/Redo の型整理
   - プロジェクト読込時の履歴クリア
+  - Windows環境向けに Shift + Alt + 矢印キー でのタスク移動に対応
 
 ## 直近の検証結果
 
