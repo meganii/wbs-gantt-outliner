@@ -60,7 +60,7 @@ const taskStore = create<TaskStoreState>()(
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
       setSelectedTaskIds: (ids) => set({ selectedTaskIds: ids }),
 
-      addTask: (targetId, position = 'after') => {
+      addTask: (targetId?, position = 'after') => {
         const newId = uuidv4();
         const newTask: Task = {
           id: newId,
@@ -78,11 +78,17 @@ const taskStore = create<TaskStoreState>()(
         set((state) => {
           const tasks = { ...state.tasks };
           const rootIds = [...state.rootIds];
-          const targetTask = tasks[targetId];
-
-          if (!targetTask) {
+          
+          if (!targetId || !tasks[targetId]) {
+            if (Object.keys(tasks).length === 0) {
+              rootIds.push(newId);
+              tasks[newId] = newTask;
+              return { tasks, rootIds, focusedTaskId: newId };
+            }
             return {};
           }
+
+          const targetTask = tasks[targetId];
 
           if (position === 'inside') {
             if (getTaskDepth(tasks, targetId) >= 3) {

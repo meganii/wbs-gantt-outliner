@@ -24,9 +24,20 @@ export const Outliner: React.FC = () => {
   
   const [anchorId, setAnchorId] = React.useState<string | null>(null);
 
+  const addTask = useTaskStore((state) => state.addTask);
+
   React.useEffect(() => {
-    // Shortcuts are now handled directly in TaskRow for better reliability
-  }, []);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Create first task when empty and Enter is pressed
+      if (rootIds.length === 0 && e.key === 'Enter') {
+        e.preventDefault();
+        addTask(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rootIds.length, addTask]);
 
   // Selection Logic
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
@@ -97,8 +108,11 @@ export const Outliner: React.FC = () => {
         
         {rootIds.length === 0 && (
            /* ... empty state ... */
-          <div className="text-gray-500 text-sm mt-4 text-center italic">
-            No tasks. Press Enter to start.
+          <div 
+            className="text-gray-500 text-sm mt-4 text-center italic cursor-pointer hover:bg-gray-50 p-4 rounded border border-dashed border-gray-300 transition-colors"
+            onClick={() => addTask(null)}
+          >
+            No tasks. Click here or press Enter to start.
           </div>
         )}
       </div>
