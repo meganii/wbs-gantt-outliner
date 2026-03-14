@@ -30,7 +30,7 @@ export interface TaskStoreState {
 
   setFocusedTaskId: (id: string | null) => void;
   setSelectedTaskIds: (ids: string[]) => void;
-  addTask: (targetId: string, position?: 'after' | 'inside') => void;
+  addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
