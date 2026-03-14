@@ -16,7 +16,10 @@
 
 - `npm test -- --run` : 通過
 - `npm run build` : 通過
-- ビルド時に Excel エクスポート用チャンクが大きいという警告あり
+- Excel エクスポートを Electron main 側へ移動済み
+  - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
+  - `npm run build` で renderer 側の大きなチャンク警告は解消
+  - `dist-electron/main.js` は大きいが、配布用の Electron main バンドルであり、今回の Vite chunk warning の対象ではない
 
 ## 次に着手する優先課題
 
@@ -37,7 +40,8 @@
 - 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと
 - 依存関係 UI は最低限動くが、操作体験はまだ粗い
 - 祝日設定 UI は未実装だが、内部データ構造は存在する
-- Excel エクスポートは動くが、バンドルサイズ警告は未解消
+- Excel エクスポートは Electron main 側で生成・保存する構成になった
+  - 保存ダイアログやファイル書き込みも main 側が担当する
 
 ## 次の作業で最初に見るとよい場所
 

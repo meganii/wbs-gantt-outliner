@@ -73,8 +73,11 @@ function App() {
   };
 
   const handleExport = async () => {
-     const { exportToExcel } = await import('./utils/export');
-     exportToExcel(tasks, rootIds, projectConfig);
+    await window.ipcRenderer.invoke('export-excel', {
+      tasks,
+      rootIds,
+      projectConfig,
+    });
   };
 
   // Keyboard Shortcuts for Undo/Redo
