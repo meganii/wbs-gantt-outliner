@@ -83,7 +83,7 @@ const taskStore = create<TaskStoreState>()(
             if (Object.keys(tasks).length === 0) {
               rootIds.push(newId);
               tasks[newId] = newTask;
-              return { tasks, rootIds, focusedTaskId: newId };
+              return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
             }
             return {};
           }
@@ -104,7 +104,7 @@ const taskStore = create<TaskStoreState>()(
               isCollapsed: false,
             };
 
-            return { tasks, focusedTaskId: newId };
+            return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
           }
 
           const parentId = targetTask.parentId;
@@ -118,14 +118,14 @@ const taskStore = create<TaskStoreState>()(
             } else {
               rootIds.push(newId);
             }
-            return { tasks, rootIds, focusedTaskId: newId };
+            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
           }
 
           const parent = tasks[parentId];
           if (!parent) {
             rootIds.push(newId);
             tasks[newId] = { ...newTask, parentId: null };
-            return { tasks, rootIds, focusedTaskId: newId };
+            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
           }
 
           const siblings = [...parent.children];
@@ -137,7 +137,7 @@ const taskStore = create<TaskStoreState>()(
           }
           tasks[parentId] = { ...parent, children: siblings };
 
-          return { tasks, focusedTaskId: newId };
+          return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
         });
       },
 

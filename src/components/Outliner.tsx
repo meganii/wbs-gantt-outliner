@@ -28,6 +28,13 @@ export const Outliner: React.FC = () => {
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (e.isComposing || e.keyCode === 229) {
+          return;
+        }
+        setSelectedTaskIds([]);
+      }
+
       // Create first task when empty and Enter is pressed
       if (rootIds.length === 0 && e.key === 'Enter') {
         e.preventDefault();
@@ -37,7 +44,7 @@ export const Outliner: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rootIds.length, addTask]);
+  }, [rootIds.length, addTask, setSelectedTaskIds]);
 
   // Selection Logic
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {

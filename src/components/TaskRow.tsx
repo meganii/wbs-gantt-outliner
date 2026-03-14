@@ -30,6 +30,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const setCollapsed = useTaskStore((state) => state.setCollapsed);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
+  const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
   
   const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId)) 
                         ? selectedTaskIds 
@@ -80,6 +81,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
        return;
     }
     
+    if (e.key === 'Escape') {
+      setSelectedTaskIds([]);
+      return;
+    }
+
     // Row Reordering (Move Task): Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys
     if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
@@ -132,6 +138,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
       if (task.title !== localTitle) {
         updateTask(taskId, { title: localTitle });
       }
+      setSelectedTaskIds([]);
       addTask(taskId, 'after');
     }
     if (e.key === 'Tab') {
@@ -195,6 +202,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   );
   
   const handleBlur = () => {
+    // If we're blurring because we are moving focus to the newly created task,
+    // we still want to save the title. 
     if (task.title !== localTitle) {
       updateTask(taskId, { title: localTitle });
     }
