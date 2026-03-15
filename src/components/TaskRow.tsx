@@ -15,9 +15,10 @@ interface TaskRowProps {
   wbsNumber?: string;
   isSelected?: boolean;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
+  showDetails?: boolean;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange, showDetails = false }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
   const updateTask = useTaskStore((state) => state.updateTask);
@@ -31,11 +32,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const setCollapsed = useTaskStore((state) => state.setCollapsed);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
-  
-  const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId)) 
-                        ? selectedTaskIds 
-                        : [taskId];
-  
+
+  const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId))
+    ? selectedTaskIds
+    : [taskId];
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,17 +44,23 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
       inputRef.current.focus();
     }
   }, [focusedTaskId, taskId]);
-  
+
   // Local state for performant typing and IME support
   const [localTitle, setLocalTitle] = useState(task?.title || '');
+  const [localDescription, setLocalDescription] = useState(task?.description || '');
+  const [localAssignee, setLocalAssignee] = useState(task?.assignee || '');
+  const [localDeliverables, setLocalDeliverables] = useState(task?.deliverables || '');
   const isComposing = useRef(false);
 
   // Sync local state if external state changes (e.g. undo/redo, or other user)
   useEffect(() => {
     if (task) {
-        setLocalTitle(task.title);
+      setLocalTitle(task.title);
+      setLocalDescription(task.description || '');
+      setLocalAssignee(task.assignee || '');
+      setLocalDeliverables(task.deliverables || '');
     }
-  }, [task?.title]);
+  }, [task?.title, task?.description, task?.assignee, task?.deliverables]);
 
   const {
     attributes,
@@ -77,10 +84,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Ignore key events during IME composition
     if (isComposing.current || e.nativeEvent.isComposing) {
-       // ...
-       return;
+      // ...
+      return;
     }
-    
+
     if (e.key === 'Escape') {
       setSelectedTaskIds([]);
       return;
@@ -105,31 +112,31 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
       e.preventDefault();
       const targetId = e.key === 'ArrowUp' ? prevId : nextId;
       if (targetId) {
-          setFocusedTaskId(targetId);
-          if (onSelectionChange) {
-              onSelectionChange(targetId, false, true); 
-          }
+        setFocusedTaskId(targetId);
+        if (onSelectionChange) {
+          onSelectionChange(targetId, false, true);
+        }
       }
       return;
     }
 
     if (e.key === 'ArrowUp') {
-       // Standard Nav
-       if (prevId && !e.metaKey) {
+      // Standard Nav
+      if (prevId && !e.metaKey) {
         e.preventDefault();
         setFocusedTaskId(prevId);
         if (onSelectionChange) onSelectionChange(prevId, false, false);
       }
     }
     if (e.key === 'ArrowDown') {
-       // Standard Nav
+      // Standard Nav
       if (nextId && !e.metaKey) {
         e.preventDefault();
         setFocusedTaskId(nextId);
         if (onSelectionChange) onSelectionChange(nextId, false, false);
       }
     }
-    
+
     if (e.key === 'Enter') {
       e.preventDefault();
       // Only update if changed; addTask will trigger focus move (and thus blur)
@@ -144,7 +151,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     if (e.key === 'Tab') {
       e.preventDefault();
       if (task.title !== localTitle) {
-         updateTask(taskId, { title: localTitle });
+        updateTask(taskId, { title: localTitle });
       }
       if (e.shiftKey) {
         outdentTask(effectiveIds);
@@ -160,39 +167,39 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         // Usually backspace merge?
         // For OUTLINER: Backspace on empty bullet deletes it and focuses previous.
         if (effectiveIds.length <= 1) {
-             const targetPrev = prevId; 
-             deleteTask(taskId);
-             if (targetPrev) {
-               setFocusedTaskId(targetPrev);
-             }
+          const targetPrev = prevId;
+          deleteTask(taskId);
+          if (targetPrev) {
+            setFocusedTaskId(targetPrev);
+          }
         } else {
-             // Multi-selection: Backspace usually deletes? Or requires explicit Delete?
-             // Let's allow Backspace to delete if all are selected?
-             // To be safe, let's require Cmd+Backspace for multi or non-empty.
-             // But user asked for "Task Deletion".
-             // If localTitle is empty, we delete this one.
+          // Multi-selection: Backspace usually deletes? Or requires explicit Delete?
+          // Let's allow Backspace to delete if all are selected?
+          // To be safe, let's require Cmd+Backspace for multi or non-empty.
+          // But user asked for "Task Deletion".
+          // If localTitle is empty, we delete this one.
         }
       }
     }
-    
+
     // Explicit Delete
     if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
-       e.preventDefault();
-       const idsToDelete = effectiveIds;
-       
-       // Calculate focus target before deletion (simple heuristic: prev of first, or next of last?)
-       // If we delete focused task, we need to move focus.
-       // Current assumption: focus is on `taskId`.
-       let targetFocus = prevId || nextId; 
-       
-       deleteTask(idsToDelete);
-       
-       if (targetFocus && !idsToDelete.includes(targetFocus)) {
-          setFocusedTaskId(targetFocus);
-       } else {
-          // If we deleted everything around us, we might fall back to root or parent?
-          // Store doesn't handle this well yet.
-       }
+      e.preventDefault();
+      const idsToDelete = effectiveIds;
+
+      // Calculate focus target before deletion (simple heuristic: prev of first, or next of last?)
+      // If we delete focused task, we need to move focus.
+      // Current assumption: focus is on `taskId`.
+      let targetFocus = prevId || nextId;
+
+      deleteTask(idsToDelete);
+
+      if (targetFocus && !idsToDelete.includes(targetFocus)) {
+        setFocusedTaskId(targetFocus);
+      } else {
+        // If we deleted everything around us, we might fall back to root or parent?
+        // Store doesn't handle this well yet.
+      }
     }
   };
 
@@ -200,7 +207,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     "flex items-center group h-8 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
     isSelected && "bg-blue-50"
   );
-  
+
   const handleBlur = () => {
     // If we're blurring because we are moving focus to the newly created task,
     // we still want to save the title. 
@@ -213,40 +220,40 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
       <div className={rowStyle}>
-        <div 
-          className="flex items-center flex-1 min-w-0" 
+        <div
+          className="flex items-center flex-1 min-w-0"
           style={{ paddingLeft: `${depth * 20 + 8}px` }}
         >
           {/* Drag Handle */}
-          <button 
-             className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none flex-shrink-0"
-             {...attributes} 
-             {...listeners}
-             onPointerDown={(e) => {
-               // Prioritize selection with modifiers over dragging
-               if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                 e.preventDefault();
-                 e.stopPropagation();
-                 if (onSelectionChange) {
-                   onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
-                 }
-                 return;
-               }
-               // Otherwise, pass to dnd-kit
-               listeners?.onPointerDown(e);
-             }}
-             onClick={(e) => {
-               // Click without drag (fallback for simple click if dnd doesn't consume)
-               if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
-                  onSelectionChange(taskId, false, false);
-               }
-             }}
+          <button
+            className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none flex-shrink-0"
+            {...attributes}
+            {...listeners}
+            onPointerDown={(e) => {
+              // Prioritize selection with modifiers over dragging
+              if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onSelectionChange) {
+                  onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
+                }
+                return;
+              }
+              // Otherwise, pass to dnd-kit
+              listeners?.onPointerDown(e);
+            }}
+            onClick={(e) => {
+              // Click without drag (fallback for simple click if dnd doesn't consume)
+              if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
+                onSelectionChange(taskId, false, false);
+              }
+            }}
           >
             <GripVertical size={14} />
           </button>
 
           {/* Collapse/Expand */}
-          <button 
+          <button
             onClick={() => toggleCollapse(taskId)}
             className={clsx(
               "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1 flex-shrink-0",
@@ -277,12 +284,63 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
           />
         </div>
 
-        {/* Dates & Metadata */}
-        <div className="flex items-center space-x-2 text-xs text-gray-500 mr-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          {/* Duration */}
-          <input 
-            type="number" 
-            value={task.duration} 
+        {/* Details Columns */}
+        {showDetails && (
+          <>
+            <div className="w-64 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+              <input
+                type="text"
+                value={localDescription}
+                onChange={(e) => setLocalDescription(e.target.value)}
+                onBlur={() => { if (localDescription !== task.description) updateTask(taskId, { description: localDescription }) }}
+                placeholder="Description"
+                className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    // prevent row's Enter
+                    e.stopPropagation();
+                  }
+                }}
+              />
+            </div>
+            <div className="w-32 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+              <input
+                type="text"
+                value={localAssignee}
+                onChange={(e) => setLocalAssignee(e.target.value)}
+                onBlur={() => { if (localAssignee !== task.assignee) updateTask(taskId, { assignee: localAssignee }) }}
+                placeholder="Assignee"
+                className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.stopPropagation();
+                  }
+                }}
+              />
+            </div>
+            <div className="w-48 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+              <input
+                type="text"
+                value={localDeliverables}
+                onChange={(e) => setLocalDeliverables(e.target.value)}
+                onBlur={() => { if (localDeliverables !== task.deliverables) updateTask(taskId, { deliverables: localDeliverables }) }}
+                placeholder="Deliverables"
+                className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.stopPropagation();
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Duration */}
+        <div className="w-16 flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <input
+            type="number"
+            value={task.duration}
             onChange={(e) => {
               const newDuration = parseInt(e.target.value) || 0;
               if (!task.startDate) return;
@@ -294,50 +352,50 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
             }}
-            className="bg-transparent w-8 text-right outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
+            className="bg-transparent w-full text-center outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
             title="Duration (days)"
           />
-          
-          {/* Start Date */}
-          <input 
+        </div>
+
+        {/* Date Section */}
+        <div className="w-56 flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <input
             type="date"
             value={task.startDate || ''}
             onChange={(e) => {
-               const newStartDate = e.target.value;
-               if (!newStartDate) return;
-               const newEndDate = calculateEndDate(
-                 new Date(newStartDate),
-                 task.duration,
-                 useTaskStore.getState().projectConfig.calendar
-               );
-               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
-               updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
+              const newStartDate = e.target.value;
+              if (!newStartDate) return;
+              const newEndDate = calculateEndDate(
+                new Date(newStartDate),
+                task.duration,
+                useTaskStore.getState().projectConfig.calendar
+              );
+              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
+              updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
 
           <span className="text-gray-400">-</span>
 
-          {/* End Date */}
-          <input 
+          <input
             type="date"
             value={task.endDate || ''}
             onChange={(e) => {
-               const newEndDate = e.target.value;
-               if (!newEndDate || !task.startDate) return;
-               // Calculate new duration
-               const start = new Date(task.startDate);
-               const end = new Date(newEndDate);
-               if (end < start) return; // Basic validation
-               
-               const newDuration = getWorkDaysCount(
-                 start,
-                 end,
-                 useTaskStore.getState().projectConfig.calendar
-               );
-               updateTask(taskId, { endDate: newEndDate, duration: newDuration });
+              const newEndDate = e.target.value;
+              if (!newEndDate || !task.startDate) return;
+              const start = new Date(task.startDate);
+              const end = new Date(newEndDate);
+              if (end < start) return;
+
+              const newDuration = getWorkDaysCount(
+                start,
+                end,
+                useTaskStore.getState().projectConfig.calendar
+              );
+              updateTask(taskId, { endDate: newEndDate, duration: newDuration });
             }}
-            className="bg-transparent outline-none w-24 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
         </div>
       </div>

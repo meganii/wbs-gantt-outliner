@@ -436,7 +436,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                         } }
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm('この依存関係を削除しますか？')) {
+                            if (window.confirm('Delete this dependency?')) {
                                 removeDependency(fromId, toId);
                             }
                         }}

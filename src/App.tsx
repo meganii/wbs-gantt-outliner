@@ -185,7 +185,7 @@ function App() {
       <main className="flex-1 flex overflow-hidden">
         {view === 'wbs' && (
           <div className="flex-1 overflow-auto">
-            <Outliner />
+            <Outliner showDetails={true} />
           </div>
         )}
 
@@ -197,7 +197,7 @@ function App() {
               style={{ width: outlinerWidth }}
               className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0"
             >
-              <Outliner />
+              <Outliner showDetails={false} />
             </div>
             {/* Resize Handle */}
             <div
