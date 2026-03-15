@@ -32,14 +32,25 @@ export interface ProjectConfig {
   };
 }
 
+export type TaskFocusableField =
+  | 'title'
+  | 'description'
+  | 'assignee'
+  | 'deliverables'
+  | 'duration'
+  | 'startDate'
+  | 'endDate';
+
 export interface TaskStoreState {
   tasks: Record<string, Task>;
   rootIds: string[];
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
+  focusedTaskField: TaskFocusableField;
   selectedTaskIds: string[];
 
   setFocusedTaskId: (id: string | null) => void;
+  setFocusedTaskCell: (id: string | null, field: TaskFocusableField) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;

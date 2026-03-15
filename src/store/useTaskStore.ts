@@ -20,7 +20,7 @@ export interface ProjectData {
 
 type TaskStoreHistoryState = Pick<
   TaskStoreState,
-  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'selectedTaskIds'
+  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'focusedTaskField' | 'selectedTaskIds'
 >;
 
 type TaskTemporalStore = StoreApi<TemporalState<TaskStoreHistoryState>>;
@@ -48,9 +48,11 @@ const taskStore = create<TaskStoreState>()(
       rootIds: [initialTaskId],
       projectConfig: DEFAULT_PROJECT_CONFIG,
       focusedTaskId: null,
+      focusedTaskField: 'title',
       selectedTaskIds: [],
 
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
+      setFocusedTaskCell: (id, field) => set({ focusedTaskId: id, focusedTaskField: field }),
       setSelectedTaskIds: (ids) => set({ selectedTaskIds: ids }),
 
       addTask: (targetId?, position = 'after') => {
@@ -76,7 +78,13 @@ const taskStore = create<TaskStoreState>()(
             if (Object.keys(tasks).length === 0) {
               rootIds.push(newId);
               tasks[newId] = newTask;
-              return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+              return {
+                tasks,
+                rootIds,
+                focusedTaskId: newId,
+                focusedTaskField: 'title',
+                selectedTaskIds: [newId],
+              };
             }
             return {};
           }
@@ -97,7 +105,7 @@ const taskStore = create<TaskStoreState>()(
               isCollapsed: false,
             };
 
-            return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return { tasks, focusedTaskId: newId, focusedTaskField: 'title', selectedTaskIds: [newId] };
           }
 
           const parentId = targetTask.parentId;
@@ -111,14 +119,26 @@ const taskStore = create<TaskStoreState>()(
             } else {
               rootIds.push(newId);
             }
-            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return {
+              tasks,
+              rootIds,
+              focusedTaskId: newId,
+              focusedTaskField: 'title',
+              selectedTaskIds: [newId],
+            };
           }
 
           const parent = tasks[parentId];
           if (!parent) {
             rootIds.push(newId);
             tasks[newId] = { ...newTask, parentId: null };
-            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return {
+              tasks,
+              rootIds,
+              focusedTaskId: newId,
+              focusedTaskField: 'title',
+              selectedTaskIds: [newId],
+            };
           }
 
           const siblings = [...parent.children];
@@ -130,7 +150,7 @@ const taskStore = create<TaskStoreState>()(
           }
           tasks[parentId] = { ...parent, children: siblings };
 
-          return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
+          return { tasks, focusedTaskId: newId, focusedTaskField: 'title', selectedTaskIds: [newId] };
         });
       },
 
@@ -536,6 +556,7 @@ const taskStore = create<TaskStoreState>()(
         rootIds: state.rootIds,
         projectConfig: state.projectConfig,
         focusedTaskId: state.focusedTaskId,
+        focusedTaskField: state.focusedTaskField,
         selectedTaskIds: state.selectedTaskIds,
       }),
       equality: (a, b) => (
@@ -563,6 +584,7 @@ export function loadProjectState(data: ProjectData): void {
     rootIds: normalized.rootIds,
     projectConfig: mergeProjectConfig(data.projectConfig),
     focusedTaskId: null,
+    focusedTaskField: 'title',
     selectedTaskIds: [],
   });
   getTemporalState().clear();
