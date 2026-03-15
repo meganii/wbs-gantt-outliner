@@ -57,6 +57,7 @@ export interface TaskStoreState {
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
   setCollapsed: (ids: string[], isCollapsed: boolean) => void;
+  setAllCollapsed: (isCollapsed: boolean) => void;
   indentTask: (ids: string | string[]) => void;
   outdentTask: (ids: string | string[]) => void;
   reorderTask: (activeId: string, overId: string) => void;

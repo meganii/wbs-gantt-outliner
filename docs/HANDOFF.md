@@ -27,16 +27,19 @@
     - `Project > Holiday Settings` から `projectConfig.calendar.holidays` を編集可能
     - 読込時は `projectConfig` を既定値マージし、古い JSON の欠損項目を補完
     - 祝日一覧はソート・重複除去して保持
-  - `WBS` View のキーボード移動を改善
-    - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
-    - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
-    - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
+- `WBS` View のキーボード移動を改善
+  - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
+  - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
+  - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
+- ヘッダーに `Expand All` / `Collapse All` を追加
+  - ボタン操作と `Cmd/Ctrl + Alt + ↑ / ↓` のショートカットで全体の折り畳みを切り替えられる
 
 ## 直近の検証結果
 
 - `npm test -- --run` : 通過
 - `npm run build` : 通過
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
+- `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
   - `npm run build` で renderer 側の大きなチャンク警告は解消

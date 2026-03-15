@@ -211,6 +211,26 @@ const taskStore = create<TaskStoreState>()(
         return { tasks };
       }),
 
+      setAllCollapsed: (isCollapsed) => set((state) => {
+        const tasks = { ...state.tasks };
+        let hasChanges = false;
+
+        Object.values(state.tasks).forEach((task) => {
+          if (task.children.length === 0 || task.isCollapsed === isCollapsed) {
+            return;
+          }
+
+          tasks[task.id] = { ...task, isCollapsed };
+          hasChanges = true;
+        });
+
+        if (!hasChanges) {
+          return {};
+        }
+
+        return { tasks };
+      }),
+
       indentTask: (ids) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
         if (idArray.length === 0) {

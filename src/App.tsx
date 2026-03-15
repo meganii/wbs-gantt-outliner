@@ -19,7 +19,14 @@ function App() {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
+  const setAllCollapsed = useTaskStore(state => state.setAllCollapsed);
   const visibleItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
+  const collapsibleTasks = useMemo(
+    () => Object.values(tasks).filter((task) => task.children.length > 0),
+    [tasks]
+  );
+  const canExpandAll = collapsibleTasks.some((task) => task.isCollapsed);
+  const canCollapseAll = collapsibleTasks.some((task) => !task.isCollapsed);
 
   const temporalState = useStore(useTaskStore.temporal, (state) => state);
 
@@ -82,6 +89,12 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
       const isRedo = (e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y');
+      const isCollapseAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowUp';
+      const isExpandAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowDown';
+
+      if (e.isComposing || e.keyCode === 229) {
+        return;
+      }
 
       if (isUndo) {
         const temporalApi = getTemporalState();
@@ -96,6 +109,18 @@ function App() {
         if (temporalApi.futureStates.length > 0) {
           e.preventDefault();
           temporalApi.redo();
+        }
+      }
+
+      if (isCollapseAll || isExpandAll) {
+        const nextCollapsed = isCollapseAll;
+        const hasChanges = Object.values(useTaskStore.getState().tasks).some(
+          (task) => task.children.length > 0 && task.isCollapsed !== nextCollapsed
+        );
+
+        if (hasChanges) {
+          e.preventDefault();
+          useTaskStore.getState().setAllCollapsed(nextCollapsed);
         }
       }
     };
@@ -216,6 +241,25 @@ function App() {
             title="Redo (Cmd+Y or Cmd+Shift+Z)"
           >
             <Redo size={14} />
+          </button>
+
+          <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
+
+          <button
+            onClick={() => setAllCollapsed(false)}
+            disabled={!canExpandAll}
+            className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+            title="Expand All (Cmd/Ctrl+Alt+ArrowDown)"
+          >
+            Expand All
+          </button>
+          <button
+            onClick={() => setAllCollapsed(true)}
+            disabled={!canCollapseAll}
+            className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+            title="Collapse All (Cmd/Ctrl+Alt+ArrowUp)"
+          >
+            Collapse All
           </button>
 
           <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
