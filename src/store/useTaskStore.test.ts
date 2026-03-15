@@ -118,6 +118,37 @@ describe('useTaskStore', () => {
     });
   });
 
+  describe('setAllCollapsed', () => {
+    it('should collapse and expand every task that has children', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const childId = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(childId, 'inside');
+      });
+
+      act(() => {
+        useTaskStore.getState().setAllCollapsed(true);
+      });
+
+      let { tasks } = useTaskStore.getState();
+      expect(tasks[rootId].isCollapsed).toBe(true);
+      expect(tasks[childId].isCollapsed).toBe(true);
+
+      act(() => {
+        useTaskStore.getState().setAllCollapsed(false);
+      });
+
+      tasks = useTaskStore.getState().tasks;
+      expect(tasks[rootId].isCollapsed).toBe(false);
+      expect(tasks[childId].isCollapsed).toBe(false);
+    });
+  });
+
   describe('indentTask', () => {
     it('should indent a task, making it a child of its previous sibling', () => {
       // Setup: Add two tasks at the root
