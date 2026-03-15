@@ -30,6 +30,14 @@ const DEFAULT_CONFIG: ProjectConfig = {
     holidays: [],
   },
   viewMode: 'Day',
+  columnWidths: {
+    taskDescription: 200,
+    description: 256,
+    assignee: 128,
+    deliverables: 192,
+    duration: 64,
+    date: 224,
+  },
 };
 
 const initialTaskId = uuidv4();
@@ -514,6 +522,16 @@ const taskStore = create<TaskStoreState>()(
         projectConfig: {
           ...state.projectConfig,
           viewMode,
+        },
+      })),
+
+      setColumnWidth: (columnId, width) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          columnWidths: {
+            ...state.projectConfig.columnWidths,
+            [columnId]: Math.max(50, width), // Prevent columns from becoming too small
+          },
         },
       })),
     }),
