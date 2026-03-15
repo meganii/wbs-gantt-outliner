@@ -1,7 +1,8 @@
-import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
+import { IntegratedView } from './components/IntegratedView';
 import { getTemporalState, loadProjectState, useTaskStore } from './store/useTaskStore';
 import clsx from 'clsx';
 import { Undo, Redo } from 'lucide-react';
@@ -37,26 +38,15 @@ function App() {
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizing) {
-      setOutlinerWidth(e.clientX);
+      const minWidth =
+        projectConfig.columnWidths.taskDescription +
+        projectConfig.columnWidths.duration +
+        projectConfig.columnWidths.date +
+        16;
+      const maxWidth = Math.max(minWidth, window.innerWidth - 240);
+      setOutlinerWidth(Math.min(Math.max(e.clientX, minWidth), maxWidth));
     }
-  }, [isResizing]);
-
-  const outlinerScrollRef = useRef<HTMLDivElement>(null);
-  const ganttScrollRef = useRef<HTMLDivElement>(null);
-
-  const syncScroll = useCallback((source: React.RefObject<HTMLDivElement | null>, target: React.RefObject<HTMLDivElement | null>) => {
-    if (source.current && target.current) {
-      target.current.scrollTop = source.current.scrollTop;
-    }
-  }, []);
-
-  const handleOutlinerScroll = useCallback(() => {
-    syncScroll(outlinerScrollRef, ganttScrollRef);
-  }, [syncScroll]);
-
-  const handleGanttScroll = useCallback(() => {
-    syncScroll(ganttScrollRef, outlinerScrollRef);
-  }, [syncScroll]);
+  }, [isResizing, projectConfig.columnWidths]);
 
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
@@ -202,36 +192,13 @@ function App() {
         )}
 
         {view === 'integrated' && (
-          <>
-            <div
-              ref={outlinerScrollRef}
-              onScroll={handleOutlinerScroll}
-              style={{ width: outlinerWidth }}
-              className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0 min-h-0"
-            >
-              <Outliner
-                showDetails={false}
-                flattenedItems={visibleItems}
-                hoveredTaskId={hoveredTaskId}
-                onHoverTaskChange={setHoveredTaskId}
-              />
-            </div>
-            {/* Resize Handle */}
-            <div
-              className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors z-50 flex-shrink-0"
-              onMouseDown={startResizing}
-            />
-            <div className="flex-1 relative overflow-hidden min-h-0 min-w-0">
-              <GanttChart
-                showSidebar
-                flattenedItems={visibleItems}
-                hoveredTaskId={hoveredTaskId}
-                onHoverTaskChange={setHoveredTaskId}
-                scrollRef={ganttScrollRef}
-                onScroll={handleGanttScroll}
-              />
-            </div>
-          </>
+          <IntegratedView
+            outlinerWidth={outlinerWidth}
+            onResizeStart={startResizing}
+            flattenedItems={visibleItems}
+            hoveredTaskId={hoveredTaskId}
+            onHoverTaskChange={setHoveredTaskId}
+          />
         )}
 
         {view === 'gantt' && (

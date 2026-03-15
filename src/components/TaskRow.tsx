@@ -18,6 +18,14 @@ interface TaskRowProps {
   onHoverChange?: (taskId: string | null) => void;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
   showDetails?: boolean;
+  suppressBorder?: boolean;
+  disableHoverHandlers?: boolean;
+  renderContainer?: (args: {
+    content: React.ReactNode;
+    setContainerRef: (node: HTMLDivElement | null) => void;
+    containerStyle: React.CSSProperties;
+    isDragging: boolean;
+  }) => React.ReactNode;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({
@@ -30,7 +38,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   isHovered = false,
   onHoverChange,
   onSelectionChange,
-  showDetails = false
+  showDetails = false,
+  suppressBorder = false,
+  disableHoverHandlers = false,
+  renderContainer,
 }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
@@ -218,7 +229,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const rowStyle = clsx(
-    "flex items-center group h-8 border-b border-gray-100 transition-colors duration-150",
+    "flex items-center group h-8 transition-colors duration-150",
+    !suppressBorder && "border-b border-gray-100",
     isSelected && isHovered && "bg-blue-100",
     isSelected && !isHovered && "bg-blue-50",
     !isSelected && isHovered && "bg-gray-50",
@@ -233,14 +245,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   };
 
-
-  return (
-    <div ref={setNodeRef} style={style} className="flex flex-col select-none">
-      <div
-        className={rowStyle}
-        onMouseEnter={() => onHoverChange?.(taskId)}
-        onMouseLeave={() => onHoverChange?.(null)}
-      >
+  const content = (
+    <div
+      className={rowStyle}
+      onMouseEnter={disableHoverHandlers ? undefined : () => onHoverChange?.(taskId)}
+      onMouseLeave={disableHoverHandlers ? undefined : () => onHoverChange?.(null)}
+    >
         <div
           className="flex items-center flex-1"
           style={{ paddingLeft: `${depth * 20 + 8}px`, width: columnWidths.taskDescription, minWidth: columnWidths.taskDescription, maxWidth: columnWidths.taskDescription }}
@@ -419,8 +429,21 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
         </div>
-      </div>
+    </div>
+  );
 
+  if (renderContainer) {
+    return renderContainer({
+      content,
+      setContainerRef: setNodeRef,
+      containerStyle: style,
+      isDragging,
+    });
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex flex-col select-none">
+      {content}
     </div>
   );
 };
