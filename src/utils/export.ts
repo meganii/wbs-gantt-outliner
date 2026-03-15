@@ -21,7 +21,7 @@ export async function buildExcelExportFile({
   projectConfig,
 }: ExcelExportPayload): Promise<ExcelExportFile> {
   const flattened = flattenTree(tasks, rootIds);
-  
+
   // 1. Calculate Date Range
   let minDate: Date | null = null;
   let maxDate: Date | null = null;
@@ -37,8 +37,8 @@ export async function buildExcelExportFile({
     if (task.endDate) {
       const d = parseISO(task.endDate);
       if (isValid(d)) {
-         if (!minDate || isBefore(d, minDate)) minDate = d;
-         if (!maxDate || isAfter(d, maxDate)) maxDate = d;
+        if (!minDate || isBefore(d, minDate)) minDate = d;
+        if (!maxDate || isAfter(d, maxDate)) maxDate = d;
       }
     }
   });
@@ -61,6 +61,9 @@ export async function buildExcelExportFile({
   // Fixed columns
   const fixedColumns = [
     { header: 'WBS', key: 'wbs', width: 40 },
+    { header: 'Description', key: 'description', width: 40 },
+    { header: 'Assignee', key: 'assignee', width: 15 },
+    { header: 'Deliverables', key: 'deliverables', width: 25 },
     { header: 'Start Date', key: 'startDate', width: 12 },
     { header: 'End Date', key: 'endDate', width: 12 },
     { header: 'Duration', key: 'duration', width: 10 },
@@ -118,6 +121,10 @@ export async function buildExcelExportFile({
     row.getCell('wbs').value = indent + task.title;
     row.getCell('wbs').alignment = { horizontal: 'left' }; // explicit left
 
+    row.getCell('description').value = task.description || '';
+    row.getCell('assignee').value = task.assignee || '';
+    row.getCell('deliverables').value = task.deliverables || '';
+
     row.getCell('startDate').value = task.startDate;
     row.getCell('endDate').value = task.endDate;
     row.getCell('duration').value = task.duration;
@@ -154,22 +161,22 @@ export async function buildExcelExportFile({
 
     // Apply weekend/holiday background for empty cells in this row too
     for (let i = 0; i < totalDays; i++) {
-        const current = addDays(rangeStart, i);
-        const colIndex = fixedColumns.length + 1 + i;
-        const cell = row.getCell(colIndex);
+      const current = addDays(rangeStart, i);
+      const colIndex = fixedColumns.length + 1 + i;
+      const cell = row.getCell(colIndex);
 
-        const isWeekendDay = current.getDay() === 0 || current.getDay() === 6;
-        const isHolidayDay = isHoliday(current, projectConfig.calendar);
+      const isWeekendDay = current.getDay() === 0 || current.getDay() === 6;
+      const isHolidayDay = isHoliday(current, projectConfig.calendar);
 
-        // Only color if not already colored by task bar
-        // Note: ExcelJS fill object is null/undefined if no fill
-        if ((isWeekendDay || isHolidayDay) && !cell.fill) {
-             cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF5F5F5' } // Very Light Gray for body
-            };
-        }
+      // Only color if not already colored by task bar
+      // Note: ExcelJS fill object is null/undefined if no fill
+      if ((isWeekendDay || isHolidayDay) && !cell.fill) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF5F5F5' } // Very Light Gray for body
+        };
+      }
     }
   });
 

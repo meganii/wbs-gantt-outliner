@@ -2,6 +2,9 @@ export interface Task {
   id: string;
   parentId: string | null;
   title: string;
+  description?: string;
+  assignee?: string;
+  deliverables?: string;
   startDate: string | null; // ISO 8601 YYYY-MM-DD
   endDate: string | null;   // ISO 8601 YYYY-MM-DD
   duration: number;  // Workdays
