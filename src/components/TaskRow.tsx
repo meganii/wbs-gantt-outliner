@@ -221,7 +221,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
       <div className={rowStyle}>
         <div
-          className="flex items-center flex-1 min-w-0"
+          className="flex items-center flex-1 min-w-[200px]"
           style={{ paddingLeft: `${depth * 20 + 8}px` }}
         >
           {/* Drag Handle */}

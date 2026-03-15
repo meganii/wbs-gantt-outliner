@@ -92,7 +92,8 @@ export const Outliner: React.FC<{ showDetails?: boolean }> = ({ showDetails = fa
 
   return (
     <div className="bg-white text-gray-900 overflow-x-auto">
-      <div className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center px-4 font-bold text-xs z-10 w-min min-w-full">
+      <div className="min-w-full w-min">
+        <div className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center px-4 font-bold text-xs z-10">
         <div className="flex-1 min-w-[200px]">Task Description</div>
         {showDetails && (
           <>
@@ -104,7 +105,7 @@ export const Outliner: React.FC<{ showDetails?: boolean }> = ({ showDetails = fa
         <div className="w-16 px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0">Duration</div>
         <div className="w-56 px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0">Date</div>
       </div>
-      <div className="px-4 pb-4 w-min min-w-full">
+      <div className="px-4 pb-4">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
             {flattenedItems.map(({ id, depth, wbsNumber }, index) => (
@@ -132,6 +133,7 @@ export const Outliner: React.FC<{ showDetails?: boolean }> = ({ showDetails = fa
             No tasks. Click here or press Enter to start.
           </div>
         )}
+      </div>
       </div>
     </div>
   );
