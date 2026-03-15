@@ -29,3 +29,29 @@ export function flattenTree(
   });
   return result;
 }
+
+/**
+ * Flatten the tree ignoring isCollapsed – always traverse all children.
+ * Useful for export where every task must be included.
+ */
+export function flattenTreeAll(
+  tasks: Record<string, Task>,
+  rootIds: string[],
+  depth = 0,
+  result: FlattenedItem[] = [],
+  parentWbs = ''
+): FlattenedItem[] {
+  rootIds.forEach((id, index) => {
+    const task = tasks[id];
+    if (!task) return;
+
+    const currentWbs = parentWbs ? `${parentWbs}.${index + 1}` : `${index + 1}`;
+
+    result.push({ id, depth, task, wbsNumber: currentWbs });
+
+    if (task.children.length > 0) {
+      flattenTreeAll(tasks, task.children, depth + 1, result, currentWbs);
+    }
+  });
+  return result;
+}
