@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { addDays, differenceInDays, format, isValid, parseISO, isBefore, isAfter } from 'date-fns';
 import type { Task, ProjectConfig } from '../types';
-import { flattenTree } from './tree';
+import { flattenTreeAll } from './tree';
 import { isHoliday } from './date';
 
 export interface ExcelExportPayload {
@@ -20,7 +20,7 @@ export async function buildExcelExportFile({
   rootIds,
   projectConfig,
 }: ExcelExportPayload): Promise<ExcelExportFile> {
-  const flattened = flattenTree(tasks, rootIds);
+  const flattened = flattenTreeAll(tasks, rootIds);
 
   // 1. Calculate Date Range
   let minDate: Date | null = null;
@@ -60,7 +60,8 @@ export async function buildExcelExportFile({
   // 3. Define Columns
   // Fixed columns
   const fixedColumns = [
-    { header: 'WBS', key: 'wbs', width: 40 },
+    { header: 'WBS No.', key: 'wbsNumber', width: 10 },
+    { header: 'Task Name', key: 'wbs', width: 40 },
     { header: 'Description', key: 'description', width: 40 },
     { header: 'Assignee', key: 'assignee', width: 15 },
     { header: 'Deliverables', key: 'deliverables', width: 25 },
@@ -111,12 +112,16 @@ export async function buildExcelExportFile({
   }
 
   // 5. Populate Data
-  flattened.forEach(({ task, depth }, rowIndex) => {
+  flattened.forEach(({ task, depth, wbsNumber }, rowIndex) => {
     // Row index in excel is 1-based, header is 1, so data starts at 2 + rowIndex
     const actualRowIndex = rowIndex + 2;
     const row = worksheet.getRow(actualRowIndex);
 
-    // Indentation for WBS
+    // WBS Number (e.g. 1, 1.1, 1.2)
+    row.getCell('wbsNumber').value = wbsNumber;
+    row.getCell('wbsNumber').alignment = { horizontal: 'left' };
+
+    // Indentation for Task Name
     const indent = '    '.repeat(depth);
     row.getCell('wbs').value = indent + task.title;
     row.getCell('wbs').alignment = { horizontal: 'left' }; // explicit left
