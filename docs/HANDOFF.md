@@ -27,11 +27,16 @@
     - `Project > Holiday Settings` から `projectConfig.calendar.holidays` を編集可能
     - 読込時は `projectConfig` を既定値マージし、古い JSON の欠損項目を補完
     - 祝日一覧はソート・重複除去して保持
+  - `WBS` View のキーボード移動を改善
+    - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
+    - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
+    - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
 
 ## 直近の検証結果
 
 - `npm test -- --run` : 通過
 - `npm run build` : 通過
+- `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
   - `npm run build` で renderer 側の大きなチャンク警告は解消
@@ -45,9 +50,15 @@
    - 現状はカレンダー表示と今後の営業日計算には反映されるが、既存タスクの start/end を自動再計算はしていない
 3. ストア責務の整理継続
    - `src/store/useTaskStore.ts` のアクションはまだ多いので、ツリー操作や選択操作をさらに分離する余地がある
-4. ガント操作の E2E 補強
+4. WBS ショートカット設計の見直し
+   - 今回は上下矢印で同列の前後タスク移動のみ対応済み
+   - `Task Description` から `Description` など横方向の列移動は未実装
+   - `Tab` / `Shift+Tab` で列移動する案を第一候補として再検討する
+   - その場合、現状 `Tab` / `Shift+Tab` に割り当てているインデント / アウトデントの代替ショートカット設計が必要
+   - `Shift+Cmd/Alt+Left/Right` は案として出たが、テキスト入力のネイティブ操作や IME との競合を確認してから判断する
+5. ガント操作の E2E 補強
    - ドラッグ移動、リサイズ、依存線追加/削除の UI テストが不足している
-5. JSON インポート強化
+6. JSON インポート強化
    - 読込時の正規化はあるが、壊れた入力や互換性の扱いを詰める余地がある
 
 ## 注意点
