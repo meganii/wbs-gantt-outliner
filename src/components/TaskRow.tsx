@@ -20,6 +20,7 @@ interface TaskRowProps {
 
 export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange, showDetails = false }) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
+  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
   const updateTask = useTaskStore((state) => state.updateTask);
   const addTask = useTaskStore((state) => state.addTask);
@@ -221,8 +222,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
       <div className={rowStyle}>
         <div
-          className="flex items-center flex-1 min-w-0"
-          style={{ paddingLeft: `${depth * 20 + 8}px` }}
+          className="flex items-center flex-1"
+          style={{ paddingLeft: `${depth * 20 + 8}px`, width: columnWidths.taskDescription, minWidth: columnWidths.taskDescription, maxWidth: columnWidths.taskDescription }}
         >
           {/* Drag Handle */}
           <button
@@ -287,7 +288,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         {/* Details Columns */}
         {showDetails && (
           <>
-            <div className="w-64 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+            <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.description, minWidth: columnWidths.description, maxWidth: columnWidths.description }}>
               <input
                 type="text"
                 value={localDescription}
@@ -303,7 +304,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                 }}
               />
             </div>
-            <div className="w-32 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+            <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.assignee, minWidth: columnWidths.assignee, maxWidth: columnWidths.assignee }}>
               <input
                 type="text"
                 value={localAssignee}
@@ -318,7 +319,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
                 }}
               />
             </div>
-            <div className="w-48 px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0">
+            <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.deliverables, minWidth: columnWidths.deliverables, maxWidth: columnWidths.deliverables }}>
               <input
                 type="text"
                 value={localDeliverables}
@@ -337,7 +338,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         )}
 
         {/* Duration */}
-        <div className="w-16 flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <div className="flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.duration, minWidth: columnWidths.duration, maxWidth: columnWidths.duration }}>
           <input
             type="number"
             value={task.duration}
@@ -358,7 +359,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         </div>
 
         {/* Date Section */}
-        <div className="w-56 flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.date, minWidth: columnWidths.date, maxWidth: columnWidths.date }}>
           <input
             type="date"
             value={task.startDate || ''}

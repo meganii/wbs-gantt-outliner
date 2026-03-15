@@ -22,6 +22,14 @@ export interface WorkCalendar {
 export interface ProjectConfig {
   calendar: WorkCalendar;
   viewMode: 'Day' | 'Week' | 'Month' | 'Year';
+  columnWidths: {
+    taskDescription: number;
+    description: number;
+    assignee: number;
+    deliverables: number;
+    duration: number;
+    date: number;
+  };
 }
 
 export interface TaskStoreState {
@@ -45,4 +53,5 @@ export interface TaskStoreState {
   addDependency: (fromId: string, toId: string) => void;
   removeDependency: (fromId: string, toId: string) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
+  setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
 }
