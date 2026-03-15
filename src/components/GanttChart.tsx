@@ -17,7 +17,7 @@ import {
   startOfWeek,
   startOfYear,
 } from 'date-fns';
-import { flattenTree } from '../utils/tree';
+import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
 import { isWorkDay } from '../utils/date';
 
@@ -26,6 +26,9 @@ const HEADER_HEIGHT = 40;
 interface GanttChartProps {
   showSidebar?: boolean;
   showNames?: boolean;
+  flattenedItems?: FlattenedItem[];
+  hoveredTaskId?: string | null;
+  onHoverTaskChange?: (taskId: string | null) => void;
   scrollRef?: React.RefObject<HTMLDivElement | null>;
   onScroll?: React.UIEventHandler<HTMLDivElement>;
 }
@@ -33,6 +36,9 @@ interface GanttChartProps {
 export const GanttChart: React.FC<GanttChartProps> = ({ 
   showSidebar = false,
   showNames = false,
+  flattenedItems: flattenedItemsProp,
+  hoveredTaskId = null,
+  onHoverTaskChange,
   scrollRef,
   onScroll
 }) => {
@@ -42,7 +48,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const viewMode = useTaskStore(state => state.projectConfig.viewMode);
   const setViewMode = useTaskStore(state => state.setViewMode);
 
-  const flattenedItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
+  const flattenedItems = useMemo(
+    () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
+    [flattenedItemsProp, tasks, rootIds]
+  );
 
   const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -324,7 +333,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
 
   return (
-    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden relative">
+    <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
       {/* Timeline Header */}
       <div 
         className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden" 
@@ -397,7 +406,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
       {/* Gantt Rows */}
       <div 
-        className="flex-1 relative overflow-auto" 
+        className="flex-1 relative overflow-auto min-h-0 min-w-0" 
         ref={containerRef}
         onScroll={(e) => {
             if (onScroll) onScroll(e);
@@ -474,15 +483,26 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             )}
         </svg>
 
-        {flattenedItems.map(({ id, task }) => (
+        {flattenedItems.map(({ id, task }) => {
+          const isHovered = hoveredTaskId === id;
+
+          return (
           <div 
             key={id} 
-            className="flex border-b border-gray-100 hover:bg-gray-50 h-8 relative z-auto pointer-events-none"
+            className={clsx(
+              "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
+              isHovered ? "bg-gray-50" : "hover:bg-gray-50"
+            )}
             style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
+            onMouseEnter={() => onHoverTaskChange?.(id)}
+            onMouseLeave={() => onHoverTaskChange?.(null)}
           > 
             {showNames && (
               <div 
-                className="flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 bg-white px-2 flex items-center text-xs truncate" 
+                className={clsx(
+                  "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 px-2 flex items-center text-xs truncate transition-colors duration-150",
+                  isHovered ? "bg-gray-50" : "bg-white"
+                )}
                 style={{ width: NAME_COLUMN_WIDTH }}
               >
                 {task.title}
@@ -579,7 +599,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                      data-task-id={id}
                      className={clsx(
                         "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group z-30",
-                        isDragging ? "bg-blue-600 cursor-grabbing" : "bg-blue-500 hover:bg-blue-400 cursor-pointer"
+                        isDragging && "bg-blue-600 cursor-grabbing",
+                        !isDragging && isHovered && "bg-blue-600 ring-1 ring-blue-300 cursor-pointer",
+                        !isDragging && !isHovered && "bg-blue-500 hover:bg-blue-400 cursor-pointer"
                      )}
                      style={{ left: offset, width: width - 2 }}
                      title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
@@ -667,7 +689,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                })()}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -14,6 +14,10 @@
   - Undo/Redo の型整理
   - プロジェクト読込時の履歴クリア
   - Windows環境向けに Shift + Alt + 矢印キー でのタスク移動に対応
+  - `Integrated` / `Gantt` View のレイアウト見直し
+    - ガント領域の縦スクロールが効くように `min-h-0` / `h-full` を整理
+    - `App` で可視タスク一覧を共有し、折りたたみ時の Outliner と Gantt の行ズレを抑制
+    - ホバー中タスク ID を `App` で共有し、Outliner と Gantt の行ハイライトを同期
 
 ## 直近の検証結果
 

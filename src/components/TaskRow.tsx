@@ -14,11 +14,24 @@ interface TaskRowProps {
   nextId?: string;
   wbsNumber?: string;
   isSelected?: boolean;
+  isHovered?: boolean;
+  onHoverChange?: (taskId: string | null) => void;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
   showDetails?: boolean;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange, showDetails = false }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({
+  taskId,
+  depth = 0,
+  prevId,
+  nextId,
+  wbsNumber,
+  isSelected,
+  isHovered = false,
+  onHoverChange,
+  onSelectionChange,
+  showDetails = false
+}) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
@@ -205,8 +218,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   };
 
   const rowStyle = clsx(
-    "flex items-center group h-8 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
-    isSelected && "bg-blue-50"
+    "flex items-center group h-8 border-b border-gray-100 transition-colors duration-150",
+    isSelected && isHovered && "bg-blue-100",
+    isSelected && !isHovered && "bg-blue-50",
+    !isSelected && isHovered && "bg-gray-50",
+    !isSelected && !isHovered && "hover:bg-gray-50"
   );
 
   const handleBlur = () => {
@@ -220,7 +236,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
 
   return (
     <div ref={setNodeRef} style={style} className="flex flex-col select-none">
-      <div className={rowStyle}>
+      <div
+        className={rowStyle}
+        onMouseEnter={() => onHoverChange?.(taskId)}
+        onMouseLeave={() => onHoverChange?.(null)}
+      >
         <div
           className="flex items-center flex-1"
           style={{ paddingLeft: `${depth * 20 + 8}px`, width: columnWidths.taskDescription, minWidth: columnWidths.taskDescription, maxWidth: columnWidths.taskDescription }}

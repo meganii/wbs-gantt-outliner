@@ -1,17 +1,20 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
 import { getTemporalState, loadProjectState, useTaskStore } from './store/useTaskStore';
 import clsx from 'clsx';
 import { Undo, Redo } from 'lucide-react';
+import { flattenTree } from './utils/tree';
 
 function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
+  const visibleItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
 
   const temporalState = useStore(useTaskStore.temporal, (state) => state);
 
@@ -121,6 +124,10 @@ function App() {
     };
   }, [isResizing, resize, stopResizing]);
 
+  useEffect(() => {
+    setHoveredTaskId(null);
+  }, [view]);
+
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
       {/* Header / Tabs */}
@@ -182,10 +189,15 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden min-h-0">
         {view === 'wbs' && (
-          <div className="flex-1 overflow-auto">
-            <Outliner showDetails={true} />
+          <div className="flex-1 overflow-auto min-h-0 min-w-0">
+            <Outliner
+              showDetails={true}
+              flattenedItems={visibleItems}
+              hoveredTaskId={hoveredTaskId}
+              onHoverTaskChange={setHoveredTaskId}
+            />
           </div>
         )}
 
@@ -195,18 +207,26 @@ function App() {
               ref={outlinerScrollRef}
               onScroll={handleOutlinerScroll}
               style={{ width: outlinerWidth }}
-              className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0"
+              className="border-r border-gray-200 overflow-y-auto no-scrollbar flex-shrink-0 min-h-0"
             >
-              <Outliner showDetails={false} />
+              <Outliner
+                showDetails={false}
+                flattenedItems={visibleItems}
+                hoveredTaskId={hoveredTaskId}
+                onHoverTaskChange={setHoveredTaskId}
+              />
             </div>
             {/* Resize Handle */}
             <div
               className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors z-50 flex-shrink-0"
               onMouseDown={startResizing}
             />
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative overflow-hidden min-h-0 min-w-0">
               <GanttChart
                 showSidebar
+                flattenedItems={visibleItems}
+                hoveredTaskId={hoveredTaskId}
+                onHoverTaskChange={setHoveredTaskId}
                 scrollRef={ganttScrollRef}
                 onScroll={handleGanttScroll}
               />
@@ -215,8 +235,14 @@ function App() {
         )}
 
         {view === 'gantt' && (
-          <div className="flex-1 relative overflow-hidden w-full">
-            <GanttChart showSidebar showNames />
+          <div className="flex-1 relative overflow-hidden w-full min-h-0 min-w-0">
+            <GanttChart
+              showSidebar
+              showNames
+              flattenedItems={visibleItems}
+              hoveredTaskId={hoveredTaskId}
+              onHoverTaskChange={setHoveredTaskId}
+            />
           </div>
         )}
       </main>
