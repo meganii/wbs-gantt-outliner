@@ -1,16 +1,20 @@
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
 import { IntegratedView } from './components/IntegratedView';
+import { ProjectSettingsDialog } from './components/ProjectSettingsDialog';
 import { getTemporalState, loadProjectState, useTaskStore } from './store/useTaskStore';
 import clsx from 'clsx';
-import { Undo, Redo } from 'lucide-react';
+import { CalendarDays, ChevronDown, Undo, Redo } from 'lucide-react';
 import { flattenTree } from './utils/tree';
 
 function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
 
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
@@ -118,11 +122,55 @@ function App() {
     setHoveredTaskId(null);
   }, [view]);
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!projectMenuRef.current?.contains(event.target as Node)) {
+        setIsProjectMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handlePointerDown);
+    return () => window.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
       {/* Header / Tabs */}
       <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
         <div className="flex space-x-1 no-drag items-center">
+          <div className="relative" ref={projectMenuRef}>
+            <button
+              onClick={() => setIsProjectMenuOpen((open) => !open)}
+              className={clsx(
+                'flex items-center gap-1 px-3 py-1 text-xs rounded-sm transition-colors no-drag',
+                isProjectMenuOpen ? 'bg-white text-blue-600 shadow-sm font-medium' : 'text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              Project
+              <ChevronDown size={12} />
+            </button>
+
+            {isProjectMenuOpen && (
+              <div className="absolute left-0 top-full mt-1 w-60 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg z-50">
+                <button
+                  onClick={() => {
+                    setIsProjectSettingsOpen(true);
+                    setIsProjectMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <CalendarDays size={14} className="text-blue-500" />
+                  <span className="flex-1">Holiday Settings</span>
+                  <span className="text-[10px] text-gray-400">
+                    {projectConfig.calendar.holidays.length}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="w-px bg-gray-300 mx-1 h-4 my-auto" />
+
           <button
             onClick={() => setView('wbs')}
             className={clsx(
@@ -218,6 +266,11 @@ function App() {
       <footer className="h-6 bg-gray-100 border-t border-gray-300 flex items-center px-2 text-[10px] text-gray-500 select-none">
         <span>Ready</span>
       </footer>
+
+      <ProjectSettingsDialog
+        isOpen={isProjectSettingsOpen}
+        onClose={() => setIsProjectSettingsOpen(false)}
+      />
     </div>
   );
 }
