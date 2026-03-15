@@ -10,6 +10,7 @@ import {
   normalizeProjectState,
   propagateDependencyDates,
 } from './taskStoreUtils';
+import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
 
 export interface ProjectData {
   tasks: Record<string, Task>;
@@ -23,22 +24,6 @@ type TaskStoreHistoryState = Pick<
 >;
 
 type TaskTemporalStore = StoreApi<TemporalState<TaskStoreHistoryState>>;
-
-const DEFAULT_CONFIG: ProjectConfig = {
-  calendar: {
-    workDays: [1, 2, 3, 4, 5],
-    holidays: [],
-  },
-  viewMode: 'Day',
-  columnWidths: {
-    taskDescription: 200,
-    description: 256,
-    assignee: 128,
-    deliverables: 192,
-    duration: 64,
-    date: 224,
-  },
-};
 
 const initialTaskId = uuidv4();
 const initialTask: Task = {
@@ -61,7 +46,7 @@ const taskStore = create<TaskStoreState>()(
         [initialTaskId]: initialTask,
       },
       rootIds: [initialTaskId],
-      projectConfig: DEFAULT_CONFIG,
+      projectConfig: DEFAULT_PROJECT_CONFIG,
       focusedTaskId: null,
       selectedTaskIds: [],
 
@@ -518,6 +503,16 @@ const taskStore = create<TaskStoreState>()(
         return { tasks };
       }),
 
+      setCalendarHolidays: (holidays) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          calendar: {
+            ...state.projectConfig.calendar,
+            holidays: normalizeHolidayList(holidays),
+          },
+        },
+      })),
+
       setViewMode: (viewMode) => set((state) => ({
         projectConfig: {
           ...state.projectConfig,
@@ -566,7 +561,7 @@ export function loadProjectState(data: ProjectData): void {
     ...useTaskStore.getState(),
     tasks: normalized.tasks,
     rootIds: normalized.rootIds,
-    projectConfig: data.projectConfig ?? DEFAULT_CONFIG,
+    projectConfig: mergeProjectConfig(data.projectConfig),
     focusedTaskId: null,
     selectedTaskIds: [],
   });

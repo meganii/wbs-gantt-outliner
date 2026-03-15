@@ -52,6 +52,7 @@ export interface TaskStoreState {
   moveTask: (ids: string | string[], direction: 'up' | 'down') => void;
   addDependency: (fromId: string, toId: string) => void;
   removeDependency: (fromId: string, toId: string) => void;
+  setCalendarHolidays: (holidays: string[]) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
 }
