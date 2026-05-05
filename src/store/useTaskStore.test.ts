@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getTemporalState, loadProjectState, useTaskStore } from './useTaskStore';
 import { act } from '@testing-library/react';
+import type { ProjectConfig } from '../types';
 
 // To properly test the store, we need to interact with it outside of a React component.
 // We can grab the initial state to reset the store before each test.
@@ -23,6 +24,12 @@ describe('useTaskStore', () => {
       const rootTask = tasks[rootIds[0]];
       expect(rootTask.title).toBe('Project Root');
       expect(rootTask.parentId).toBe(null);
+    });
+
+    it('should initialize the default work calendar', () => {
+      const { projectConfig } = useTaskStore.getState();
+      expect(projectConfig.calendar.workDays).toEqual([1, 2, 3, 4, 5]);
+      expect(projectConfig.calendar.holidays).toEqual([]);
     });
   });
 
@@ -108,6 +115,37 @@ describe('useTaskStore', () => {
       expect(tasks[siblingId].dependencies).toEqual([]);
       expect(focusedTaskId).toBeNull();
       expect(selectedTaskIds).toEqual([]);
+    });
+  });
+
+  describe('setAllCollapsed', () => {
+    it('should collapse and expand every task that has children', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const childId = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(childId, 'inside');
+      });
+
+      act(() => {
+        useTaskStore.getState().setAllCollapsed(true);
+      });
+
+      let { tasks } = useTaskStore.getState();
+      expect(tasks[rootId].isCollapsed).toBe(true);
+      expect(tasks[childId].isCollapsed).toBe(true);
+
+      act(() => {
+        useTaskStore.getState().setAllCollapsed(false);
+      });
+
+      tasks = useTaskStore.getState().tasks;
+      expect(tasks[rootId].isCollapsed).toBe(false);
+      expect(tasks[childId].isCollapsed).toBe(false);
     });
   });
 
@@ -229,6 +267,22 @@ describe('useTaskStore', () => {
     });
   });
 
+  describe('setCalendarHolidays', () => {
+    it('should sort, de-duplicate, and ignore invalid holidays', () => {
+      act(() => {
+        useTaskStore.getState().setCalendarHolidays([
+          '2026-05-03',
+          'invalid-date',
+          '2026-01-01',
+          '2026-05-03',
+        ]);
+      });
+
+      const { projectConfig } = useTaskStore.getState();
+      expect(projectConfig.calendar.holidays).toEqual(['2026-01-01', '2026-05-03']);
+    });
+  });
+
   describe('updateTask with Date Propagation', () => {
     it('should update a dependent task start date when its predecessor end date changes', () => {
       // Setup: task2 depends on task1
@@ -255,6 +309,32 @@ describe('useTaskStore', () => {
       const { tasks: updatedTasks } = useTaskStore.getState();
       // task2's start date should be the next workday after task1's new end date
       expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
+    });
+  });
+
+  describe('loadProjectState', () => {
+    it('should merge missing project config fields with defaults', () => {
+      act(() => {
+        loadProjectState({
+          tasks: useTaskStore.getState().tasks,
+          rootIds: useTaskStore.getState().rootIds,
+          projectConfig: {
+            calendar: {
+              workDays: [1, 2, 3, 4, 5],
+            } as ProjectConfig['calendar'],
+            viewMode: 'Week',
+            columnWidths: {
+              taskDescription: 320,
+            } as ProjectConfig['columnWidths'],
+          },
+        });
+      });
+
+      const { projectConfig } = useTaskStore.getState();
+      expect(projectConfig.viewMode).toBe('Week');
+      expect(projectConfig.calendar.holidays).toEqual([]);
+      expect(projectConfig.columnWidths.taskDescription).toBe(320);
+      expect(projectConfig.columnWidths.date).toBe(224);
     });
   });
 

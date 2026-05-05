@@ -10,6 +10,7 @@ import {
   normalizeProjectState,
   propagateDependencyDates,
 } from './taskStoreUtils';
+import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
 
 export interface ProjectData {
   tasks: Record<string, Task>;
@@ -19,26 +20,10 @@ export interface ProjectData {
 
 type TaskStoreHistoryState = Pick<
   TaskStoreState,
-  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'selectedTaskIds'
+  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'focusedTaskField' | 'selectedTaskIds'
 >;
 
 type TaskTemporalStore = StoreApi<TemporalState<TaskStoreHistoryState>>;
-
-const DEFAULT_CONFIG: ProjectConfig = {
-  calendar: {
-    workDays: [1, 2, 3, 4, 5],
-    holidays: [],
-  },
-  viewMode: 'Day',
-  columnWidths: {
-    taskDescription: 200,
-    description: 256,
-    assignee: 128,
-    deliverables: 192,
-    duration: 64,
-    date: 224,
-  },
-};
 
 const initialTaskId = uuidv4();
 const initialTask: Task = {
@@ -61,11 +46,13 @@ const taskStore = create<TaskStoreState>()(
         [initialTaskId]: initialTask,
       },
       rootIds: [initialTaskId],
-      projectConfig: DEFAULT_CONFIG,
+      projectConfig: DEFAULT_PROJECT_CONFIG,
       focusedTaskId: null,
+      focusedTaskField: 'title',
       selectedTaskIds: [],
 
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
+      setFocusedTaskCell: (id, field) => set({ focusedTaskId: id, focusedTaskField: field }),
       setSelectedTaskIds: (ids) => set({ selectedTaskIds: ids }),
 
       addTask: (targetId?, position = 'after') => {
@@ -91,7 +78,13 @@ const taskStore = create<TaskStoreState>()(
             if (Object.keys(tasks).length === 0) {
               rootIds.push(newId);
               tasks[newId] = newTask;
-              return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+              return {
+                tasks,
+                rootIds,
+                focusedTaskId: newId,
+                focusedTaskField: 'title',
+                selectedTaskIds: [newId],
+              };
             }
             return {};
           }
@@ -112,7 +105,7 @@ const taskStore = create<TaskStoreState>()(
               isCollapsed: false,
             };
 
-            return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return { tasks, focusedTaskId: newId, focusedTaskField: 'title', selectedTaskIds: [newId] };
           }
 
           const parentId = targetTask.parentId;
@@ -126,14 +119,26 @@ const taskStore = create<TaskStoreState>()(
             } else {
               rootIds.push(newId);
             }
-            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return {
+              tasks,
+              rootIds,
+              focusedTaskId: newId,
+              focusedTaskField: 'title',
+              selectedTaskIds: [newId],
+            };
           }
 
           const parent = tasks[parentId];
           if (!parent) {
             rootIds.push(newId);
             tasks[newId] = { ...newTask, parentId: null };
-            return { tasks, rootIds, focusedTaskId: newId, selectedTaskIds: [newId] };
+            return {
+              tasks,
+              rootIds,
+              focusedTaskId: newId,
+              focusedTaskField: 'title',
+              selectedTaskIds: [newId],
+            };
           }
 
           const siblings = [...parent.children];
@@ -145,7 +150,7 @@ const taskStore = create<TaskStoreState>()(
           }
           tasks[parentId] = { ...parent, children: siblings };
 
-          return { tasks, focusedTaskId: newId, selectedTaskIds: [newId] };
+          return { tasks, focusedTaskId: newId, focusedTaskField: 'title', selectedTaskIds: [newId] };
         });
       },
 
@@ -203,6 +208,26 @@ const taskStore = create<TaskStoreState>()(
             tasks[id] = { ...tasks[id], isCollapsed };
           }
         });
+        return { tasks };
+      }),
+
+      setAllCollapsed: (isCollapsed) => set((state) => {
+        const tasks = { ...state.tasks };
+        let hasChanges = false;
+
+        Object.values(state.tasks).forEach((task) => {
+          if (task.children.length === 0 || task.isCollapsed === isCollapsed) {
+            return;
+          }
+
+          tasks[task.id] = { ...task, isCollapsed };
+          hasChanges = true;
+        });
+
+        if (!hasChanges) {
+          return {};
+        }
+
         return { tasks };
       }),
 
@@ -518,6 +543,16 @@ const taskStore = create<TaskStoreState>()(
         return { tasks };
       }),
 
+      setCalendarHolidays: (holidays) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          calendar: {
+            ...state.projectConfig.calendar,
+            holidays: normalizeHolidayList(holidays),
+          },
+        },
+      })),
+
       setViewMode: (viewMode) => set((state) => ({
         projectConfig: {
           ...state.projectConfig,
@@ -541,6 +576,7 @@ const taskStore = create<TaskStoreState>()(
         rootIds: state.rootIds,
         projectConfig: state.projectConfig,
         focusedTaskId: state.focusedTaskId,
+        focusedTaskField: state.focusedTaskField,
         selectedTaskIds: state.selectedTaskIds,
       }),
       equality: (a, b) => (
@@ -566,8 +602,9 @@ export function loadProjectState(data: ProjectData): void {
     ...useTaskStore.getState(),
     tasks: normalized.tasks,
     rootIds: normalized.rootIds,
-    projectConfig: data.projectConfig ?? DEFAULT_CONFIG,
+    projectConfig: mergeProjectConfig(data.projectConfig),
     focusedTaskId: null,
+    focusedTaskField: 'title',
     selectedTaskIds: [],
   });
   getTemporalState().clear();

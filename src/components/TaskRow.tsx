@@ -6,6 +6,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { calculateEndDate, getWorkDaysCount } from '../utils/date';
 import { format } from 'date-fns';
+import type { TaskFocusableField } from '../types';
 
 interface TaskRowProps {
   taskId: string;
@@ -14,11 +15,35 @@ interface TaskRowProps {
   nextId?: string;
   wbsNumber?: string;
   isSelected?: boolean;
+  isHovered?: boolean;
+  onHoverChange?: (taskId: string | null) => void;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
   showDetails?: boolean;
+  suppressBorder?: boolean;
+  disableHoverHandlers?: boolean;
+  renderContainer?: (args: {
+    content: React.ReactNode;
+    setContainerRef: (node: HTMLDivElement | null) => void;
+    containerStyle: React.CSSProperties;
+    isDragging: boolean;
+  }) => React.ReactNode;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nextId, wbsNumber, isSelected, onSelectionChange, showDetails = false }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({
+  taskId,
+  depth = 0,
+  prevId,
+  nextId,
+  wbsNumber,
+  isSelected,
+  isHovered = false,
+  onHoverChange,
+  onSelectionChange,
+  showDetails = false,
+  suppressBorder = false,
+  disableHoverHandlers = false,
+  renderContainer,
+}) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
@@ -27,7 +52,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const indentTask = useTaskStore((state) => state.indentTask);
   const outdentTask = useTaskStore((state) => state.outdentTask);
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const setFocusedTaskId = useTaskStore((state) => state.setFocusedTaskId);
+  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
+  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
   const moveTask = useTaskStore((state) => state.moveTask);
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const setCollapsed = useTaskStore((state) => state.setCollapsed);
@@ -38,13 +64,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     ? selectedTaskIds
     : [taskId];
 
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (focusedTaskId === taskId && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [focusedTaskId, taskId]);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLInputElement>(null);
+  const assigneeInputRef = useRef<HTMLInputElement>(null);
+  const deliverablesInputRef = useRef<HTMLInputElement>(null);
+  const durationInputRef = useRef<HTMLInputElement>(null);
+  const startDateInputRef = useRef<HTMLInputElement>(null);
+  const endDateInputRef = useRef<HTMLInputElement>(null);
 
   // Local state for performant typing and IME support
   const [localTitle, setLocalTitle] = useState(task?.title || '');
@@ -52,16 +78,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
   const [localAssignee, setLocalAssignee] = useState(task?.assignee || '');
   const [localDeliverables, setLocalDeliverables] = useState(task?.deliverables || '');
   const isComposing = useRef(false);
+  const taskTitle = task?.title ?? '';
+  const taskDescription = task?.description || '';
+  const taskAssignee = task?.assignee || '';
+  const taskDeliverables = task?.deliverables || '';
 
   // Sync local state if external state changes (e.g. undo/redo, or other user)
   useEffect(() => {
-    if (task) {
-      setLocalTitle(task.title);
-      setLocalDescription(task.description || '');
-      setLocalAssignee(task.assignee || '');
-      setLocalDeliverables(task.deliverables || '');
-    }
-  }, [task?.title, task?.description, task?.assignee, task?.deliverables]);
+    setLocalTitle(taskTitle);
+    setLocalDescription(taskDescription);
+    setLocalAssignee(taskAssignee);
+    setLocalDeliverables(taskDeliverables);
+  }, [taskAssignee, taskDeliverables, taskDescription, taskTitle]);
 
   const {
     attributes,
@@ -77,35 +105,71 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+  const getInputRef = (field: TaskFocusableField) => {
+    switch (field) {
+      case 'title':
+        return titleInputRef;
+      case 'description':
+        return descriptionInputRef;
+      case 'assignee':
+        return assigneeInputRef;
+      case 'deliverables':
+        return deliverablesInputRef;
+      case 'duration':
+        return durationInputRef;
+      case 'startDate':
+        return startDateInputRef;
+      case 'endDate':
+        return endDateInputRef;
+    }
+  };
+
+  useEffect(() => {
+    if (focusedTaskId !== taskId) {
+      return;
+    }
+
+    const targetField =
+      !showDetails &&
+      (focusedTaskField === 'description' ||
+        focusedTaskField === 'assignee' ||
+        focusedTaskField === 'deliverables')
+        ? 'title'
+        : focusedTaskField;
+    const targetRef = getInputRef(targetField)?.current ?? titleInputRef.current;
+    if (targetRef && targetRef !== document.activeElement) {
+      targetRef.focus();
+    }
+  }, [focusedTaskField, focusedTaskId, showDetails, taskId]);
 
   if (!task) return null;
 
-
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleArrowNavigation = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    field: TaskFocusableField
+  ) => {
     // Ignore key events during IME composition
     if (isComposing.current || e.nativeEvent.isComposing) {
-      // ...
-      return;
+      return true;
     }
 
     if (e.key === 'Escape') {
       setSelectedTaskIds([]);
-      return;
+      return true;
     }
 
     // Row Reordering (Move Task): Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys
     if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
-      return;
+      return true;
     }
 
     // Collapse/Expand: Option + Arrow Keys
     if (!e.shiftKey && e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
       setCollapsed(effectiveIds, e.key === 'ArrowUp');
-      return;
+      return true;
     }
 
     // Selection Range Extension with Shift + Arrow Keys (No Cmd)
@@ -113,36 +177,42 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
       e.preventDefault();
       const targetId = e.key === 'ArrowUp' ? prevId : nextId;
       if (targetId) {
-        setFocusedTaskId(targetId);
+        setFocusedTaskCell(targetId, field);
         if (onSelectionChange) {
           onSelectionChange(targetId, false, true);
         }
       }
-      return;
+      return true;
     }
 
     if (e.key === 'ArrowUp') {
-      // Standard Nav
       if (prevId && !e.metaKey) {
         e.preventDefault();
-        setFocusedTaskId(prevId);
+        setFocusedTaskCell(prevId, field);
         if (onSelectionChange) onSelectionChange(prevId, false, false);
+        return true;
       }
     }
+
     if (e.key === 'ArrowDown') {
-      // Standard Nav
       if (nextId && !e.metaKey) {
         e.preventDefault();
-        setFocusedTaskId(nextId);
+        setFocusedTaskCell(nextId, field);
         if (onSelectionChange) onSelectionChange(nextId, false, false);
+        return true;
       }
+    }
+
+    return false;
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (handleArrowNavigation(e, 'title')) {
+      return;
     }
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      // Only update if changed; addTask will trigger focus move (and thus blur)
-      // but to be safe and atomic, we could have a combined action.
-      // For now, let's just make sure we don't double-trigger.
       if (task.title !== localTitle) {
         updateTask(taskId, { title: localTitle });
       }
@@ -164,49 +234,49 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     if (e.key === 'Backspace') {
       if (localTitle === '') {
         e.preventDefault();
-        // Be careful with multiple selection on Backspace?
-        // Usually backspace merge?
-        // For OUTLINER: Backspace on empty bullet deletes it and focuses previous.
         if (effectiveIds.length <= 1) {
           const targetPrev = prevId;
           deleteTask(taskId);
           if (targetPrev) {
-            setFocusedTaskId(targetPrev);
+            setFocusedTaskCell(targetPrev, 'title');
           }
-        } else {
-          // Multi-selection: Backspace usually deletes? Or requires explicit Delete?
-          // Let's allow Backspace to delete if all are selected?
-          // To be safe, let's require Cmd+Backspace for multi or non-empty.
-          // But user asked for "Task Deletion".
-          // If localTitle is empty, we delete this one.
         }
       }
     }
 
-    // Explicit Delete
     if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
       e.preventDefault();
       const idsToDelete = effectiveIds;
-
-      // Calculate focus target before deletion (simple heuristic: prev of first, or next of last?)
-      // If we delete focused task, we need to move focus.
-      // Current assumption: focus is on `taskId`.
-      let targetFocus = prevId || nextId;
+      const targetFocus = prevId || nextId;
 
       deleteTask(idsToDelete);
 
       if (targetFocus && !idsToDelete.includes(targetFocus)) {
-        setFocusedTaskId(targetFocus);
-      } else {
-        // If we deleted everything around us, we might fall back to root or parent?
-        // Store doesn't handle this well yet.
+        setFocusedTaskCell(targetFocus, 'title');
       }
     }
   };
 
+  const handleDetailKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    field: TaskFocusableField
+  ) => {
+    if (handleArrowNavigation(e, field)) {
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.stopPropagation();
+    }
+  };
+
   const rowStyle = clsx(
-    "flex items-center group h-8 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200",
-    isSelected && "bg-blue-50"
+    "flex items-center group h-8 transition-colors duration-150",
+    !suppressBorder && "border-b border-gray-100",
+    isSelected && isHovered && "bg-blue-100",
+    isSelected && !isHovered && "bg-blue-50",
+    !isSelected && isHovered && "bg-gray-50",
+    !isSelected && !isHovered && "hover:bg-gray-50"
   );
 
   const handleBlur = () => {
@@ -217,10 +287,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
     }
   };
 
-
-  return (
-    <div ref={setNodeRef} style={style} className="flex flex-col select-none">
-      <div className={rowStyle}>
+  const content = (
+    <div
+      className={rowStyle}
+      onMouseEnter={disableHoverHandlers ? undefined : () => onHoverChange?.(taskId)}
+      onMouseLeave={disableHoverHandlers ? undefined : () => onHoverChange?.(null)}
+    >
         <div
           className="flex items-center flex-1"
           style={{ paddingLeft: `${depth * 20 + 8}px`, width: columnWidths.taskDescription, minWidth: columnWidths.taskDescription, maxWidth: columnWidths.taskDescription }}
@@ -271,16 +343,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
 
           {/* Title Input */}
           <input
-            ref={inputRef}
+            ref={titleInputRef}
             type="text"
             value={localTitle}
             onChange={(e) => setLocalTitle(e.target.value)}
             onBlur={handleBlur}
-            onFocus={() => setFocusedTaskId(taskId)}
-            onKeyDown={handleKeyDown}
+            onFocus={() => setFocusedTaskCell(taskId, 'title')}
+            onKeyDown={handleTitleKeyDown}
             onCompositionStart={() => { isComposing.current = true; }}
             onCompositionEnd={() => { isComposing.current = false; }}
             placeholder="New Task"
+            data-task-id={taskId}
+            data-field="title"
             className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300 truncate"
           />
         </div>
@@ -290,48 +364,47 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
           <>
             <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.description, minWidth: columnWidths.description, maxWidth: columnWidths.description }}>
               <input
+                ref={descriptionInputRef}
                 type="text"
                 value={localDescription}
                 onChange={(e) => setLocalDescription(e.target.value)}
                 onBlur={() => { if (localDescription !== task.description) updateTask(taskId, { description: localDescription }) }}
+                onFocus={() => setFocusedTaskCell(taskId, 'description')}
                 placeholder="Description"
+                data-task-id={taskId}
+                data-field="description"
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    // prevent row's Enter
-                    e.stopPropagation();
-                  }
-                }}
+                onKeyDown={(e) => handleDetailKeyDown(e, 'description')}
               />
             </div>
             <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.assignee, minWidth: columnWidths.assignee, maxWidth: columnWidths.assignee }}>
               <input
+                ref={assigneeInputRef}
                 type="text"
                 value={localAssignee}
                 onChange={(e) => setLocalAssignee(e.target.value)}
                 onBlur={() => { if (localAssignee !== task.assignee) updateTask(taskId, { assignee: localAssignee }) }}
+                onFocus={() => setFocusedTaskCell(taskId, 'assignee')}
                 placeholder="Assignee"
+                data-task-id={taskId}
+                data-field="assignee"
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.stopPropagation();
-                  }
-                }}
+                onKeyDown={(e) => handleDetailKeyDown(e, 'assignee')}
               />
             </div>
             <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.deliverables, minWidth: columnWidths.deliverables, maxWidth: columnWidths.deliverables }}>
               <input
+                ref={deliverablesInputRef}
                 type="text"
                 value={localDeliverables}
                 onChange={(e) => setLocalDeliverables(e.target.value)}
                 onBlur={() => { if (localDeliverables !== task.deliverables) updateTask(taskId, { deliverables: localDeliverables }) }}
+                onFocus={() => setFocusedTaskCell(taskId, 'deliverables')}
                 placeholder="Deliverables"
+                data-task-id={taskId}
+                data-field="deliverables"
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.stopPropagation();
-                  }
-                }}
+                onKeyDown={(e) => handleDetailKeyDown(e, 'deliverables')}
               />
             </div>
           </>
@@ -340,8 +413,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         {/* Duration */}
         <div className="flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.duration, minWidth: columnWidths.duration, maxWidth: columnWidths.duration }}>
           <input
+            ref={durationInputRef}
             type="number"
             value={task.duration}
+            onFocus={() => setFocusedTaskCell(taskId, 'duration')}
             onChange={(e) => {
               const newDuration = parseInt(e.target.value) || 0;
               if (!task.startDate) return;
@@ -353,6 +428,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
             }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'duration')}
+            data-task-id={taskId}
+            data-field="duration"
             className="bg-transparent w-full text-center outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
             title="Duration (days)"
           />
@@ -361,8 +439,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
         {/* Date Section */}
         <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.date, minWidth: columnWidths.date, maxWidth: columnWidths.date }}>
           <input
+            ref={startDateInputRef}
             type="date"
             value={task.startDate || ''}
+            onFocus={() => setFocusedTaskCell(taskId, 'startDate')}
             onChange={(e) => {
               const newStartDate = e.target.value;
               if (!newStartDate) return;
@@ -374,14 +454,19 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
               updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
             }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'startDate')}
+            data-task-id={taskId}
+            data-field="startDate"
             className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
 
           <span className="text-gray-400">-</span>
 
           <input
+            ref={endDateInputRef}
             type="date"
             value={task.endDate || ''}
+            onFocus={() => setFocusedTaskCell(taskId, 'endDate')}
             onChange={(e) => {
               const newEndDate = e.target.value;
               if (!newEndDate || !task.startDate) return;
@@ -396,11 +481,27 @@ export const TaskRow: React.FC<TaskRowProps> = ({ taskId, depth = 0, prevId, nex
               );
               updateTask(taskId, { endDate: newEndDate, duration: newDuration });
             }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'endDate')}
+            data-task-id={taskId}
+            data-field="endDate"
             className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
           />
         </div>
-      </div>
+    </div>
+  );
 
+  if (renderContainer) {
+    return renderContainer({
+      content,
+      setContainerRef: setNodeRef,
+      containerStyle: style,
+      isDragging,
+    });
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex flex-col select-none">
+      {content}
     </div>
   );
 };

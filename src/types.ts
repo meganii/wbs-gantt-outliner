@@ -32,26 +32,39 @@ export interface ProjectConfig {
   };
 }
 
+export type TaskFocusableField =
+  | 'title'
+  | 'description'
+  | 'assignee'
+  | 'deliverables'
+  | 'duration'
+  | 'startDate'
+  | 'endDate';
+
 export interface TaskStoreState {
   tasks: Record<string, Task>;
   rootIds: string[];
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
+  focusedTaskField: TaskFocusableField;
   selectedTaskIds: string[];
 
   setFocusedTaskId: (id: string | null) => void;
+  setFocusedTaskCell: (id: string | null, field: TaskFocusableField) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
   setCollapsed: (ids: string[], isCollapsed: boolean) => void;
+  setAllCollapsed: (isCollapsed: boolean) => void;
   indentTask: (ids: string | string[]) => void;
   outdentTask: (ids: string | string[]) => void;
   reorderTask: (activeId: string, overId: string) => void;
   moveTask: (ids: string | string[], direction: 'up' | 'down') => void;
   addDependency: (fromId: string, toId: string) => void;
   removeDependency: (fromId: string, toId: string) => void;
+  setCalendarHolidays: (holidays: string[]) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
 }
