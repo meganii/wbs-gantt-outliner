@@ -204,7 +204,7 @@ function App() {
               className="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors z-50 flex-shrink-0"
               onMouseDown={startResizing}
             />
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative overflow-hidden min-h-0">
               <GanttChart
                 showSidebar
                 scrollRef={ganttScrollRef}
@@ -215,7 +215,7 @@ function App() {
         )}
 
         {view === 'gantt' && (
-          <div className="flex-1 relative overflow-hidden w-full">
+          <div className="flex-1 relative overflow-hidden w-full min-h-0">
             <GanttChart showSidebar showNames />
           </div>
         )}

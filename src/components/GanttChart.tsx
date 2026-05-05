@@ -324,7 +324,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
 
   return (
-    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-full select-none overflow-hidden relative">
+    <div className="flex-1 bg-white text-gray-900 flex flex-col min-h-0 select-none overflow-hidden relative">
       {/* Timeline Header */}
       <div 
         className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden" 
