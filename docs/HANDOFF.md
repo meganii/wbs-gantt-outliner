@@ -36,13 +36,13 @@
 
 ## 直近の検証結果
 
-- `npm test -- --run` : 通過
-- `npm run build` : 通過
+- `pnpm test -- --run` : 通過
+- `pnpm run build` : 通過
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
 - `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
-  - `npm run build` で renderer 側の大きなチャンク警告は解消
+  - `pnpm run build` で renderer 側の大きなチャンク警告は解消
   - `dist-electron/main.js` は大きいが、配布用の Electron main バンドルであり、今回の Vite chunk warning の対象ではない
 
 ## 次に着手する優先課題
@@ -76,6 +76,8 @@
 
 ## 次の作業で最初に見るとよい場所
 
+> **注記:** 現在 `feature/pnpm-and-forge-migration` ブランチにて、`npm` から `pnpm` への移行、および `electron-builder` から `electron-forge` への移行を検証中です。パッケージング時の権限エラー（EPERM）回避策としてテストしています。
+
 - `README.md`
 - `src/store/useTaskStore.ts`
 - `src/store/taskStoreUtils.ts`
@@ -84,6 +86,7 @@
 ## 次の作業でよく使うコマンド
 
 ```bash
-npm test -- --run
-npm run build
+pnpm test -- --run
+pnpm run build
+pnpm run make
 ```
