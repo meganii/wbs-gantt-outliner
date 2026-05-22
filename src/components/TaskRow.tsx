@@ -144,6 +144,19 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   if (!task) return null;
 
+  // Save local state to the global store for the specified field if there are changes
+  const commitFieldLocalState = (field: TaskFocusableField) => {
+    if (field === 'title' && task.title !== localTitle) {
+      updateTask(taskId, { title: localTitle });
+    } else if (field === 'description' && task.description !== localDescription) {
+      updateTask(taskId, { description: localDescription });
+    } else if (field === 'assignee' && task.assignee !== localAssignee) {
+      updateTask(taskId, { assignee: localAssignee });
+    } else if (field === 'deliverables' && task.deliverables !== localDeliverables) {
+      updateTask(taskId, { deliverables: localDeliverables });
+    }
+  };
+
   const handleArrowNavigation = (
     e: React.KeyboardEvent<HTMLInputElement>,
     field: TaskFocusableField
@@ -161,7 +174,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     // Row Reordering (Move Task): Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys
     if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
+      commitFieldLocalState(field);
       moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
+      return true;
+    }
+
+    // Indent/Outdent Task: Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys (Left/Right)
+    if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      commitFieldLocalState(field);
+      if (e.key === 'ArrowLeft') {
+        outdentTask(effectiveIds);
+      } else {
+        indentTask(effectiveIds);
+      }
       return true;
     }
 
@@ -213,23 +239,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (task.title !== localTitle) {
-        updateTask(taskId, { title: localTitle });
-      }
+      commitFieldLocalState('title');
       setSelectedTaskIds([]);
       addTask(taskId, 'after');
     }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      if (task.title !== localTitle) {
-        updateTask(taskId, { title: localTitle });
-      }
-      if (e.shiftKey) {
-        outdentTask(effectiveIds);
-      } else {
-        indentTask(effectiveIds);
-      }
-    }
+
 
     if (e.key === 'Backspace') {
       if (localTitle === '') {
@@ -282,9 +296,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const handleBlur = () => {
     // If we're blurring because we are moving focus to the newly created task,
     // we still want to save the title. 
-    if (task.title !== localTitle) {
-      updateTask(taskId, { title: localTitle });
-    }
+    commitFieldLocalState('title');
   };
 
   const content = (
@@ -368,7 +380,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 type="text"
                 value={localDescription}
                 onChange={(e) => setLocalDescription(e.target.value)}
-                onBlur={() => { if (localDescription !== task.description) updateTask(taskId, { description: localDescription }) }}
+                onBlur={() => commitFieldLocalState('description')}
                 onFocus={() => setFocusedTaskCell(taskId, 'description')}
                 placeholder="Description"
                 data-task-id={taskId}
@@ -383,7 +395,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 type="text"
                 value={localAssignee}
                 onChange={(e) => setLocalAssignee(e.target.value)}
-                onBlur={() => { if (localAssignee !== task.assignee) updateTask(taskId, { assignee: localAssignee }) }}
+                onBlur={() => commitFieldLocalState('assignee')}
                 onFocus={() => setFocusedTaskCell(taskId, 'assignee')}
                 placeholder="Assignee"
                 data-task-id={taskId}
@@ -398,7 +410,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 type="text"
                 value={localDeliverables}
                 onChange={(e) => setLocalDeliverables(e.target.value)}
-                onBlur={() => { if (localDeliverables !== task.deliverables) updateTask(taskId, { deliverables: localDeliverables }) }}
+                onBlur={() => commitFieldLocalState('deliverables')}
                 onFocus={() => setFocusedTaskCell(taskId, 'deliverables')}
                 placeholder="Deliverables"
                 data-task-id={taskId}

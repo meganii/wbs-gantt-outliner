@@ -78,4 +78,47 @@ describe('Outliner keyboard navigation', () => {
     expect(useTaskStore.getState().focusedTaskId).toBe(secondId);
     expect(useTaskStore.getState().focusedTaskField).toBe('duration');
   });
+
+  it('indents and outdents task with Alt+Shift+ArrowRight/Left keys', () => {
+    const firstId = useTaskStore.getState().rootIds[0];
+
+    act(() => {
+      useTaskStore.getState().addTask(firstId, 'after');
+    });
+
+    const secondId = useTaskStore.getState().rootIds[1];
+    const { container } = render(<Outliner showDetails />);
+    const secondTitle = container.querySelector<HTMLInputElement>(
+      `input[data-task-id="${secondId}"][data-field="title"]`
+    );
+
+    expect(secondTitle).not.toBeNull();
+
+    // Focus title and trigger Alt+Shift+ArrowRight to indent
+    fireEvent.focus(secondTitle!);
+    fireEvent.keyDown(secondTitle!, {
+      key: 'ArrowRight',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    // Check if second task is now a child of the first task
+    const secondTask = useTaskStore.getState().tasks[secondId];
+    const firstTask = useTaskStore.getState().tasks[firstId];
+    expect(firstTask.children).toContain(secondId);
+    expect(secondTask.parentId).toBe(firstId);
+
+    // Trigger Alt+Shift+ArrowLeft to outdent
+    fireEvent.keyDown(secondTitle!, {
+      key: 'ArrowLeft',
+      altKey: true,
+      shiftKey: true,
+    });
+
+    // Check if second task is a root task again
+    const secondTaskAfter = useTaskStore.getState().tasks[secondId];
+    const firstTaskAfter = useTaskStore.getState().tasks[firstId];
+    expect(firstTaskAfter.children).not.toContain(secondId);
+    expect(secondTaskAfter.parentId).toBeNull();
+  });
 });
