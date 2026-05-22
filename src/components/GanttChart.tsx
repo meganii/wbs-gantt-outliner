@@ -33,7 +33,7 @@ interface GanttChartProps {
   onScroll?: React.UIEventHandler<HTMLDivElement>;
 }
 
-export const GanttChart: React.FC<GanttChartProps> = ({ 
+export const GanttChart: React.FC<GanttChartProps> = ({
   showSidebar = false,
   showNames = false,
   flattenedItems: flattenedItemsProp,
@@ -170,7 +170,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     targetTaskId?: string; // For dependency drop target
   } | null>(null);
 
-  const [mousePos, setMousePos] = useState<{x: number, y: number} | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number, y: number } | null>(null);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -286,48 +286,48 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     if (!containerRect || !timelineMetrics.pixelsPerDay) return;
 
     for (const { id, task } of flattenedItems) {
-        if (task.dependencies) {
-            for (const depId of task.dependencies) {
-                const sourceTask = tasks[depId];
-                const targetTask = tasks[id];
+      if (task.dependencies) {
+        for (const depId of task.dependencies) {
+          const sourceTask = tasks[depId];
+          const targetTask = tasks[id];
 
-                if (sourceTask && targetTask && sourceTask.endDate && targetTask.startDate) {
-                    const sourceEl = taskBarRefs.current.get(depId);
-                    const targetEl = taskBarRefs.current.get(id);
-                    if (!sourceEl || !targetEl) continue;
+          if (sourceTask && targetTask && sourceTask.endDate && targetTask.startDate) {
+            const sourceEl = taskBarRefs.current.get(depId);
+            const targetEl = taskBarRefs.current.get(id);
+            if (!sourceEl || !targetEl) continue;
 
-                    const sourceRect = sourceEl.getBoundingClientRect();
-                    const targetRect = targetEl.getBoundingClientRect();
+            const sourceRect = sourceEl.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
 
-                    const scrollLeft = containerRef.current?.scrollLeft || 0;
-                    const scrollTop = containerRef.current?.scrollTop || 0;
+            const scrollLeft = containerRef.current?.scrollLeft || 0;
+            const scrollTop = containerRef.current?.scrollTop || 0;
 
-                    const startX = sourceRect.right - containerRect.left + scrollLeft - nameOffset;
-                    const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-                    const endX = targetRect.left - containerRect.left + scrollLeft - nameOffset;
-                    const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
+            const startX = sourceRect.right - containerRect.left + scrollLeft - nameOffset;
+            const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
+            const endX = targetRect.left - containerRect.left + scrollLeft - nameOffset;
+            const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
 
-                    let path = '';
-                    const boxPadding = 20;
+            let path = '';
+            const boxPadding = 20;
 
-                    if (endX > startX + boxPadding * 2) {
-                        const midX = startX + (endX - startX) / 2;
-                        path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-                    } else {
-                        const rowHeight = 32;
-                        const verticalLaneY = endY > startY ? startY + (rowHeight / 2) : startY - (rowHeight / 2);
-                        path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
-                    }
-
-                    lines.push({ 
-                        key: `${depId}::${id}`, 
-                        d: path,
-                        fromId: depId,
-                        toId: id
-                    });
-                }
+            if (endX > startX + boxPadding * 2) {
+              const midX = startX + (endX - startX) / 2;
+              path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+            } else {
+              const rowHeight = 32;
+              const verticalLaneY = endY > startY ? startY + (rowHeight / 2) : startY - (rowHeight / 2);
+              path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
             }
+
+            lines.push({
+              key: `${depId}::${id}`,
+              d: path,
+              fromId: depId,
+              toId: id
+            });
+          }
         }
+      }
     }
     setDependencyLines(lines);
   }, [flattenedItems, tasks, showSidebar, timelineMetrics]);
@@ -335,13 +335,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
       {/* Timeline Header */}
-      <div 
-        className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden" 
+      <div
+        className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden"
         style={{ height: HEADER_HEIGHT }}
         ref={headerRef}
       >
         {showNames && (
-          <div 
+          <div
             className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
@@ -371,9 +371,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 label = format(date, 'd');
                 subLabel = format(date, 'EE');
             }
-             return (
-              <div 
-                key={date.toISOString()} 
+            return (
+              <div
+                key={date.toISOString()}
                 className={clsx(
                   "flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center",
                   viewMode === 'Day' && isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
@@ -386,11 +386,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             );
           })}
         </div>
-        
+
         {/* Toggle Selector on the right */}
         {showSidebar && (
           <div className="sticky right-0 top-0 h-full bg-gray-100/90 backdrop-blur-sm border-l border-gray-300 px-3 flex items-center z-40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-             <select
+            <select
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
               className="text-xs p-1.5 border border-gray-300 rounded bg-white font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all"
@@ -405,207 +405,207 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       </div>
 
       {/* Gantt Rows */}
-      <div 
-        className="flex-1 relative overflow-auto min-h-0 min-w-0" 
+      <div
+        className="flex-1 relative overflow-auto min-h-0 min-w-0"
         ref={containerRef}
         onScroll={(e) => {
-            if (onScroll) onScroll(e);
-            // Internal logic for header sync is already handled by the scroll listener in useEffect
+          if (onScroll) onScroll(e);
+          // Internal logic for header sync is already handled by the scroll listener in useEffect
         }}
       >
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
-            className="absolute inset-0 pointer-events-none z-10"
-            style={{
-                minHeight: flattenedItems.length * 32,
-                width: timeRange.length * CELL_WIDTH,
-                left: nameOffset
-            }}
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            minHeight: flattenedItems.length * 32,
+            width: timeRange.length * CELL_WIDTH,
+            left: nameOffset
+          }}
         >
-            <defs>
-                <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                    <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
-                </marker>
-            </defs>
-            {/* Existing Dependencies */}
-            {dependencyLines.map(({ key, d, fromId, toId }) => {
-                return (
-                    <path
-                        key={key}
-                        d={d}
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        fill="none"
-                        markerEnd="url(#arrowhead)"
-                        className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
-                        style={{ pointerEvents: 'stroke' }}
-                        onMouseDown={(e) => {
-                            // Prevent starting a draw-range when clicking or dragging from a dependency line
-                            e.stopPropagation();
-                        } }
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Delete this dependency?')) {
-                                removeDependency(fromId, toId);
-                            }
-                        }}
-                    />
-                );
-            })}
-            
-            {/* Dragging Line */}
-            {dragState?.mode === 'dependency' && mousePos && (
-                 (() => {
-                    const startIdx = flattenedItems.findIndex(i => i.id === dragState.taskId);
-                    if (startIdx === -1) return null;
-                    
-                    const task = tasks[dragState.taskId];
-                    if (!task.endDate) return null;
-                    const taskEnd = new Date(task.endDate);
-                    const { timelineStart, pixelsPerDay } = timelineMetrics;
+          <defs>
+            <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
+            </marker>
+          </defs>
+          {/* Existing Dependencies */}
+          {dependencyLines.map(({ key, d, fromId, toId }) => {
+            return (
+              <path
+                key={key}
+                d={d}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                markerEnd="url(#arrowhead)"
+                className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
+                style={{ pointerEvents: 'stroke' }}
+                onMouseDown={(e) => {
+                  // Prevent starting a draw-range when clicking or dragging from a dependency line
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm('Delete this dependency?')) {
+                    removeDependency(fromId, toId);
+                  }
+                }}
+              />
+            );
+          })}
 
-                    const diffDays = differenceInDays(taskEnd, timelineStart);
-                    const startX = (diffDays + 1) * pixelsPerDay;
-                    const startY = startIdx * 32 + 16;
-                    
-                    return (
-                        <line 
-                            x1={startX} 
-                            y1={startY} 
-                            x2={mousePos.x} 
-                            y2={mousePos.y} 
-                            stroke="#3b82f6" 
-                            strokeWidth="2" 
-                            strokeDasharray="4"
-                        />
-                    );
-                 })()
-            )}
+          {/* Dragging Line */}
+          {dragState?.mode === 'dependency' && mousePos && (
+            (() => {
+              const startIdx = flattenedItems.findIndex(i => i.id === dragState.taskId);
+              if (startIdx === -1) return null;
+
+              const task = tasks[dragState.taskId];
+              if (!task.endDate) return null;
+              const taskEnd = new Date(task.endDate);
+              const { timelineStart, pixelsPerDay } = timelineMetrics;
+
+              const diffDays = differenceInDays(taskEnd, timelineStart);
+              const startX = (diffDays + 1) * pixelsPerDay;
+              const startY = startIdx * 32 + 16;
+
+              return (
+                <line
+                  x1={startX}
+                  y1={startY}
+                  x2={mousePos.x}
+                  y2={mousePos.y}
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  strokeDasharray="4"
+                />
+              );
+            })()
+          )}
         </svg>
 
         {flattenedItems.map(({ id, task }) => {
           const isHovered = hoveredTaskId === id;
 
           return (
-          <div 
-            key={id} 
-            className={clsx(
-              "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
-              isHovered ? "bg-gray-50" : "hover:bg-gray-50"
-            )}
-            style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
-            onMouseEnter={() => onHoverTaskChange?.(id)}
-            onMouseLeave={() => onHoverTaskChange?.(null)}
-          > 
-            {showNames && (
-              <div 
-                className={clsx(
-                  "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 px-2 flex items-center text-xs truncate transition-colors duration-150",
-                  isHovered ? "bg-gray-50" : "bg-white"
-                )}
-                style={{ width: NAME_COLUMN_WIDTH }}
-              >
-                {task.title}
-              </div>
-            )}
-            {/* Bars Area */}
-            <div 
+            <div
+              key={id}
+              className={clsx(
+                "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
+                isHovered ? "bg-gray-50" : "hover:bg-gray-50"
+              )}
+              style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
+              onMouseEnter={() => onHoverTaskChange?.(id)}
+              onMouseLeave={() => onHoverTaskChange?.(null)}
+            >
+              {showNames && (
+                <div
+                  className={clsx(
+                    "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 px-2 flex items-center text-xs truncate transition-colors duration-150",
+                    isHovered ? "bg-gray-50" : "bg-white"
+                  )}
+                  style={{ width: NAME_COLUMN_WIDTH }}
+                >
+                  {task.title}
+                </div>
+              )}
+              {/* Bars Area */}
+              <div
                 className="relative flex pointer-events-auto cursor-crosshair h-full flex-1"
                 onMouseDown={(e) => {
-                    if (e.button !== 0) return;
-                    
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left; // relative to row
-                    // Calculate date from X
-                    const daysOffset = Math.floor((x / (timeRange.length * CELL_WIDTH)) * timelineMetrics.totalDays);
-                    const clickedDate = addDays(timelineMetrics.timelineStart, daysOffset);
-                    
-                    setDragState({
-                        taskId: id,
-                        mode: 'draw-range',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: clickedDate,
-                        initialEndDate: clickedDate,
-                        currentStartDate: clickedDate,
-                        currentEndDate: clickedDate
-                    });
+                  if (e.button !== 0) return;
+
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left; // relative to row
+                  // Calculate date from X
+                  const daysOffset = Math.floor((x / (timeRange.length * CELL_WIDTH)) * timelineMetrics.totalDays);
+                  const clickedDate = addDays(timelineMetrics.timelineStart, daysOffset);
+
+                  setDragState({
+                    taskId: id,
+                    mode: 'draw-range',
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    initialStartDate: clickedDate,
+                    initialEndDate: clickedDate,
+                    currentStartDate: clickedDate,
+                    currentEndDate: clickedDate
+                  });
                 }}
-            >
-               {/* Grid Background */}
-               <div className="absolute inset-0 flex pointer-events-none">
+              >
+                {/* Grid Background */}
+                <div className="absolute inset-0 flex pointer-events-none">
                   {timeRange.map(date => {
                     const isWknd = viewMode === 'Day' && !isWorkDay(date, calendar);
                     return (
-                      <div 
+                      <div
                         key={date.toISOString()}
                         className={clsx(
                           "flex-shrink-0 border-r border-gray-100 h-full",
                           isWknd && "bg-gray-100/50"
                         )}
-                        style={{ width: CELL_WIDTH }} 
+                        style={{ width: CELL_WIDTH }}
                       />
                     );
                   })}
-               </div>
+                </div>
 
                 {/* Drawing Preview Box */}
-               {dragState?.taskId === id && dragState?.mode === 'draw-range' && (
-                   (() => {
-                        const s = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
-                        const e = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
-                        
-                        const { timelineStart, pixelsPerDay } = timelineMetrics;
-                        const diffDays = differenceInDays(s, timelineStart);
-                        const offset = diffDays * pixelsPerDay;
-                        const daySpan = differenceInDays(e, s) + 1;
-                        const width = daySpan * pixelsPerDay;
-                        
-                        return (
-                            <div
-                                className="absolute top-1.5 h-5 border-2 border-dashed border-blue-500 bg-blue-100/30 z-30 pointer-events-none"
-                                style={{ left: offset, width: Math.max(0, width - 2) }}
-                            />
-                        );
-                   })()
-               )}
+                {dragState?.taskId === id && dragState?.mode === 'draw-range' && (
+                  (() => {
+                    const s = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
+                    const e = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
 
-               {/* Task Bar - Z-30 */}
-               {(() => {
-                 if (!task.startDate || !task.endDate) return null;
-                 // Determine which dates to use (drag state or real state)
-                 const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                 const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate);
-                 const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate);
-                 
-                 const { timelineStart, pixelsPerDay } = timelineMetrics;
-                 
-                 const diffDays = differenceInDays(taskStart, timelineStart);
-                 const offset = diffDays * pixelsPerDay;
-                 const daySpan = differenceInDays(taskEnd, taskStart) + 1;
-                 const width = daySpan * pixelsPerDay;
+                    const { timelineStart, pixelsPerDay } = timelineMetrics;
+                    const diffDays = differenceInDays(s, timelineStart);
+                    const offset = diffDays * pixelsPerDay;
+                    const daySpan = differenceInDays(e, s) + 1;
+                    const width = daySpan * pixelsPerDay;
 
-                 if (width <= 0) return null;
+                    return (
+                      <div
+                        className="absolute top-1.5 h-5 border-2 border-dashed border-blue-500 bg-blue-100/30 z-30 pointer-events-none"
+                        style={{ left: offset, width: Math.max(0, width - 2) }}
+                      />
+                    );
+                  })()
+                )}
 
-                 return (
-                   <div 
-                     ref={el => {
-                       if (el) {
-                         taskBarRefs.current.set(id, el);
-                       } else {
-                         taskBarRefs.current.delete(id);
-                       }
-                     }}
-                     data-task-id={id}
-                     className={clsx(
+                {/* Task Bar - Z-30 */}
+                {(() => {
+                  if (!task.startDate || !task.endDate) return null;
+                  // Determine which dates to use (drag state or real state)
+                  const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
+                  const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate);
+                  const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate);
+
+                  const { timelineStart, pixelsPerDay } = timelineMetrics;
+
+                  const diffDays = differenceInDays(taskStart, timelineStart);
+                  const offset = diffDays * pixelsPerDay;
+                  const daySpan = differenceInDays(taskEnd, taskStart) + 1;
+                  const width = daySpan * pixelsPerDay;
+
+                  if (width <= 0) return null;
+
+                  return (
+                    <div
+                      ref={el => {
+                        if (el) {
+                          taskBarRefs.current.set(id, el);
+                        } else {
+                          taskBarRefs.current.delete(id);
+                        }
+                      }}
+                      data-task-id={id}
+                      className={clsx(
                         "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group z-30",
                         isDragging && "bg-blue-600 cursor-grabbing",
                         !isDragging && isHovered && "bg-blue-600 ring-1 ring-blue-300 cursor-pointer",
                         !isDragging && !isHovered && "bg-blue-500 hover:bg-blue-400 cursor-pointer"
-                     )}
-                     style={{ left: offset, width: width - 2 }}
-                     title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
-                     onMouseDown={(e) => {
+                      )}
+                      style={{ left: offset, width: width - 2 }}
+                      title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
+                      onMouseDown={(e) => {
                         if (e.button !== 0 || !task.startDate || !task.endDate) return; // Only left click
                         e.stopPropagation();
                         setDragState({
@@ -618,77 +618,77 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                           currentStartDate: new Date(task.startDate),
                           currentEndDate: new Date(task.endDate),
                         });
-                     }}
-                   >
-                     {/* Left Resize Handle */}
-                     <div 
+                      }}
+                    >
+                      {/* Left Resize Handle */}
+                      <div
                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
                         onMouseDown={(e) => {
-                            if (!task.startDate || !task.endDate) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                             setDragState({
-                               taskId: id,
-                               mode: 'resize-left',
-                               startX: e.clientX,
-                               startY: e.clientY,
-                               initialStartDate: new Date(task.startDate),
-                               initialEndDate: new Date(task.endDate),
-                               currentStartDate: new Date(task.startDate),
-                               currentEndDate: new Date(task.endDate),
-                             });
+                          if (!task.startDate || !task.endDate) return;
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDragState({
+                            taskId: id,
+                            mode: 'resize-left',
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            initialStartDate: new Date(task.startDate),
+                            initialEndDate: new Date(task.endDate),
+                            currentStartDate: new Date(task.startDate),
+                            currentEndDate: new Date(task.endDate),
+                          });
                         }}
-                     />
+                      />
 
-                     {/* Right Resize Handle */}
-                     <div 
+                      {/* Right Resize Handle */}
+                      <div
                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
                         onMouseDown={(e) => {
-                            if (!task.startDate || !task.endDate) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                             setDragState({
-                               taskId: id,
-                               mode: 'resize-right',
-                               startX: e.clientX,
-                               startY: e.clientY,
-                               initialStartDate: new Date(task.startDate),
-                               initialEndDate: new Date(task.endDate),
-                               currentStartDate: new Date(task.startDate),
-                               currentEndDate: new Date(task.endDate),
-                             });
+                          if (!task.startDate || !task.endDate) return;
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDragState({
+                            taskId: id,
+                            mode: 'resize-right',
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            initialStartDate: new Date(task.startDate),
+                            initialEndDate: new Date(task.endDate),
+                            currentStartDate: new Date(task.startDate),
+                            currentEndDate: new Date(task.endDate),
+                          });
                         }}
-                     />
+                      />
 
-                     {/* Dependency Handle (Right side) */}
-                     <div 
+                      {/* Dependency Handle (Right side) */}
+                      <div
                         className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
                         title="Drag to create dependency"
                         onMouseDown={(e) => {
-                            if (!task.startDate || !task.endDate) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                            setDragState({
-                              taskId: id,
-                              mode: 'dependency',
-                              startX: e.clientX,
-                              startY: e.clientY,
-                              initialStartDate: new Date(task.startDate),
-                              initialEndDate: new Date(task.endDate),
-                              currentStartDate: new Date(task.startDate),
-                              currentEndDate: new Date(task.endDate),
-                            });
+                          if (!task.startDate || !task.endDate) return;
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDragState({
+                            taskId: id,
+                            mode: 'dependency',
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            initialStartDate: new Date(task.startDate),
+                            initialEndDate: new Date(task.endDate),
+                            currentStartDate: new Date(task.startDate),
+                            currentEndDate: new Date(task.endDate),
+                          });
                         }}
-                     >
-                       <span className="text-blue-500 text-[10px] font-bold">+</span>
-                     </div>
-                     
-                     <span className="px-1 truncate pointer-events-none text-white">{task.title}</span>
-                   </div>
-                 );
-               })()}
+                      >
+                        <span className="text-blue-500 text-[10px] font-bold">+</span>
+                      </div>
+
+                      <span className="px-1 truncate pointer-events-none text-white">{task.title}</span>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          </div>
           );
         })}
       </div>

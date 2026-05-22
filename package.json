@@ -2,12 +2,16 @@
   "name": "wbs-gantt-outliner",
   "private": true,
   "version": "0.0.0",
+  "author": "meganii",
+  "description": "WBS Gantt Outliner",
   "license": "MIT",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "package": "pnpm run build && electron-forge package",
+    "make": "pnpm run build && electron-forge make",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -21,62 +25,44 @@
     "date-fns": "^4.1.0",
     "exceljs": "^4.4.0",
     "lucide-react": "^0.561.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tailwind-merge": "^3.4.0",
-    "uuid": "^13.0.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tailwind-merge": "^3.5.0",
+    "uuid": "^13.0.2",
     "zundo": "^2.3.0",
-    "zustand": "^5.0.9"
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.1",
-    "@types/node": "^24.10.1",
-    "@types/react": "^19.2.5",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
-    "@vitejs/plugin-react": "^5.1.1",
-    "@vitest/coverage-v8": "^4.0.16",
-    "autoprefixer": "^10.4.23",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "autoprefixer": "^10.5.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
-    "eslint": "^9.39.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
+    "electron": "^42.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^16.5.0",
-    "jsdom": "^27.3.0",
-    "playwright": "^1.57.0",
-    "postcss": "^8.5.6",
+    "jsdom": "^27.4.0",
+    "playwright": "^1.59.1",
+    "postcss": "^8.5.14",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4",
-    "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^4.0.16",
-    "wait-on": "^9.0.3"
-  },
-  "build": {
-    "appId": "com.meganii.wbsganttoutliner",
-    "productName": "WBS Gantt Outliner",
-    "directories": {
-      "output": "dist_electron"
-    },
-    "files": [
-      "dist-electron/**/*",
-      "dist/**/*"
-    ],
-    "mac": {
-      "target": "dmg"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "linux": {
-      "target": "AppImage"
-    }
+    "typescript-eslint": "^8.59.2",
+    "vite": "^7.3.2",
+    "vite-plugin-electron": "^0.29.1",
+    "vite-plugin-electron-renderer": "^0.14.7",
+    "vitest": "^4.1.5",
+    "wait-on": "^9.0.5"
   }
 }
