@@ -81,6 +81,50 @@
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
 - `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作 and ショートカットを確認済み
+- `WBS` View のキーボード移動を改善
+  - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
+  - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
+  - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
+- ヘッダーに `Expand All` / `Collapse All` を追加
+  - ボタン操作と `Cmd/Ctrl + Alt + ↑ / ↓` のショートカットで全体の折り畳みを切り替えられる
+- WBSのインデント変更ショートカットを `Tab`/`Shift+Tab` から `Alt+Shift+→/←` (Macでは `Cmd+Shift+→/←` も可) に移行。これにより `Tab` キーは標準のフォーカス移動として利用可能になった
+- 「Gantt」View の表示と開閉操作性を改善
+  - タスク名の左側に WBS 番号（1, 1.1, 1.2 等）を表示し、階層の深さ（depth）に応じたインデントを適用
+  - 子タスクを持つ親タスクの左隣に開閉用 chevron ボタン（`ChevronRight` / `ChevronDown`）を配置し、クリックで展開/折り畳みをトグル可能に
+  - タスク名列をクリックすることで、WBS View と同様に選択（青色背景）できるように変更
+  - 選択中のタスクに対して、キーボードショートカット `Alt + ↑ / ↓` での折り畳み（Collapse）/ 展開（Expand）操作に対応。文字入力フォーカス時にはバイパスされ影響しません
+  - タスク名（Task Name）列の右端にリサイズバーを設置し、ドラッグにより列幅を手動調整できるように改善（WBS Viewのタスク名列幅と連動）
+  - キーボード `↑ / ↓`（ArrowUp/Down）による選択タスクの上下移動、および `Shift + ↑ / ↓` による範囲選択拡張に対応。行が上下のスクロール範囲外に出た場合の自動スクロール追従も実装しました
+  - 子タスクの開始日・終了日を入力した際に、親タスク（およびそれ以上の階層のタスク）に自動的に最小開始日・最大終了日（および稼働日数に基づく期間）を伝播させる仕組みを実装
+    - WBSビュー上で親タスクの `startDate`, `endDate`, `duration` は自動計算値として読み取り専用（`readOnly` & `cursor-not-allowed` などのスタイル）にロック
+    - Gantt / Integrated ビュー上で親タスクバーのドラッグ移動・リサイズ・描画範囲選択ジェスチャーを無効化
+    - 親タスクのガント表示を専用の「サマリータスク」スタイル（Slateカラー、スリムな形状、左右に下向きのブラケット三角形）に差し替え
+  - 階層変更（インデント・アウトデント・移動）時に、循環参照の原因となる親子・先祖子孫間の不正な依存関係を自動検出・切断する `cleanupHierarchicalDependencies` 機能を実装
+    - 単一アトミックトランザクションにより、依存関係の自動切断と日付再計算を含めて完璧に Undo/Redo が動作することを確認済み
+    - 既存の親子・先祖子孫のタスク間に対して、後からドラッグ等で不正な依存関係を手動追加できないよう `addDependency` 内で安全チェックを追加しブロック
+  - 行操作やセル入力時における行選択（`selectedTaskIds`）とセルフォーカス（`focusedTaskId`）の不一致バグ、およびインプットの白抜け問題を解消
+    - `TaskRow.tsx` の最外枠行コンテナに統合された `onMouseDown` ハンドラ（`handleRowMouseDown`）を実装。WBS番号や余白のクリックで行選択を動作させ、入力欄への修飾キー（Shift, Ctrl, Cmd）クリック時にはブラウザ本来の挙動（テキスト範囲選択やフォーカス移動）を `preventDefault` で抑止して行の範囲選択・トグル選択を正確に行えるようデグレードを解消
+    - ブラウザの User Agent デフォルトスタイルによる入力欄の白抜けを防ぐため、すべてのインプット要素に対して明示的に `style={{ backgroundColor: 'transparent' }}` を指定
+  - 親タスクの依存関係日付伝播における子タスク自動同期を実装
+    - 親タスクが依存関係（先行タスクの移動）によって開始日がシフトされる際、属するすべての子孫タスクの日付を正確な稼働日相対オフセット・期間を維持したまま一括で同期シフトする `shiftDescendants` ヘルパーを `taskStoreUtils.ts` 内に実装
+    - 伝播処理 `propagateDependencyDates` で親タスクをシフトする際、すべての子孫タスクを同時にシフトし、それら子孫タスクのIDも連鎖伝播用の queue に追加することで、下流タスクへの変更伝播も正しく連鎖するように拡張。最終パスで再帰的に上方向の親タスク日付も完全同期
+    - `addDependency` アクションが成功した直後に日付の伝播を自動的にトリガーするよう修正
+  - 親タスクが関与するすべての依存関係設定（線の描画および追加）の完全禁止化
+    - `addDependency` 内で先行（`fromTask`）または後行（`toTask`）のいずれかが子タスクを持つ親タスクである場合にエラー警告を出して完全にブロックするようガードを追加
+    - `GanttChart.tsx` および `IntegratedView.tsx` の UI ドラッグ＆ドロップドロップ処理内で、ドロップ先（`targetTask`）が親タスクである場合のアクションを無効化するガードを配置し、子タスクから親タスクへの依存関係設定を完全に抑止した。
+  - キーボードショートカットによる View 切り替え機能の修正・改善
+    - `Ctrl + 1` (Mac では `Cmd + 1`): WBS view
+    - `Ctrl + 2` (Mac では `Cmd + 2`): Integrated view
+    - `Ctrl + 3` (Mac では `Cmd + 3`): Gantt view
+    - ブラウザのデフォルト挙動（Chromiumによるタブ切り替え等）やインプット要素フォーカス時の競合を防ぐため、Electronのメインプロセス側 `before-input-event` でキーダウンをインターセプトし、`event.preventDefault()` したうえで `'switch-view'` IPCメッセージをレンダラーに送信して確実に切り替わるように制御。
+    - レンダラー側 (`App.tsx`) に `'switch-view'` の IPC リスナーを追加。テストや非Electron環境向けに既存のキーダウンリスナーもフォールバックとして保持。
+
+## 直近の検証結果
+
+- `pnpm test -- --run` : 通過 (63テスト全件通過、IPC経由のビュー切り替えテストを追加)
+- `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
+- `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
+- `src/App.test.tsx` に `switch-view` IPC経由の切り替えテストを追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
 - `src/components/GanttChart.test.tsx` を追加し、Gantt View での WBS表示、階層インデント、Chevron開閉、タスク選択、Alt + ↑/↓ のトグル動作、列のドラッグリサイズ動作、および↑/↓（Shift含む）キーによる選択・行移動動作を網羅検証し、Vitest 全件通過を確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
