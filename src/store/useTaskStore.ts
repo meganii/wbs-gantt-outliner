@@ -538,6 +538,17 @@ const taskStore = create<TaskStoreState>()(
           return {};
         }
 
+        // Prohibit dependencies involving any parent tasks
+        const fromTask = state.tasks[fromId];
+        const toTask = state.tasks[toId];
+        if (!fromTask || !toTask) {
+          return {};
+        }
+        if (fromTask.children.length > 0 || toTask.children.length > 0) {
+          console.warn('Cannot add dependency involving parent tasks');
+          return {};
+        }
+
         // Check for parent-child / ancestor-descendant relationship to prevent loops
         const isAncestor = (ancId: string, descId: string): boolean => {
           let curr = state.tasks[descId];
@@ -579,7 +590,7 @@ const taskStore = create<TaskStoreState>()(
           return {};
         }
 
-        const tasks = { ...state.tasks };
+        let tasks = { ...state.tasks };
         const targetTask = tasks[toId];
         if (!targetTask || targetTask.dependencies.includes(fromId)) {
           return {};
@@ -589,6 +600,8 @@ const taskStore = create<TaskStoreState>()(
           ...targetTask,
           dependencies: [...targetTask.dependencies, fromId],
         };
+
+        tasks = propagateDependencyDates(tasks, fromId, state.projectConfig.calendar);
 
         return { tasks };
       }),

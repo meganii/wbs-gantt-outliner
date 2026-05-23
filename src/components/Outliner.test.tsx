@@ -121,4 +121,43 @@ describe('Outliner keyboard navigation', () => {
     expect(firstTaskAfter.children).not.toContain(secondId);
     expect(secondTaskAfter.parentId).toBeNull();
   });
+
+  it('selects task row on normal click, and extends range on Shift + click', () => {
+    const firstId = useTaskStore.getState().rootIds[0];
+
+    act(() => {
+      useTaskStore.getState().addTask(firstId, 'after');
+    });
+
+    const secondId = useTaskStore.getState().rootIds[1];
+    
+    act(() => {
+      useTaskStore.getState().addTask(secondId, 'after');
+    });
+    const thirdId = useTaskStore.getState().rootIds[2];
+
+    const { container } = render(<Outliner showDetails />);
+    
+    // Locate the first task Title input
+    const firstTitleInput = container.querySelector<HTMLInputElement>(
+      `input[data-task-id="${firstId}"][data-field="title"]`
+    );
+    expect(firstTitleInput).not.toBeNull();
+
+    // Click normally on the first task title input
+    fireEvent.mouseDown(firstTitleInput!);
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([firstId]);
+
+    // Locate the third task Title input
+    const thirdTitleInput = container.querySelector<HTMLInputElement>(
+      `input[data-task-id="${thirdId}"][data-field="title"]`
+    );
+    expect(thirdTitleInput).not.toBeNull();
+
+    // Shift + click on the third task title input
+    fireEvent.mouseDown(thirdTitleInput!, { shiftKey: true });
+    
+    // Verify that first, second, and third tasks are all selected!
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([firstId, secondId, thirdId]);
+  });
 });

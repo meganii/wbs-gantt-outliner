@@ -244,7 +244,10 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
         if (target) {
           const targetId = target.getAttribute('data-task-id');
           if (targetId && targetId !== dragState.taskId) {
-            addDependency(dragState.taskId, targetId);
+            const targetTask = tasks[targetId];
+            if (targetTask && targetTask.children.length === 0) {
+              addDependency(dragState.taskId, targetId);
+            }
           }
         }
       } else if (dragState.mode === 'draw-range') {

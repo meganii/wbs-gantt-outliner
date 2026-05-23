@@ -78,18 +78,72 @@ export function deleteTasksAndCleanup(state: TaskGraphState, ids: string[]): Tas
   };
 }
 
+export function shiftDescendants(
+  tasks: Record<string, Task>,
+  parentId: string,
+  newParentStart: Date,
+  calendar: ProjectConfig['calendar']
+): Record<string, Task> {
+  let nextTasks = { ...tasks };
+  const parent = nextTasks[parentId];
+  if (!parent || !parent.startDate) return nextTasks;
+
+  const oldParentStart = parseISO(parent.startDate);
+  if (!isValid(oldParentStart)) return nextTasks;
+
+  // 1. Collect all descendant IDs recursively
+  const getDescendantIds = (id: string): string[] => {
+    const task = nextTasks[id];
+    if (!task) return [];
+    let list: string[] = [];
+    task.children.forEach((childId) => {
+      list.push(childId);
+      list.push(...getDescendantIds(childId));
+    });
+    return list;
+  };
+
+  const descendantIds = getDescendantIds(parentId);
+  if (descendantIds.length === 0) return nextTasks;
+
+  // 2. Shift each descendant
+  descendantIds.forEach((descId) => {
+    const descTask = nextTasks[descId];
+    if (!descTask || !descTask.startDate) return;
+
+    const descStart = parseISO(descTask.startDate);
+    if (!isValid(descStart)) return;
+
+    // Calculate work days offset from oldParentStart to descStart
+    const offset = getWorkDaysCount(oldParentStart, descStart, calendar) - 1;
+    
+    // Calculate new start date
+    const newDescStart = addWorkDays(newParentStart, offset, calendar);
+    const newDescEnd = calculateEndDate(newDescStart, descTask.duration, calendar);
+
+    nextTasks[descId] = {
+      ...descTask,
+      startDate: format(newDescStart, 'yyyy-MM-dd'),
+      endDate: format(newDescEnd, 'yyyy-MM-dd'),
+    };
+  });
+
+  return nextTasks;
+}
+
 export function propagateDependencyDates(
   tasks: Record<string, Task>,
   changedTaskId: string,
   calendar: ProjectConfig['calendar']
 ): Record<string, Task> {
-  const nextTasks = { ...tasks };
+  let nextTasks = { ...tasks };
   const dependents = Object.values(nextTasks)
     .filter((task) => task.dependencies.includes(changedTaskId))
     .map((task) => task.id);
 
   const queue = [...dependents];
   const visited = new Set(dependents);
+  const parentsToRecalculate = new Set<string>();
 
   while (queue.length > 0) {
     const currentId = queue.shift();
@@ -122,13 +176,49 @@ export function propagateDependencyDates(
 
     if (maxPredecessorEndDate) {
       const newStartDate = addWorkDays(maxPredecessorEndDate, 1, calendar);
-      const newEndDate = calculateEndDate(newStartDate, currentTask.duration, calendar);
+
+      // If it's a parent task, shift all of its descendants recursively!
+      if (currentTask.children.length > 0) {
+        // Collect descendant IDs before shifting to add them to queue
+        const getDescendantIds = (id: string): string[] => {
+          const t = nextTasks[id];
+          if (!t) return [];
+          let list: string[] = [];
+          t.children.forEach((childId) => {
+            list.push(childId);
+            list.push(...getDescendantIds(childId));
+          });
+          return list;
+        };
+        const descIds = getDescendantIds(currentId);
+
+        // Shift them
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
+
+        // Add shifted descendants to queue and visited set so their dependents propagate
+        descIds.forEach((descId) => {
+          if (!visited.has(descId)) {
+            queue.push(descId);
+            visited.add(descId);
+          }
+          const parentId = nextTasks[descId]?.parentId;
+          if (parentId) {
+            parentsToRecalculate.add(parentId);
+          }
+        });
+      }
+
+      const newEndDate = calculateEndDate(newStartDate, nextTasks[currentId].duration, calendar);
 
       nextTasks[currentId] = {
-        ...currentTask,
+        ...nextTasks[currentId],
         startDate: format(newStartDate, 'yyyy-MM-dd'),
         endDate: format(newEndDate, 'yyyy-MM-dd'),
       };
+
+      if (nextTasks[currentId].parentId) {
+        parentsToRecalculate.add(nextTasks[currentId].parentId!);
+      }
 
       Object.values(nextTasks).forEach((task) => {
         if (task.dependencies.includes(currentId) && !visited.has(task.id)) {
@@ -138,6 +228,13 @@ export function propagateDependencyDates(
       });
     }
   }
+
+  // Final pass: Recalculate parent dates for all modified tasks
+  parentsToRecalculate.forEach((parentId) => {
+    if (nextTasks[parentId]) {
+      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar);
+    }
+  });
 
   return nextTasks;
 }
