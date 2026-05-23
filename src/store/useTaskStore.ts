@@ -341,7 +341,30 @@ const taskStore = create<TaskStoreState>()(
         };
 
         sortedIds.forEach((id) => {
-          tasks[id] = { ...tasks[id], parentId: newParentId };
+          const childTask = tasks[id];
+          const hasPlanDate = childTask.planStartDate && childTask.planEndDate;
+          const hasActualDate = childTask.startDate && childTask.endDate;
+
+          const parentHasPlanDate = newParent.planStartDate && newParent.planEndDate;
+          const parentHasActualDate = newParent.startDate && newParent.endDate;
+
+          const taskUpdates: Partial<Task> = { parentId: newParentId };
+
+          // If child has no plan dates, inherit from parent
+          if (!hasPlanDate && parentHasPlanDate) {
+            taskUpdates.planStartDate = newParent.planStartDate;
+            taskUpdates.planEndDate = newParent.planEndDate;
+            taskUpdates.planDuration = newParent.planDuration;
+          }
+
+          // If child has no actual dates, inherit from parent
+          if (!hasActualDate && parentHasActualDate) {
+            taskUpdates.startDate = newParent.startDate;
+            taskUpdates.endDate = newParent.endDate;
+            taskUpdates.duration = newParent.duration;
+          }
+
+          tasks[id] = { ...childTask, ...taskUpdates };
         });
 
         let updatedTasks = cleanupHierarchicalDependencies(tasks);

@@ -174,6 +174,95 @@ describe('useTaskStore', () => {
       expect(tasks[secondTaskId].parentId).toBe(firstTaskId);
       expect(tasks[firstTaskId].children).toContain(secondTaskId);
     });
+
+    it('should copy parent schedule dates (Plan and Actual) to child task if child has no dates and parent has them', () => {
+      const { rootIds } = useTaskStore.getState();
+      const firstTaskId = rootIds[0]; // will be parent
+      act(() => {
+        useTaskStore.getState().updateTask(firstTaskId, {
+          planStartDate: '2026-05-11',
+          planEndDate: '2026-05-13',
+          planDuration: 3,
+          startDate: '2026-05-11',
+          endDate: '2026-05-13',
+          duration: 3,
+        });
+        useTaskStore.getState().addTask(firstTaskId, 'after'); // second task (child)
+      });
+
+      const secondTaskId = useTaskStore.getState().rootIds[1];
+
+      // Verify child initially has no dates
+      const childInitial = useTaskStore.getState().tasks[secondTaskId];
+      expect(childInitial.planStartDate).toBeNull();
+      expect(childInitial.startDate).toBeNull();
+
+      // Indent child under parent
+      act(() => {
+        useTaskStore.getState().indentTask(secondTaskId);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      const parentTask = tasks[firstTaskId];
+      const childTask = tasks[secondTaskId];
+
+      // Child should have inherited parent's dates
+      expect(childTask.planStartDate).toBe('2026-05-11');
+      expect(childTask.planEndDate).toBe('2026-05-13');
+      expect(childTask.planDuration).toBe(3);
+      expect(childTask.startDate).toBe('2026-05-11');
+      expect(childTask.endDate).toBe('2026-05-13');
+      expect(childTask.duration).toBe(3);
+
+      // Parent's dates should remain unchanged
+      expect(parentTask.planStartDate).toBe('2026-05-11');
+      expect(parentTask.planEndDate).toBe('2026-05-13');
+      expect(parentTask.planDuration).toBe(3);
+      expect(parentTask.startDate).toBe('2026-05-11');
+      expect(parentTask.endDate).toBe('2026-05-13');
+      expect(parentTask.duration).toBe(3);
+    });
+
+    it('should NOT copy dates if child task already has dates set, and should recalculate parent dates based on child (existing behavior)', () => {
+      const { rootIds } = useTaskStore.getState();
+      const firstTaskId = rootIds[0];
+      act(() => {
+        useTaskStore.getState().updateTask(firstTaskId, {
+          planStartDate: '2026-05-10',
+          planEndDate: '2026-05-12',
+          planDuration: 3,
+        });
+        useTaskStore.getState().addTask(firstTaskId, 'after');
+      });
+
+      const secondTaskId = useTaskStore.getState().rootIds[1];
+
+      // Give child its own dates
+      act(() => {
+        useTaskStore.getState().updateTask(secondTaskId, {
+          planStartDate: '2026-05-15',
+          planEndDate: '2026-05-16',
+          planDuration: 2,
+        });
+      });
+
+      // Indent child under parent
+      act(() => {
+        useTaskStore.getState().indentTask(secondTaskId);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      const parentTask = tasks[firstTaskId];
+      const childTask = tasks[secondTaskId];
+
+      // Child task should keep its own dates
+      expect(childTask.planStartDate).toBe('2026-05-15');
+      expect(childTask.planEndDate).toBe('2026-05-16');
+
+      // Parent task should recalculate based on child
+      expect(parentTask.planStartDate).toBe('2026-05-15');
+      expect(parentTask.planEndDate).toBe('2026-05-16');
+    });
   });
 
   describe('outdentTask', () => {

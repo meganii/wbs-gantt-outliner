@@ -192,3 +192,10 @@ pnpm run make
   - This allows users to perform rough inputs in the Week view mode while preserving the exact daily granularity, which can later be detailed in the Day view mode.
   - Standalone `GanttChart.test.tsx` has been updated with a unit test to verify that the drag-drawn ranges inside the Week scale correctly store day-level precision.
 
+## Schedule Inheritance on Task Indentation (May 23, 2026)
+
+- Enabled automatic schedule inheritance when indenting an empty task under a parent task with set dates:
+  - If the child task being indented has no dates set (`null` plan or actual dates), but the target parent task has dates, those dates (and duration) are copied to the child task.
+  - This ensures that the child task gets initialized with a valid schedule, and the parent task's duration and date range are kept intact rather than disappearing due to recalculation.
+  - Plan Dates and Actual Dates are evaluated and copied independently.
+  - Unit tests have been added to `useTaskStore.test.ts` to verify correct date propagation and override behavior.
