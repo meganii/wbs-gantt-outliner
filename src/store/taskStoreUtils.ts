@@ -82,7 +82,8 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  baselineLocked?: boolean
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
@@ -90,6 +91,8 @@ export function shiftDescendants(
 
   const oldParentStart = parseISO(parent.startDate);
   if (!isValid(oldParentStart)) return nextTasks;
+
+  const isSyncPlan = !baselineLocked;
 
   // 1. Collect all descendant IDs recursively
   const getDescendantIds = (id: string): string[] => {
@@ -125,6 +128,11 @@ export function shiftDescendants(
       ...descTask,
       startDate: format(newDescStart, 'yyyy-MM-dd'),
       endDate: format(newDescEnd, 'yyyy-MM-dd'),
+      ...(isSyncPlan ? {
+        planStartDate: format(newDescStart, 'yyyy-MM-dd'),
+        planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
+        planDuration: descTask.duration,
+      } : {}),
     };
   });
 
@@ -134,7 +142,8 @@ export function shiftDescendants(
 export function propagateDependencyDates(
   tasks: Record<string, Task>,
   changedTaskId: string,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  baselineLocked?: boolean
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   const dependents = Object.values(nextTasks)
@@ -144,6 +153,7 @@ export function propagateDependencyDates(
   const queue = [...dependents];
   const visited = new Set(dependents);
   const parentsToRecalculate = new Set<string>();
+  const isSyncPlan = !baselineLocked;
 
   while (queue.length > 0) {
     const currentId = queue.shift();
@@ -193,7 +203,7 @@ export function propagateDependencyDates(
         const descIds = getDescendantIds(currentId);
 
         // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, baselineLocked);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -214,6 +224,11 @@ export function propagateDependencyDates(
         ...nextTasks[currentId],
         startDate: format(newStartDate, 'yyyy-MM-dd'),
         endDate: format(newEndDate, 'yyyy-MM-dd'),
+        ...(isSyncPlan ? {
+          planStartDate: format(newStartDate, 'yyyy-MM-dd'),
+          planEndDate: format(newEndDate, 'yyyy-MM-dd'),
+          planDuration: nextTasks[currentId].duration,
+        } : {}),
       };
 
       if (nextTasks[currentId].parentId) {
@@ -291,7 +306,8 @@ export function normalizeProjectState(
 export function recalculateParentDatesRecursive(
   tasks: Record<string, Task>,
   parentId: string,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  baselineLocked?: boolean
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   let currentParentId: string | null = parentId;
@@ -307,6 +323,8 @@ export function recalculateParentDatesRecursive(
 
     let minStartDate: Date | null = null;
     let maxEndDate: Date | null = null;
+    let minPlanStartDate: Date | null = null;
+    let maxPlanEndDate: Date | null = null;
 
     childrenIds.forEach((childId: string) => {
       const child: Task | undefined = nextTasks[childId];
@@ -326,6 +344,27 @@ export function recalculateParentDatesRecursive(
         if (isValid(end)) {
           if (!maxEndDate || end > maxEndDate) {
             maxEndDate = end;
+          }
+        }
+      }
+
+      // Sync/Fallback plan date calculations
+      const planStartStr = child.planStartDate || child.startDate;
+      if (planStartStr) {
+        const start = parseISO(planStartStr);
+        if (isValid(start)) {
+          if (!minPlanStartDate || start < minPlanStartDate) {
+            minPlanStartDate = start;
+          }
+        }
+      }
+
+      const planEndStr = child.planEndDate || child.endDate;
+      if (planEndStr) {
+        const end = parseISO(planEndStr);
+        if (isValid(end)) {
+          if (!maxPlanEndDate || end > maxPlanEndDate) {
+            maxPlanEndDate = end;
           }
         }
       }
@@ -349,21 +388,50 @@ export function recalculateParentDatesRecursive(
     }
 
     // Recalculate parent's duration if start or end changed
-    if (changed) {
-      if (updatedParent.startDate && updatedParent.endDate) {
-        const start = parseISO(updatedParent.startDate);
-        const end = parseISO(updatedParent.endDate);
-        if (isValid(start) && isValid(end) && start <= end) {
-          updatedParent.duration = getWorkDaysCount(start, end, calendar);
+    if (updatedParent.startDate && updatedParent.endDate) {
+      const start = parseISO(updatedParent.startDate);
+      const end = parseISO(updatedParent.endDate);
+      if (isValid(start) && isValid(end) && start <= end) {
+        const newDuration = getWorkDaysCount(start, end, calendar);
+        if (updatedParent.duration !== newDuration) {
+          updatedParent.duration = newDuration;
+          changed = true;
         }
-      } else {
-        updatedParent.duration = 1;
       }
+    }
 
+    // Update planStartDate
+    const minPlanStartStr = minPlanStartDate ? format(minPlanStartDate, 'yyyy-MM-dd') : null;
+    if (updatedParent.planStartDate !== minPlanStartStr) {
+      updatedParent.planStartDate = minPlanStartStr;
+      changed = true;
+    }
+
+    // Update planEndDate
+    const maxPlanEndStr = maxPlanEndDate ? format(maxPlanEndDate, 'yyyy-MM-dd') : null;
+    if (updatedParent.planEndDate !== maxPlanEndStr) {
+      updatedParent.planEndDate = maxPlanEndStr;
+      changed = true;
+    }
+
+    // Recalculate parent's planDuration if plan start or end changed
+    if (updatedParent.planStartDate && updatedParent.planEndDate) {
+      const start = parseISO(updatedParent.planStartDate);
+      const end = parseISO(updatedParent.planEndDate);
+      if (isValid(start) && isValid(end) && start <= end) {
+        const newPlanDuration = getWorkDaysCount(start, end, calendar);
+        if (updatedParent.planDuration !== newPlanDuration) {
+          updatedParent.planDuration = newPlanDuration;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
       nextTasks[currentParentId] = updatedParent;
 
       // Propagate dependency dates for this parent
-      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar);
+      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar, baselineLocked);
 
       // Move up to the grandparent
       currentParentId = updatedParent.parentId;

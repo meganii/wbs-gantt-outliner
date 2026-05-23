@@ -55,6 +55,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
   const removeDependency = useTaskStore((state) => state.removeDependency);
   const updateTask = useTaskStore((state) => state.updateTask);
   const addDependency = useTaskStore((state) => state.addDependency);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -358,7 +359,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
     }
 
     setDependencyLines(lines);
-  }, [flattenedItems, outlinerWidth, tasks, timelineMetrics]);
+  }, [flattenedItems, outlinerWidth, tasks, timelineMetrics, baselineLocked]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -506,13 +507,14 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
               return null;
             }
             const task = tasks[dragState.taskId];
-            if (!task.endDate) {
+            const endDateStr = baselineLocked ? task.endDate : (task.planEndDate || task.endDate);
+            if (!endDateStr) {
               return null;
             }
-            const taskEnd = new Date(task.endDate);
+            const taskEnd = new Date(endDateStr);
             const diffDays = differenceInDays(taskEnd, timelineMetrics.timelineStart);
             const startX = (diffDays + 1) * timelineMetrics.pixelsPerDay;
-            const startY = startIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const startY = startIdx * ROW_HEIGHT + (baselineLocked ? 18 : 5);
 
             return (
               <line
@@ -636,146 +638,271 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                             return null;
                           }
 
-                          const isDragging = dragState?.taskId === id && dragState.mode !== 'dependency' && dragState.mode !== 'draw-range';
-                          const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate);
-                          const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate);
-                          const diffDays = differenceInDays(taskStart, timelineMetrics.timelineStart);
-                          const offset = diffDays * timelineMetrics.pixelsPerDay;
-                          const daySpan = differenceInDays(taskEnd, taskStart) + 1;
-                          const width = daySpan * timelineMetrics.pixelsPerDay;
-
-                          if (width <= 0) {
-                            return null;
-                          }
-
                           const isParent = task.children.length > 0;
+                          const { timelineStart, pixelsPerDay } = timelineMetrics;
+
+                          // 1. Plan Bar Metrics
+                          const planStart = new Date(task.planStartDate || task.startDate!);
+                          const planEnd = new Date(task.planEndDate || task.endDate!);
+                          const planDiffDays = differenceInDays(planStart, timelineStart);
+                          const planOffset = planDiffDays * pixelsPerDay;
+                          const planDaySpan = differenceInDays(planEnd, planStart) + 1;
+                          const planWidth = planDaySpan * pixelsPerDay;
+
+                          // 2. Actual Bar Metrics
+                          const isDragging = dragState?.taskId === id && dragState.mode !== 'dependency' && dragState.mode !== 'draw-range';
+                          const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate!);
+                          const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate!);
+                          const diffDays = differenceInDays(taskStart, timelineStart);
+                          const offset = diffDays * pixelsPerDay;
+                          const daySpan = differenceInDays(taskEnd, taskStart) + 1;
+                          const width = daySpan * pixelsPerDay;
+
                           return (
-                            <div
-                              ref={(el) => {
-                                if (el) {
-                                  taskBarRefs.current.set(id, el);
-                                } else {
-                                  taskBarRefs.current.delete(id);
-                                }
-                              }}
-                              data-task-id={id}
-                              className={clsx(
-                                'absolute text-[9px] flex items-center shadow-sm group z-30',
-                                isParent
-                                  ? 'top-[9px] h-3 bg-slate-700 cursor-default rounded-sm'
-                                  : [
-                                      'top-1.5 h-5 rounded',
-                                      isDragging && 'bg-blue-600 cursor-grabbing',
-                                      !isDragging && isHovered && 'bg-blue-600 ring-1 ring-blue-300 cursor-pointer',
-                                      !isDragging && !isHovered && 'bg-blue-500 hover:bg-blue-400 cursor-pointer'
-                                    ]
-                              )}
-                              style={{ left: offset, width: width - 2 }}
-                              title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
-                              onMouseDown={(e) => {
-                                if (e.button !== 0 || !task.startDate || !task.endDate || isParent) {
-                                  return;
-                                }
-                                e.stopPropagation();
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'move',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: new Date(task.startDate),
-                                  initialEndDate: new Date(task.endDate),
-                                  currentStartDate: new Date(task.startDate),
-                                  currentEndDate: new Date(task.endDate),
-                                });
-                              }}
-                            >
-                              {/* Downward hanging bracket triangles for parent tasks */}
-                              {isParent && (
-                                <>
-                                  <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
-                                  <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
-                                </>
-                              )}
-
-                              {/* Left Resize Handle - Hide for parent tasks */}
-                              {!isParent && (
+                            <>
+                              {/* Plan Bar (Baseline) */}
+                              {planWidth > 0 && (
                                 <div
-                                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                                  onMouseDown={(e) => {
-                                    if (!task.startDate || !task.endDate) {
-                                      return;
+                                  ref={(el) => {
+                                    if (!baselineLocked) {
+                                      if (el) {
+                                        taskBarRefs.current.set(id, el);
+                                      } else {
+                                        taskBarRefs.current.delete(id);
+                                      }
                                     }
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    setDragState({
-                                      taskId: id,
-                                      mode: 'resize-left',
-                                      startX: e.clientX,
-                                      startY: e.clientY,
-                                      initialStartDate: new Date(task.startDate),
-                                      initialEndDate: new Date(task.endDate),
-                                      currentStartDate: new Date(task.startDate),
-                                      currentEndDate: new Date(task.endDate),
-                                    });
                                   }}
-                                />
-                              )}
-
-                              {/* Right Resize Handle - Hide for parent tasks */}
-                              {!isParent && (
-                                <div
-                                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                                  data-task-id={id}
+                                  className={clsx(
+                                    "absolute text-[9px] flex items-center shadow-sm group z-20 transition-all",
+                                    isParent
+                                      ? "top-[3px] h-2.5 bg-slate-700/40 cursor-default rounded-sm"
+                                      : [
+                                          "top-[3px] h-3 rounded text-[8px] px-1 text-blue-700/80 bg-blue-100 border border-blue-300 font-medium select-none",
+                                          baselineLocked ? "cursor-default" : [
+                                            "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
+                                            isDragging && "bg-blue-600 text-white cursor-grabbing h-[14px]"
+                                          ]
+                                        ]
+                                  )}
+                                  style={{ left: planOffset, width: Math.max(0, planWidth - 2) }}
+                                  title={`Plan: ${task.title} (${format(planStart, 'yyyy-MM-dd')} - ${format(planEnd, 'yyyy-MM-dd')})`}
                                   onMouseDown={(e) => {
-                                    if (!task.startDate || !task.endDate) {
-                                      return;
-                                    }
+                                    if (baselineLocked || e.button !== 0 || isParent) return;
                                     e.stopPropagation();
-                                    e.preventDefault();
                                     setDragState({
                                       taskId: id,
-                                      mode: 'resize-right',
+                                      mode: 'move',
                                       startX: e.clientX,
                                       startY: e.clientY,
-                                      initialStartDate: new Date(task.startDate),
-                                      initialEndDate: new Date(task.endDate),
-                                      currentStartDate: new Date(task.startDate),
-                                      currentEndDate: new Date(task.endDate),
-                                    });
-                                  }}
-                                />
-                              )}
-
-                              {/* Dependency Handle (Right side) - Hide for parent tasks */}
-                              {!isParent && (
-                                <div
-                                  className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
-                                  title="Drag to create dependency"
-                                  onMouseDown={(e) => {
-                                    if (!task.startDate || !task.endDate) {
-                                      return;
-                                    }
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    setDragState({
-                                      taskId: id,
-                                      mode: 'dependency',
-                                      startX: e.clientX,
-                                      startY: e.clientY,
-                                      initialStartDate: new Date(task.startDate),
-                                      initialEndDate: new Date(task.endDate),
-                                      currentStartDate: new Date(task.startDate),
-                                      currentEndDate: new Date(task.endDate),
+                                      initialStartDate: new Date(task.startDate!),
+                                      initialEndDate: new Date(task.endDate!),
+                                      currentStartDate: new Date(task.startDate!),
+                                      currentEndDate: new Date(task.endDate!),
                                     });
                                   }}
                                 >
-                                  <span className="text-blue-500 text-[10px] font-bold">+</span>
+                                  {/* Downward hanging bracket triangles for parent tasks */}
+                                  {isParent && (
+                                    <>
+                                      <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
+                                      <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
+                                    </>
+                                  )}
+
+                                  {/* Left Resize Handle */}
+                                  {!isParent && !baselineLocked && (
+                                    <div
+                                      className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'resize-left',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* Right Resize Handle */}
+                                  {!isParent && !baselineLocked && (
+                                    <div
+                                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'resize-right',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* Dependency Handle */}
+                                  {!isParent && !baselineLocked && (
+                                    <div
+                                      className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center group-hover:opacity-100"
+                                      title="Drag to create dependency"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'dependency',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    >
+                                      <span className="text-blue-500 text-[10px] font-bold">+</span>
+                                    </div>
+                                  )}
+
+                                  {!isParent && !baselineLocked && (
+                                    <span className="px-1 truncate pointer-events-none text-blue-800">
+                                      {task.title}
+                                    </span>
+                                  )}
                                 </div>
                               )}
 
-                              <span className={clsx("px-1 truncate pointer-events-none text-white", isParent && "font-semibold")}>
-                                {task.title}
-                              </span>
-                            </div>
+                              {/* Actual Bar (only displayed when baselineLocked is true) */}
+                              {baselineLocked && width > 0 && (
+                                <div
+                                  ref={(el) => {
+                                    if (baselineLocked) {
+                                      if (el) {
+                                        taskBarRefs.current.set(id, el);
+                                      } else {
+                                        taskBarRefs.current.delete(id);
+                                      }
+                                    }
+                                  }}
+                                  data-task-id={id}
+                                  className={clsx(
+                                    "absolute text-[9px] flex items-center shadow-sm group z-30 transition-all",
+                                    isParent
+                                      ? "top-[18px] h-2 bg-slate-500 cursor-default rounded-sm"
+                                      : [
+                                          "top-[17px] h-2.5 rounded text-white bg-amber-500 hover:bg-amber-600 cursor-pointer",
+                                          isDragging && "bg-amber-600 cursor-grabbing animate-pulse"
+                                        ]
+                                  )}
+                                  style={{ left: offset, width: Math.max(0, width - 2) }}
+                                  title={`Actual: ${task.title} (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
+                                  onMouseDown={(e) => {
+                                    if (e.button !== 0 || isParent) return;
+                                    e.stopPropagation();
+                                    setDragState({
+                                      taskId: id,
+                                      mode: 'move',
+                                      startX: e.clientX,
+                                      startY: e.clientY,
+                                      initialStartDate: new Date(task.startDate!),
+                                      initialEndDate: new Date(task.endDate!),
+                                      currentStartDate: new Date(task.startDate!),
+                                      currentEndDate: new Date(task.endDate!),
+                                    });
+                                  }}
+                                >
+                                  {/* Downward hanging bracket triangles for parent tasks */}
+                                  {isParent && (
+                                    <>
+                                      <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
+                                      <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
+                                    </>
+                                  )}
+
+                                  {/* Left Resize Handle */}
+                                  {!isParent && (
+                                    <div
+                                      className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'resize-left',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* Right Resize Handle */}
+                                  {!isParent && (
+                                    <div
+                                      className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'resize-right',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* Dependency Handle */}
+                                  {!isParent && (
+                                    <div
+                                      className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-amber-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
+                                      title="Drag to create dependency"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setDragState({
+                                          taskId: id,
+                                          mode: 'dependency',
+                                          startX: e.clientX,
+                                          startY: e.clientY,
+                                          initialStartDate: new Date(task.startDate!),
+                                          initialEndDate: new Date(task.endDate!),
+                                          currentStartDate: new Date(task.startDate!),
+                                          currentEndDate: new Date(task.endDate!),
+                                        });
+                                      }}
+                                    >
+                                      <span className="text-amber-500 text-[10px] font-bold">+</span>
+                                    </div>
+                                  )}
+
+                                  <span className={clsx("px-1 truncate pointer-events-none text-white", isParent && "font-semibold")}>
+                                    {task.title}
+                                  </span>
+                                </div>
+                              )}
+                            </>
                           );
                         })()}
                       </div>
