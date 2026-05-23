@@ -58,18 +58,19 @@
   - 親タスクが関与するすべての依存関係設定（線の描画および追加）の完全禁止化
     - `addDependency` 内で先行（`fromTask`）または後行（`toTask`）のいずれかが子タスクを持つ親タスクである場合にエラー警告を出して完全にブロックするようガードを追加
     - `GanttChart.tsx` および `IntegratedView.tsx` の UI ドラッグ＆ドロップドロップ処理内で、ドロップ先（`targetTask`）が親タスクである場合のアクションを無効化するガードを配置し、子タスクから親タスクへの依存関係設定を完全に抑止した。
-  - キーボードショートカットによる View 切り替え機能の実装
+  - キーボードショートカットによる View 切り替え機能の修正・改善
     - `Ctrl + 1` (Mac では `Cmd + 1`): WBS view
     - `Ctrl + 2` (Mac では `Cmd + 2`): Integrated view
     - `Ctrl + 3` (Mac では `Cmd + 3`): Gantt view
-    - ブラウザ標準のタブ切り替え等のデフォルト挙動を `preventDefault()` で抑制し、確実にアプリ内のビュー切り替えが動作するように制御
+    - ブラウザのデフォルト挙動（Chromiumによるタブ切り替え等）やインプット要素フォーカス時の競合を防ぐため、Electronのメインプロセス側 `before-input-event` でキーダウンをインターセプトし、`event.preventDefault()` したうえで `'switch-view'` IPCメッセージをレンダラーに送信して確実に切り替わるように制御。
+    - レンダラー側 (`App.tsx`) に `'switch-view'` の IPC リスナーを追加。テストや非Electron環境向けに既存のキーダウンリスナーもフォールバックとして保持。
 
 ## 直近の検証結果
 
-- `pnpm test -- --run` : 通過 (62テスト全件通過)
+- `pnpm test -- --run` : 通過 (63テスト全件通過、IPC経由のビュー切り替えテストを追加)
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
-- `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
+- `src/App.test.tsx` に `switch-view` IPC経由の切り替えテストを追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
 - `src/components/GanttChart.test.tsx` を追加し、Gantt View での WBS表示、階層インデント、Chevron開閉、タスク選択、Alt + ↑/↓ のトグル動作、列のドラッグリサイズ動作、および↑/↓（Shift含む）キーによる選択・行移動動作を網羅検証し、Vitest 全件通過を確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた

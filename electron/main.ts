@@ -42,7 +42,21 @@ function createWindow() {
 
   // Platform-specific shortcuts via before-input-event
   win.webContents.on('before-input-event', (event, input) => {
-    // Shortcuts handled in renderer via keydown to avoid conflicts with browser defaults
+    if (input.type === 'keyDown') {
+      const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
+      if (isControlOrMeta && !input.alt && !input.shift) {
+        if (input.key === '1') {
+          event.preventDefault();
+          win?.webContents.send('switch-view', 'wbs');
+        } else if (input.key === '2') {
+          event.preventDefault();
+          win?.webContents.send('switch-view', 'integrated');
+        } else if (input.key === '3') {
+          event.preventDefault();
+          win?.webContents.send('switch-view', 'gantt');
+        }
+      }
+    }
   });
 
   if (VITE_DEV_SERVER_URL) {

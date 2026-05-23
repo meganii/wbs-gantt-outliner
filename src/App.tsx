@@ -146,6 +146,21 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+  
+  // Listen to IPC View Switch
+  useEffect(() => {
+    if (window.ipcRenderer) {
+      const unsubscribe = window.ipcRenderer.on(
+        'switch-view',
+        (_event, viewName: any) => {
+          if (viewName === 'wbs' || viewName === 'integrated' || viewName === 'gantt') {
+            setView(viewName);
+          }
+        }
+      );
+      return unsubscribe;
+    }
+  }, []);
 
   useEffect(() => {
     if (isResizing) {
