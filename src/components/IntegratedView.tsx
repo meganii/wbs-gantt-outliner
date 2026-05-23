@@ -272,11 +272,19 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
         }
 
         const newDuration = differenceInDays(end, start) + 1;
-        updateTask(taskId, {
-          startDate: format(start, 'yyyy-MM-dd'),
-          endDate: format(end, 'yyyy-MM-dd'),
-          duration: newDuration,
-        });
+        if (baselineLocked) {
+          updateTask(taskId, {
+            startDate: format(start, 'yyyy-MM-dd'),
+            endDate: format(end, 'yyyy-MM-dd'),
+            duration: newDuration,
+          });
+        } else {
+          updateTask(taskId, {
+            planStartDate: format(start, 'yyyy-MM-dd'),
+            planEndDate: format(end, 'yyyy-MM-dd'),
+            planDuration: newDuration,
+          });
+        }
       } else {
         const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
         if (
@@ -284,11 +292,19 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
           currentEndDate.getTime() !== initialEndDate.getTime()
         ) {
           const newDuration = differenceInDays(currentEndDate, currentStartDate) + 1;
-          updateTask(taskId, {
-            startDate: format(currentStartDate, 'yyyy-MM-dd'),
-            endDate: format(currentEndDate, 'yyyy-MM-dd'),
-            duration: newDuration,
-          });
+          if (baselineLocked) {
+            updateTask(taskId, {
+              startDate: format(currentStartDate, 'yyyy-MM-dd'),
+              endDate: format(currentEndDate, 'yyyy-MM-dd'),
+              duration: newDuration,
+            });
+          } else {
+            updateTask(taskId, {
+              planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
+              planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
+              planDuration: newDuration,
+            });
+          }
         }
       }
 
@@ -319,7 +335,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
       for (const depId of task.dependencies) {
         const sourceTask = tasks[depId];
         const targetTask = tasks[id];
-        if (!sourceTask || !targetTask || !sourceTask.endDate || !targetTask.startDate) {
+        if (!sourceTask || !targetTask || !(sourceTask.planEndDate || sourceTask.endDate) || !(targetTask.planStartDate || targetTask.startDate)) {
           continue;
         }
 
@@ -507,14 +523,14 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
               return null;
             }
             const task = tasks[dragState.taskId];
-            const endDateStr = baselineLocked ? task.endDate : (task.planEndDate || task.endDate);
+            const endDateStr = task.planEndDate || task.endDate;
             if (!endDateStr) {
               return null;
             }
             const taskEnd = new Date(endDateStr);
             const diffDays = differenceInDays(taskEnd, timelineMetrics.timelineStart);
             const startX = (diffDays + 1) * timelineMetrics.pixelsPerDay;
-            const startY = startIdx * ROW_HEIGHT + (baselineLocked ? 18 : 5);
+            const startY = startIdx * ROW_HEIGHT + 5;
 
             return (
               <line
@@ -634,43 +650,41 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                         })()}
 
                         {(() => {
-                          if (!task.startDate || !task.endDate) {
-                            return null;
-                          }
+                          const hasPlan = !!(task.planStartDate && task.planEndDate);
+                          const hasActual = !!(task.startDate && task.endDate);
+                          if (!hasPlan && !hasActual) return null;
 
-                          const isParent = task.children.length > 0;
                           const { timelineStart, pixelsPerDay } = timelineMetrics;
-
                           // 1. Plan Bar Metrics
                           const isDraggingPlan = dragState?.taskId === id && !baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                          const planStart = isDraggingPlan ? dragState.currentStartDate : new Date(task.planStartDate || task.startDate!);
-                          const planEnd = isDraggingPlan ? dragState.currentEndDate : new Date(task.planEndDate || task.endDate!);
-                          const planDiffDays = differenceInDays(planStart, timelineStart);
+                          const planStart = isDraggingPlan ? dragState.currentStartDate : (task.planStartDate ? new Date(task.planStartDate) : null);
+                          const planEnd = isDraggingPlan ? (dragState.currentEndDate === null ? null : dragState.currentEndDate) : (task.planEndDate ? new Date(task.planEndDate) : null);
+                          const planDiffDays = planStart ? differenceInDays(planStart, timelineStart) : 0;
                           const planOffset = planDiffDays * pixelsPerDay;
-                          const planDaySpan = differenceInDays(planEnd, planStart) + 1;
+                          const planDaySpan = (planStart && planEnd) ? differenceInDays(planEnd, planStart) + 1 : 0;
                           const planWidth = planDaySpan * pixelsPerDay;
 
                           // 2. Actual Bar Metrics
                           const isDraggingActual = dragState?.taskId === id && baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                          const taskStart = isDraggingActual ? dragState.currentStartDate : new Date(task.startDate!);
-                          const taskEnd = isDraggingActual ? dragState.currentEndDate : new Date(task.endDate!);
-                          const diffDays = differenceInDays(taskStart, timelineStart);
+                          const taskStart = isDraggingActual ? dragState.currentStartDate : (task.startDate ? new Date(task.startDate) : null);
+                          const taskEnd = isDraggingActual ? dragState.currentEndDate : (task.endDate ? new Date(task.endDate) : null);
+                          const diffDays = taskStart ? differenceInDays(taskStart, timelineMetrics.timelineStart) : 0;
                           const offset = diffDays * pixelsPerDay;
-                          const daySpan = differenceInDays(taskEnd, taskStart) + 1;
+                          const daySpan = (taskStart && taskEnd) ? differenceInDays(taskEnd, taskStart) + 1 : 0;
                           const width = daySpan * pixelsPerDay;
+
+                          const isParent = task.children.length > 0;
 
                           return (
                             <>
                               {/* Plan Bar (Baseline) */}
-                              {planWidth > 0 && (
+                              {hasPlan && planWidth > 0 && (
                                 <div
                                   ref={(el) => {
-                                    if (!baselineLocked) {
-                                      if (el) {
-                                        taskBarRefs.current.set(id, el);
-                                      } else {
-                                        taskBarRefs.current.delete(id);
-                                      }
+                                    if (el) {
+                                      taskBarRefs.current.set(id, el);
+                                    } else {
+                                      taskBarRefs.current.delete(id);
                                     }
                                   }}
                                   data-task-id={id}
@@ -687,19 +701,21 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                         ]
                                   )}
                                   style={{ left: planOffset, width: Math.max(0, planWidth - 2) }}
-                                  title={`Plan: ${task.title} (${format(planStart, 'yyyy-MM-dd')} - ${format(planEnd, 'yyyy-MM-dd')})`}
+                                  title={`Plan: ${task.title} (${format(planStart!, 'yyyy-MM-dd')} - ${format(planEnd!, 'yyyy-MM-dd')})`}
                                   onMouseDown={(e) => {
                                     if (baselineLocked || e.button !== 0 || isParent) return;
                                     e.stopPropagation();
+                                    const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                                    const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                                     setDragState({
                                       taskId: id,
                                       mode: 'move',
                                       startX: e.clientX,
                                       startY: e.clientY,
-                                      initialStartDate: new Date(task.startDate!),
-                                      initialEndDate: new Date(task.endDate!),
-                                      currentStartDate: new Date(task.startDate!),
-                                      currentEndDate: new Date(task.endDate!),
+                                      initialStartDate: new Date(planStartStr),
+                                      initialEndDate: new Date(planEndStr),
+                                      currentStartDate: new Date(planStartStr),
+                                      currentEndDate: new Date(planStartStr),
                                     });
                                   }}
                                 >
@@ -718,15 +734,17 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                       onMouseDown={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
+                                        const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                                        const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                                         setDragState({
                                           taskId: id,
                                           mode: 'resize-left',
                                           startX: e.clientX,
                                           startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
+                                          initialStartDate: new Date(planStartStr),
+                                          initialEndDate: new Date(planEndStr),
+                                          currentStartDate: new Date(planStartStr),
+                                          currentEndDate: new Date(planEndStr),
                                         });
                                       }}
                                     />
@@ -739,15 +757,17 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                       onMouseDown={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
+                                        const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                                        const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                                         setDragState({
                                           taskId: id,
                                           mode: 'resize-right',
                                           startX: e.clientX,
                                           startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
+                                          initialStartDate: new Date(planStartStr),
+                                          initialEndDate: new Date(planEndStr),
+                                          currentStartDate: new Date(planStartStr),
+                                          currentEndDate: new Date(planEndStr),
                                         });
                                       }}
                                     />
@@ -761,15 +781,17 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                       onMouseDown={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
+                                        const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                                        const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                                         setDragState({
                                           taskId: id,
                                           mode: 'dependency',
                                           startX: e.clientX,
                                           startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
+                                          initialStartDate: new Date(planStartStr),
+                                          initialEndDate: new Date(planEndStr),
+                                          currentStartDate: new Date(planStartStr),
+                                          currentEndDate: new Date(planEndStr),
                                         });
                                       }}
                                     >
@@ -785,18 +807,9 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                 </div>
                               )}
 
-                              {/* Actual Bar (only displayed when baselineLocked is true) */}
-                              {baselineLocked && width > 0 && (
+                              {/* Actual Bar (only displayed when baselineLocked is true and dates are not null) */}
+                              {baselineLocked && taskStart && taskEnd && width > 0 && (
                                 <div
-                                  ref={(el) => {
-                                    if (baselineLocked) {
-                                      if (el) {
-                                        taskBarRefs.current.set(id, el);
-                                      } else {
-                                        taskBarRefs.current.delete(id);
-                                      }
-                                    }
-                                  }}
                                   data-task-id={id}
                                   className={clsx(
                                     "absolute text-[9px] flex items-center shadow-sm group z-30 transition-all",
@@ -817,10 +830,10 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                       mode: 'move',
                                       startX: e.clientX,
                                       startY: e.clientY,
-                                      initialStartDate: new Date(task.startDate!),
-                                      initialEndDate: new Date(task.endDate!),
-                                      currentStartDate: new Date(task.startDate!),
-                                      currentEndDate: new Date(task.endDate!),
+                                      initialStartDate: taskStart,
+                                      initialEndDate: taskEnd,
+                                      currentStartDate: taskStart,
+                                      currentEndDate: taskEnd,
                                     });
                                   }}
                                 >
@@ -844,10 +857,10 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                           mode: 'resize-left',
                                           startX: e.clientX,
                                           startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
+                                          initialStartDate: taskStart,
+                                          initialEndDate: taskEnd,
+                                          currentStartDate: taskStart,
+                                          currentEndDate: taskEnd,
                                         });
                                       }}
                                     />
@@ -865,37 +878,13 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                           mode: 'resize-right',
                                           startX: e.clientX,
                                           startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
+                                          initialStartDate: taskStart,
+                                          initialEndDate: taskEnd,
+                                          currentStartDate: taskStart,
+                                          currentEndDate: taskEnd,
                                         });
                                       }}
                                     />
-                                  )}
-
-                                  {/* Dependency Handle */}
-                                  {!isParent && (
-                                    <div
-                                      className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-amber-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
-                                      title="Drag to create dependency"
-                                      onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setDragState({
-                                          taskId: id,
-                                          mode: 'dependency',
-                                          startX: e.clientX,
-                                          startY: e.clientY,
-                                          initialStartDate: new Date(task.startDate!),
-                                          initialEndDate: new Date(task.endDate!),
-                                          currentStartDate: new Date(task.startDate!),
-                                          currentEndDate: new Date(task.endDate!),
-                                        });
-                                      }}
-                                    >
-                                      <span className="text-amber-500 text-[10px] font-bold">+</span>
-                                    </div>
                                   )}
 
                                   <span className={clsx("px-1 truncate pointer-events-none text-white", isParent && "font-semibold")}>

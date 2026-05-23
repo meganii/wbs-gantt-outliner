@@ -32,8 +32,8 @@ const initialTask: Task = {
   id: initialTaskId,
   parentId: null,
   title: 'Project Root',
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
+  startDate: null,
+  endDate: null,
   duration: 1,
   progress: 0,
   isCollapsed: false,
@@ -176,25 +176,6 @@ const taskStore = create<TaskStoreState>()(
           delete finalUpdates.planStartDate;
           delete finalUpdates.planEndDate;
           delete finalUpdates.planDuration;
-        } else {
-          // Sync plan and actual when baseline is not locked
-          if (finalUpdates.startDate !== undefined) {
-            finalUpdates.planStartDate = finalUpdates.startDate;
-          } else if (finalUpdates.planStartDate !== undefined) {
-            finalUpdates.startDate = finalUpdates.planStartDate;
-          }
-
-          if (finalUpdates.endDate !== undefined) {
-            finalUpdates.planEndDate = finalUpdates.endDate;
-          } else if (finalUpdates.planEndDate !== undefined) {
-            finalUpdates.endDate = finalUpdates.planEndDate;
-          }
-
-          if (finalUpdates.duration !== undefined) {
-            finalUpdates.planDuration = finalUpdates.duration;
-          } else if (finalUpdates.planDuration !== undefined) {
-            finalUpdates.duration = finalUpdates.planDuration;
-          }
         }
 
         let tasks = {

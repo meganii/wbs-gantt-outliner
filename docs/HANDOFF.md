@@ -175,3 +175,13 @@ pnpm test -- --run
 pnpm run build
 pnpm run make
 ```
+
+## Decoupled Plan and Actual Dates (May 23, 2026)
+
+- Completely decoupled Plan and Actual dates:
+  - Removed automatic synchronization between `planStartDate`/`planEndDate` and `startDate`/`endDate`.
+  - Initial actual dates are set to `null` (empty) and actual bars on the Gantt chart are only rendered when dates are manually entered.
+  - Dependencies (date propagation engine) are strictly bound to `planStartDate` and `planEndDate` only.
+  - Gantt dependency arrows are always calculated using plan bar coordinates (taskBarRefs are bound to plan bars).
+  - Actual dates are purely manual and decoupled from any dependency shift constraints.
+
