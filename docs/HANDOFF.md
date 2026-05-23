@@ -220,3 +220,13 @@ pnpm run make
 - Added Status column support to Excel exports inside `export.ts`.
 - Integrated automated Vitest unit tests verifying correct parent propagation and state updates.
 
+## Excel Export Dual Date Columns (May 23, 2026)
+
+- Redesigned Excel export to always display **both** plan and actual/forecast date columns side by side:
+  - **Plan columns** (blue font/header): `Plan Start`, `Plan End`, `Plan Dur.` — sourced from `planStartDate`, `planEndDate`, `planDuration`.
+  - **Actual columns** (orange font/header): `Act. Start`, `Act. End`, `Act. Dur.` — sourced from `startDate`, `endDate`, `duration`.
+- Gantt chart bars draw both layers:
+  - Plan bar (blue `#3B82F6`) drawn first.
+  - Actual bar (amber `#F59E0B`) drawn on top — when both overlap, actual takes visual priority.
+- Removed the single-mode "Type" column and `getEffectiveDates` helper.
+- Date range calculation considers both plan and actual dates across all tasks.
