@@ -19,9 +19,12 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     description: 256,
     assignee: 128,
     deliverables: 192,
+    planDuration: 64,
+    planDate: 224,
     duration: 64,
     date: 224,
   },
+  baselineLocked: false,
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {

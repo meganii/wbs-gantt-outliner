@@ -87,26 +87,51 @@ export const TaskTableHeader: React.FC<TaskTableHeaderProps> = ({ showDetails = 
           </div>
         </>
       )}
+      {/* Plan Duration & Date */}
       <div
-        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group"
+        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
+        style={{
+          width: columnWidths.planDuration,
+          minWidth: columnWidths.planDuration,
+          maxWidth: columnWidths.planDuration,
+        }}
+      >
+        Plan Dur.
+        <Resizer columnId="planDuration" />
+      </div>
+      <div
+        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
+        style={{
+          width: columnWidths.planDate,
+          minWidth: columnWidths.planDate,
+          maxWidth: columnWidths.planDate,
+        }}
+      >
+        Plan Date
+        <Resizer columnId="planDate" />
+      </div>
+
+      {/* Actual Duration & Date */}
+      <div
+        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-amber-700 bg-amber-50/30"
         style={{
           width: columnWidths.duration,
           minWidth: columnWidths.duration,
           maxWidth: columnWidths.duration,
         }}
       >
-        Duration
+        Act. Dur.
         <Resizer columnId="duration" />
       </div>
       <div
-        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group"
+        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-amber-700 bg-amber-50/30"
         style={{
           width: columnWidths.date,
           minWidth: columnWidths.date,
           maxWidth: columnWidths.date,
         }}
       >
-        Date
+        Act. Date
         <Resizer columnId="date" />
       </div>
     </div>

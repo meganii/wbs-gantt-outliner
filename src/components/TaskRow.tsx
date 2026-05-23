@@ -68,6 +68,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const assigneeInputRef = useRef<HTMLInputElement>(null);
   const deliverablesInputRef = useRef<HTMLInputElement>(null);
+  const planDurationInputRef = useRef<HTMLInputElement>(null);
+  const planStartDateInputRef = useRef<HTMLInputElement>(null);
+  const planEndDateInputRef = useRef<HTMLInputElement>(null);
   const durationInputRef = useRef<HTMLInputElement>(null);
   const startDateInputRef = useRef<HTMLInputElement>(null);
   const endDateInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +85,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const taskDescription = task?.description || '';
   const taskAssignee = task?.assignee || '';
   const taskDeliverables = task?.deliverables || '';
+
+  // Baseline Lock State
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   // Sync local state if external state changes (e.g. undo/redo, or other user)
   useEffect(() => {
@@ -115,6 +121,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         return assigneeInputRef;
       case 'deliverables':
         return deliverablesInputRef;
+      case 'planDuration':
+        return planDurationInputRef;
+      case 'planStartDate':
+        return planStartDateInputRef;
+      case 'planEndDate':
+        return planEndDateInputRef;
       case 'duration':
         return durationInputRef;
       case 'startDate':
@@ -451,6 +463,125 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </div>
           </>
         )}
+
+        {/* Plan Duration */}
+        <div className="flex items-center justify-center text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10" style={{ width: columnWidths.planDuration, minWidth: columnWidths.planDuration, maxWidth: columnWidths.planDuration }}>
+          <input
+            ref={planDurationInputRef}
+            type="number"
+            value={task.planDuration !== undefined ? task.planDuration : task.duration}
+            readOnly={baselineLocked || task.children.length > 0}
+            tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (baselineLocked || task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'planDuration');
+            }}
+            onChange={(e) => {
+              if (baselineLocked || task.children.length > 0) return;
+              const newDuration = parseInt(e.target.value) || 0;
+              const currentStart = task.planStartDate || task.startDate;
+              if (!currentStart) return;
+              const newEndDate = calculateEndDate(
+                new Date(currentStart),
+                newDuration,
+                useTaskStore.getState().projectConfig.calendar
+              );
+              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
+              updateTask(taskId, { planDuration: newDuration, planEndDate: newEndDateStr });
+            }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'planDuration')}
+            data-task-id={taskId}
+            data-field="planDuration"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent w-full text-center outline-none border-b border-transparent text-blue-700",
+              (baselineLocked || task.children.length > 0)
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "focus:border-blue-300 focus:text-blue-900"
+            )}
+            title={task.children.length > 0 ? "Duration is automatically calculated from children" : "Plan Duration (days)"}
+          />
+        </div>
+
+        {/* Plan Date Section */}
+        <div className="flex items-center justify-center space-x-1 text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10" style={{ width: columnWidths.planDate, minWidth: columnWidths.planDate, maxWidth: columnWidths.planDate }}>
+          <input
+            ref={planStartDateInputRef}
+            type="date"
+            value={task.planStartDate || task.startDate || ''}
+            readOnly={baselineLocked || task.children.length > 0}
+            tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (baselineLocked || task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'planStartDate');
+            }}
+            onChange={(e) => {
+              if (baselineLocked || task.children.length > 0) return;
+              const newStartDate = e.target.value;
+              if (!newStartDate) return;
+              const currentDuration = task.planDuration !== undefined ? task.planDuration : task.duration;
+              const newEndDate = calculateEndDate(
+                new Date(newStartDate),
+                currentDuration,
+                useTaskStore.getState().projectConfig.calendar
+              );
+              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
+              updateTask(taskId, { planStartDate: newStartDate, planEndDate: newEndDateStr });
+            }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'planStartDate')}
+            data-task-id={taskId}
+            data-field="planStartDate"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px] text-blue-700",
+              (baselineLocked || task.children.length > 0)
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-blue-900 text-blue-600"
+            )}
+            title={task.children.length > 0 ? "Start date is automatically calculated from children" : undefined}
+          />
+
+          <span className="text-blue-300">-</span>
+
+          <input
+            ref={planEndDateInputRef}
+            type="date"
+            value={task.planEndDate || task.endDate || ''}
+            readOnly={baselineLocked || task.children.length > 0}
+            tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (baselineLocked || task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'planEndDate');
+            }}
+            onChange={(e) => {
+              if (baselineLocked || task.children.length > 0) return;
+              const newEndDate = e.target.value;
+              const currentStart = task.planStartDate || task.startDate;
+              if (!newEndDate || !currentStart) return;
+              const start = new Date(currentStart);
+              const end = new Date(newEndDate);
+              if (end < start) return;
+
+              const newDuration = getWorkDaysCount(
+                start,
+                end,
+                useTaskStore.getState().projectConfig.calendar
+              );
+              updateTask(taskId, { planEndDate: newEndDate, planDuration: newDuration });
+            }}
+            onKeyDown={(e) => handleDetailKeyDown(e, 'planEndDate')}
+            data-task-id={taskId}
+            data-field="planEndDate"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px] text-blue-700",
+              (baselineLocked || task.children.length > 0)
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-blue-900 text-blue-600"
+            )}
+            title={task.children.length > 0 ? "End date is automatically calculated from children" : undefined}
+          />
+        </div>
 
         {/* Duration */}
         <div className="flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.duration, minWidth: columnWidths.duration, maxWidth: columnWidths.duration }}>

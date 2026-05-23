@@ -12,6 +12,9 @@ export interface Task {
   isCollapsed: boolean;
   children: string[]; // Ordered list of child IDs
   dependencies: string[]; // Array of Task IDs
+  planStartDate?: string | null; // ISO 8601 YYYY-MM-DD (Plan / Baseline)
+  planEndDate?: string | null;   // ISO 8601 YYYY-MM-DD (Plan / Baseline)
+  planDuration?: number;         // Workdays (Plan / Baseline)
 }
 
 export interface WorkCalendar {
@@ -27,9 +30,12 @@ export interface ProjectConfig {
     description: number;
     assignee: number;
     deliverables: number;
+    planDuration: number;
+    planDate: number;
     duration: number;
     date: number;
   };
+  baselineLocked?: boolean;
 }
 
 export type TaskFocusableField =
@@ -37,6 +43,9 @@ export type TaskFocusableField =
   | 'description'
   | 'assignee'
   | 'deliverables'
+  | 'planDuration'
+  | 'planStartDate'
+  | 'planEndDate'
   | 'duration'
   | 'startDate'
   | 'endDate';
@@ -67,4 +76,5 @@ export interface TaskStoreState {
   setCalendarHolidays: (holidays: string[]) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
+  setBaselineLocked: (baselineLocked: boolean) => void;
 }

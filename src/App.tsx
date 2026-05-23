@@ -20,6 +20,8 @@ function App() {
   const rootIds = useTaskStore(state => state.rootIds);
   const projectConfig = useTaskStore(state => state.projectConfig);
   const setAllCollapsed = useTaskStore(state => state.setAllCollapsed);
+  const setBaselineLocked = useTaskStore(state => state.setBaselineLocked);
+  const baselineLocked = projectConfig.baselineLocked ?? false;
   const visibleItems = useMemo(() => flattenTree(tasks, rootIds), [tasks, rootIds]);
   const collapsibleTasks = useMemo(
     () => Object.values(tasks).filter((task) => task.children.length > 0),
@@ -261,6 +263,21 @@ function App() {
           >
             Collapse All
           </button>
+
+          <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
+
+          {/* Baseline Lock Toggle */}
+          <label className="flex items-center space-x-1 cursor-pointer select-none text-xs text-gray-600 hover:bg-gray-200 px-2 py-1 rounded-sm no-drag">
+            <input
+              type="checkbox"
+              checked={baselineLocked}
+              onChange={(e) => setBaselineLocked(e.target.checked)}
+              className="cursor-pointer rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 mr-1"
+            />
+            <span className={clsx("font-medium", baselineLocked ? "text-amber-600 font-semibold" : "text-gray-600")}>
+              Lock Baseline
+            </span>
+          </label>
 
           <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
 

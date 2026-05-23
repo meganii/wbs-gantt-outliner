@@ -39,6 +39,9 @@ const initialTask: Task = {
   isCollapsed: false,
   children: [],
   dependencies: [],
+  planStartDate: format(new Date(), 'yyyy-MM-dd'),
+  planEndDate: format(new Date(), 'yyyy-MM-dd'),
+  planDuration: 1,
 };
 
 const taskStore = create<TaskStoreState>()(
@@ -70,6 +73,9 @@ const taskStore = create<TaskStoreState>()(
           isCollapsed: false,
           children: [],
           dependencies: [],
+          planStartDate: null,
+          planEndDate: null,
+          planDuration: 1,
         };
 
         set((state) => {
@@ -162,15 +168,49 @@ const taskStore = create<TaskStoreState>()(
           return {};
         }
 
+        const baselineLocked = state.projectConfig.baselineLocked ?? false;
+        let finalUpdates = { ...updates };
+
+        if (baselineLocked) {
+          // Ignore plan updates when baseline is locked
+          delete finalUpdates.planStartDate;
+          delete finalUpdates.planEndDate;
+          delete finalUpdates.planDuration;
+        } else {
+          // Sync plan and actual when baseline is not locked
+          if (finalUpdates.startDate !== undefined) {
+            finalUpdates.planStartDate = finalUpdates.startDate;
+          } else if (finalUpdates.planStartDate !== undefined) {
+            finalUpdates.startDate = finalUpdates.planStartDate;
+          }
+
+          if (finalUpdates.endDate !== undefined) {
+            finalUpdates.planEndDate = finalUpdates.endDate;
+          } else if (finalUpdates.planEndDate !== undefined) {
+            finalUpdates.endDate = finalUpdates.planEndDate;
+          }
+
+          if (finalUpdates.duration !== undefined) {
+            finalUpdates.planDuration = finalUpdates.duration;
+          } else if (finalUpdates.planDuration !== undefined) {
+            finalUpdates.duration = finalUpdates.planDuration;
+          }
+        }
+
         let tasks = {
           ...state.tasks,
-          [id]: { ...oldTask, ...updates },
+          [id]: { ...oldTask, ...finalUpdates },
         };
 
-        if (updates.endDate !== undefined || updates.startDate !== undefined) {
-          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar);
+        if (
+          finalUpdates.endDate !== undefined ||
+          finalUpdates.startDate !== undefined ||
+          finalUpdates.planEndDate !== undefined ||
+          finalUpdates.planStartDate !== undefined
+        ) {
+          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
           if (oldTask.parentId) {
-            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar);
+            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar, baselineLocked);
           }
         }
 
@@ -193,9 +233,10 @@ const taskStore = create<TaskStoreState>()(
         );
 
         let updatedTasks = nextGraph.tasks;
+        const baselineLocked = state.projectConfig.baselineLocked ?? false;
         parentIdsToRecalculate.forEach((parentId) => {
           if (updatedTasks[parentId]) {
-            updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar);
+            updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar, baselineLocked);
           }
         });
 
@@ -601,7 +642,8 @@ const taskStore = create<TaskStoreState>()(
           dependencies: [...targetTask.dependencies, fromId],
         };
 
-        tasks = propagateDependencyDates(tasks, fromId, state.projectConfig.calendar);
+        const baselineLocked = state.projectConfig.baselineLocked ?? false;
+        tasks = propagateDependencyDates(tasks, fromId, state.projectConfig.calendar, baselineLocked);
 
         return { tasks };
       }),
@@ -645,6 +687,13 @@ const taskStore = create<TaskStoreState>()(
             ...state.projectConfig.columnWidths,
             [columnId]: Math.max(50, width), // Prevent columns from becoming too small
           },
+        },
+      })),
+
+      setBaselineLocked: (baselineLocked) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          baselineLocked,
         },
       })),
     }),
