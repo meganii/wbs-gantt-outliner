@@ -58,10 +58,15 @@
   - 親タスクが関与するすべての依存関係設定（線の描画および追加）の完全禁止化
     - `addDependency` 内で先行（`fromTask`）または後行（`toTask`）のいずれかが子タスクを持つ親タスクである場合にエラー警告を出して完全にブロックするようガードを追加
     - `GanttChart.tsx` および `IntegratedView.tsx` の UI ドラッグ＆ドロップドロップ処理内で、ドロップ先（`targetTask`）が親タスクである場合のアクションを無効化するガードを配置し、子タスクから親タスクへの依存関係設定を完全に抑止した。
+  - キーボードショートカットによる View 切り替え機能の実装
+    - `Ctrl + 1` (Mac では `Cmd + 1`): WBS view
+    - `Ctrl + 2` (Mac では `Cmd + 2`): Integrated view
+    - `Ctrl + 3` (Mac では `Cmd + 3`): Gantt view
+    - ブラウザ標準のタブ切り替え等のデフォルト挙動を `preventDefault()` で抑制し、確実にアプリ内のビュー切り替えが動作するように制御
 
 ## 直近の検証結果
 
-- `pnpm test -- --run` : 通過 (61テスト全件通過)
+- `pnpm test -- --run` : 通過 (62テスト全件通過)
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
 - `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
