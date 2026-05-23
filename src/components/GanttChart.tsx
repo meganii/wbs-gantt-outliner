@@ -693,9 +693,12 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               )}
               {/* Bars Area */}
               <div
-                className="relative flex pointer-events-auto cursor-crosshair h-full flex-1"
+                className={clsx(
+                  "relative flex pointer-events-auto h-full flex-1",
+                  task.children.length > 0 ? "cursor-default" : "cursor-crosshair"
+                )}
                 onMouseDown={(e) => {
-                  if (e.button !== 0) return;
+                  if (e.button !== 0 || task.children.length > 0) return;
 
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = e.clientX - rect.left; // relative to row
@@ -770,6 +773,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
                   if (width <= 0) return null;
 
+                  const isParent = task.children.length > 0;
                   return (
                     <div
                       ref={el => {
@@ -781,15 +785,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                       }}
                       data-task-id={id}
                       className={clsx(
-                        "absolute top-1.5 h-5 rounded text-[9px] flex items-center shadow-sm group z-30",
-                        isDragging && "bg-blue-600 cursor-grabbing",
-                        !isDragging && isHovered && "bg-blue-600 ring-1 ring-blue-300 cursor-pointer",
-                        !isDragging && !isHovered && "bg-blue-500 hover:bg-blue-400 cursor-pointer"
+                        "absolute text-[9px] flex items-center shadow-sm group z-30",
+                        isParent
+                          ? "top-[9px] h-3 bg-slate-700 cursor-default rounded-sm"
+                          : [
+                              "top-1.5 h-5 rounded",
+                              isDragging && "bg-blue-600 cursor-grabbing",
+                              !isDragging && isHovered && "bg-blue-600 ring-1 ring-blue-300 cursor-pointer",
+                              !isDragging && !isHovered && "bg-blue-500 hover:bg-blue-400 cursor-pointer"
+                            ]
                       )}
                       style={{ left: offset, width: width - 2 }}
                       title={`${task.title}: ${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')}`}
                       onMouseDown={(e) => {
-                        if (e.button !== 0 || !task.startDate || !task.endDate) return; // Only left click
+                        if (e.button !== 0 || !task.startDate || !task.endDate || isParent) return; // Only left click and non-parent
                         e.stopPropagation();
                         setDragState({
                           taskId: id,
@@ -803,70 +812,86 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                         });
                       }}
                     >
-                      {/* Left Resize Handle */}
-                      <div
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                        onMouseDown={(e) => {
-                          if (!task.startDate || !task.endDate) return;
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setDragState({
-                            taskId: id,
-                            mode: 'resize-left',
-                            startX: e.clientX,
-                            startY: e.clientY,
-                            initialStartDate: new Date(task.startDate),
-                            initialEndDate: new Date(task.endDate),
-                            currentStartDate: new Date(task.startDate),
-                            currentEndDate: new Date(task.endDate),
-                          });
-                        }}
-                      />
+                      {/* Downward hanging bracket triangles for parent tasks */}
+                      {isParent && (
+                        <>
+                          <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
+                          <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
+                        </>
+                      )}
 
-                      {/* Right Resize Handle */}
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                        onMouseDown={(e) => {
-                          if (!task.startDate || !task.endDate) return;
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setDragState({
-                            taskId: id,
-                            mode: 'resize-right',
-                            startX: e.clientX,
-                            startY: e.clientY,
-                            initialStartDate: new Date(task.startDate),
-                            initialEndDate: new Date(task.endDate),
-                            currentStartDate: new Date(task.startDate),
-                            currentEndDate: new Date(task.endDate),
-                          });
-                        }}
-                      />
+                      {/* Left Resize Handle - Hide for parent tasks */}
+                      {!isParent && (
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                          onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setDragState({
+                              taskId: id,
+                              mode: 'resize-left',
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              initialStartDate: new Date(task.startDate),
+                              initialEndDate: new Date(task.endDate),
+                              currentStartDate: new Date(task.startDate),
+                              currentEndDate: new Date(task.endDate),
+                            });
+                          }}
+                        />
+                      )}
 
-                      {/* Dependency Handle (Right side) */}
-                      <div
-                        className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
-                        title="Drag to create dependency"
-                        onMouseDown={(e) => {
-                          if (!task.startDate || !task.endDate) return;
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setDragState({
-                            taskId: id,
-                            mode: 'dependency',
-                            startX: e.clientX,
-                            startY: e.clientY,
-                            initialStartDate: new Date(task.startDate),
-                            initialEndDate: new Date(task.endDate),
-                            currentStartDate: new Date(task.startDate),
-                            currentEndDate: new Date(task.endDate),
-                          });
-                        }}
-                      >
-                        <span className="text-blue-500 text-[10px] font-bold">+</span>
-                      </div>
+                      {/* Right Resize Handle - Hide for parent tasks */}
+                      {!isParent && (
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
+                          onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setDragState({
+                              taskId: id,
+                              mode: 'resize-right',
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              initialStartDate: new Date(task.startDate),
+                              initialEndDate: new Date(task.endDate),
+                              currentStartDate: new Date(task.startDate),
+                              currentEndDate: new Date(task.endDate),
+                            });
+                          }}
+                        />
+                      )}
 
-                      <span className="px-1 truncate pointer-events-none text-white">{task.title}</span>
+                      {/* Dependency Handle (Right side) - Hide for parent tasks */}
+                      {!isParent && (
+                        <div
+                          className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center"
+                          title="Drag to create dependency"
+                          onMouseDown={(e) => {
+                            if (!task.startDate || !task.endDate) return;
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setDragState({
+                              taskId: id,
+                              mode: 'dependency',
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              initialStartDate: new Date(task.startDate),
+                              initialEndDate: new Date(task.endDate),
+                              currentStartDate: new Date(task.startDate),
+                              currentEndDate: new Date(task.endDate),
+                            });
+                          }}
+                        >
+                          <span className="text-blue-500 text-[10px] font-bold">+</span>
+                        </div>
+                      )}
+
+                      <span className={clsx("px-1 truncate pointer-events-none text-white", isParent && "font-semibold")}>
+                        {task.title}
+                      </span>
                     </div>
                   );
                 })()}

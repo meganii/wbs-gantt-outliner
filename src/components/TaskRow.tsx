@@ -428,8 +428,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={durationInputRef}
             type="number"
             value={task.duration}
-            onFocus={() => setFocusedTaskCell(taskId, 'duration')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'duration');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newDuration = parseInt(e.target.value) || 0;
               if (!task.startDate) return;
               const newEndDate = calculateEndDate(
@@ -443,8 +449,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'duration')}
             data-task-id={taskId}
             data-field="duration"
-            className="bg-transparent w-full text-center outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
-            title="Duration (days)"
+            className={clsx(
+              "bg-transparent w-full text-center outline-none border-b border-transparent",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "focus:border-gray-300 focus:text-gray-900"
+            )}
+            title={task.children.length > 0 ? "Duration is automatically calculated from children" : "Duration (days)"}
           />
         </div>
 
@@ -454,8 +465,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={startDateInputRef}
             type="date"
             value={task.startDate || ''}
-            onFocus={() => setFocusedTaskCell(taskId, 'startDate')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'startDate');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newStartDate = e.target.value;
               if (!newStartDate) return;
               const newEndDate = calculateEndDate(
@@ -469,7 +486,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'startDate')}
             data-task-id={taskId}
             data-field="startDate"
-            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px]",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-gray-900 text-gray-600"
+            )}
+            title={task.children.length > 0 ? "Start date is automatically calculated from children" : undefined}
           />
 
           <span className="text-gray-400">-</span>
@@ -478,8 +501,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={endDateInputRef}
             type="date"
             value={task.endDate || ''}
-            onFocus={() => setFocusedTaskCell(taskId, 'endDate')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'endDate');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newEndDate = e.target.value;
               if (!newEndDate || !task.startDate) return;
               const start = new Date(task.startDate);
@@ -496,7 +525,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'endDate')}
             data-task-id={taskId}
             data-field="endDate"
-            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px]",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-gray-900 text-gray-600"
+            )}
+            title={task.children.length > 0 ? "End date is automatically calculated from children" : undefined}
           />
         </div>
     </div>

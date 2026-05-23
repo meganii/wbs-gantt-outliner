@@ -9,6 +9,8 @@ import {
   getTaskDepth,
   normalizeProjectState,
   propagateDependencyDates,
+  recalculateParentDatesRecursive,
+  cleanupHierarchicalDependencies,
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
 
@@ -165,8 +167,11 @@ const taskStore = create<TaskStoreState>()(
           [id]: { ...oldTask, ...updates },
         };
 
-        if (updates.endDate !== undefined) {
+        if (updates.endDate !== undefined || updates.startDate !== undefined) {
           tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar);
+          if (oldTask.parentId) {
+            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar);
+          }
         }
 
         return { tasks };
@@ -174,16 +179,31 @@ const taskStore = create<TaskStoreState>()(
 
       deleteTask: (ids) => set((state) => {
         const idArray = Array.isArray(ids) ? ids : [ids];
+        const parentIdsToRecalculate = new Set<string>();
+        idArray.forEach((id) => {
+          const task = state.tasks[id];
+          if (task && task.parentId) {
+            parentIdsToRecalculate.add(task.parentId);
+          }
+        });
+
         const nextGraph = deleteTasksAndCleanup(
           { tasks: state.tasks, rootIds: state.rootIds },
           idArray
         );
 
+        let updatedTasks = nextGraph.tasks;
+        parentIdsToRecalculate.forEach((parentId) => {
+          if (updatedTasks[parentId]) {
+            updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar);
+          }
+        });
+
         return {
-          tasks: nextGraph.tasks,
+          tasks: updatedTasks,
           rootIds: nextGraph.rootIds,
-          focusedTaskId: state.focusedTaskId && nextGraph.tasks[state.focusedTaskId] ? state.focusedTaskId : null,
-          selectedTaskIds: state.selectedTaskIds.filter((id) => nextGraph.tasks[id]),
+          focusedTaskId: state.focusedTaskId && updatedTasks[state.focusedTaskId] ? state.focusedTaskId : null,
+          selectedTaskIds: state.selectedTaskIds.filter((id) => updatedTasks[id]),
         };
       }),
 
@@ -302,7 +322,18 @@ const taskStore = create<TaskStoreState>()(
           tasks[id] = { ...tasks[id], parentId: newParentId };
         });
 
-        return updates;
+        let updatedTasks = cleanupHierarchicalDependencies(tasks);
+        if (parentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar);
+        }
+        if (newParentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, state.projectConfig.calendar);
+        }
+
+        return {
+          ...updates,
+          tasks: updatedTasks,
+        };
       }),
 
       outdentTask: (ids) => set((state) => {
@@ -363,7 +394,18 @@ const taskStore = create<TaskStoreState>()(
           updates.rootIds = newContextIds;
         }
 
-        return updates;
+        let updatedTasks = cleanupHierarchicalDependencies(tasks);
+        if (task.parentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, task.parentId, state.projectConfig.calendar);
+        }
+        if (grandParentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, grandParentId, state.projectConfig.calendar);
+        }
+
+        return {
+          ...updates,
+          tasks: updatedTasks,
+        };
       }),
 
       reorderTask: (activeId, overId) => set((state) => {
@@ -424,7 +466,15 @@ const taskStore = create<TaskStoreState>()(
 
         tasks[activeId] = { ...activeTask, parentId: newParentId };
 
-        return { tasks, rootIds };
+        let updatedTasks = cleanupHierarchicalDependencies(tasks);
+        if (activeTask.parentId && activeTask.parentId !== newParentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, activeTask.parentId, state.projectConfig.calendar);
+        }
+        if (newParentId && activeTask.parentId !== newParentId) {
+          updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, state.projectConfig.calendar);
+        }
+
+        return { tasks: updatedTasks, rootIds };
       }),
 
       moveTask: (ids, direction) => set((state) => {
@@ -485,6 +535,21 @@ const taskStore = create<TaskStoreState>()(
 
       addDependency: (fromId, toId) => set((state) => {
         if (fromId === toId) {
+          return {};
+        }
+
+        // Check for parent-child / ancestor-descendant relationship to prevent loops
+        const isAncestor = (ancId: string, descId: string): boolean => {
+          let curr = state.tasks[descId];
+          while (curr) {
+            if (curr.parentId === ancId) return true;
+            curr = state.tasks[curr.parentId || ''];
+          }
+          return false;
+        };
+
+        if (isAncestor(fromId, toId) || isAncestor(toId, fromId)) {
+          console.warn('Cannot add dependency between parent/ancestor and child/descendant tasks');
           return {};
         }
 

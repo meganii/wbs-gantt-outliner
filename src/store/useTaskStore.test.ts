@@ -312,6 +312,203 @@ describe('useTaskStore', () => {
     });
   });
 
+  describe('Parent Date Propagation', () => {
+    it('should propagate min startDate and max endDate to parent task when a child task\'s dates are set', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add a child task inside the root
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      // Set child 1 dates
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[rootId].startDate).toBe('2024-01-05');
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+
+    it('should update parent task startDate when child 2 is set with an earlier startDate', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+        useTaskStore.getState().updateTask(child2Id, {
+          startDate: '2024-01-02',
+          endDate: '2024-01-04',
+          duration: 3,
+        });
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Parent startDate should be min of both child start dates (2024-01-02)
+      expect(tasks[rootId].startDate).toBe('2024-01-02');
+      // Parent endDate should be max of both child end dates (2024-01-10)
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+
+    it('should recalculate parent dates when a child task is deleted', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+        useTaskStore.getState().updateTask(child2Id, {
+          startDate: '2024-01-02',
+          endDate: '2024-01-04',
+          duration: 3,
+        });
+      });
+
+      // Assert parent has dates from both
+      expect(useTaskStore.getState().tasks[rootId].startDate).toBe('2024-01-02');
+
+      // Delete the child task with the earlier start date
+      act(() => {
+        useTaskStore.getState().deleteTask(child2Id);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Parent startDate should revert to child 1's startDate (2024-01-05)
+      expect(tasks[rootId].startDate).toBe('2024-01-05');
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+  });
+
+  describe('Hierarchical Dependency Cleanup', () => {
+    it('should automatically clear dependency between child1 and child2 when child2 is indented under child1', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 and Child 2 as siblings
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Setup dependency: child2 depends on child1
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      // Verify initial dependency exists
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).toContain(child1Id);
+
+      // Indent child 2 so it becomes a child of child 1
+      act(() => {
+        useTaskStore.getState().indentTask(child2Id);
+      });
+
+      // Verify the dependency has been automatically cleared
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[child2Id].parentId).toBe(child1Id);
+      expect(tasks[child2Id].dependencies).not.toContain(child1Id);
+    });
+
+    it('should restore cleared dependency and reset hierarchy when undoing the indent', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 and Child 2 as siblings
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Setup dependency
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      // Indent child 2
+      act(() => {
+        useTaskStore.getState().indentTask(child2Id);
+      });
+
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).not.toContain(child1Id);
+
+      // Undo the indent
+      act(() => {
+        getTemporalState().undo();
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Verify child 2 is sibling again
+      expect(tasks[child2Id].parentId).toBe(rootId);
+      // Verify dependency is restored
+      expect(tasks[child2Id].dependencies).toContain(child1Id);
+    });
+
+    it('should block manual addition of dependency between parent and child/descendant tasks', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 inside root
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const childId = useTaskStore.getState().tasks[rootId].children[0];
+
+      // Attempt to add a dependency from root task to its child task
+      act(() => {
+        useTaskStore.getState().addDependency(rootId, childId);
+      });
+
+      // Verify dependency is NOT added (blocked)
+      expect(useTaskStore.getState().tasks[childId].dependencies).not.toContain(rootId);
+
+      // Attempt the reverse direction
+      act(() => {
+        useTaskStore.getState().addDependency(childId, rootId);
+      });
+
+      // Verify dependency is NOT added (blocked)
+      expect(useTaskStore.getState().tasks[rootId].dependencies).not.toContain(childId);
+    });
+  });
+
   describe('loadProjectState', () => {
     it('should merge missing project config fields with defaults', () => {
       act(() => {
