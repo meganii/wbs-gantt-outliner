@@ -36,13 +36,13 @@ interface IntegratedViewProps {
 
 const ROW_HEIGHT = 32;
 
-export const IntegratedView: React.FC<IntegratedViewProps> = ({
+export const IntegratedView = ({
   outlinerWidth,
   onResizeStart,
   flattenedItems: flattenedItemsProp,
   hoveredTaskId = null,
   onHoverTaskChange,
-}) => {
+}: IntegratedViewProps) => {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
   const calendar = useTaskStore((state) => state.projectConfig.calendar);

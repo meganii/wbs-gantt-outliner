@@ -30,7 +30,7 @@ interface TaskRowProps {
   }) => React.ReactNode;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({
+export const TaskRow = ({
   taskId,
   depth = 0,
   prevId,
@@ -45,7 +45,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   suppressBorder = false,
   disableHoverHandlers = false,
   renderContainer,
-}) => {
+}: TaskRowProps) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const toggleCollapse = useTaskStore((state) => state.toggleCollapse);

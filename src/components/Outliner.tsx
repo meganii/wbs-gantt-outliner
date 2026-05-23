@@ -14,12 +14,12 @@ interface OutlinerProps {
   onHoverTaskChange?: (taskId: string | null) => void;
 }
 
-export const Outliner: React.FC<OutlinerProps> = ({
+export const Outliner = ({
   showDetails = false,
   flattenedItems: flattenedItemsProp,
   hoveredTaskId = null,
   onHoverTaskChange,
-}) => {
+}: OutlinerProps) => {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
   const reorderTask = useTaskStore((state) => state.reorderTask); // Need to implement this in store

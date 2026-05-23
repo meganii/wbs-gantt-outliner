@@ -34,7 +34,7 @@ interface GanttChartProps {
   onScroll?: React.UIEventHandler<HTMLDivElement>;
 }
 
-export const GanttChart: React.FC<GanttChartProps> = ({
+export const GanttChart = ({
   showSidebar = false,
   showNames = false,
   flattenedItems: flattenedItemsProp,
@@ -42,7 +42,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   onHoverTaskChange,
   scrollRef,
   onScroll
-}) => {
+}: GanttChartProps) => {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
   const calendar = useTaskStore(state => state.projectConfig.calendar);
