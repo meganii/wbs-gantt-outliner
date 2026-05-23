@@ -230,3 +230,10 @@ pnpm run make
   - Actual bar (amber `#F59E0B`) drawn on top — when both overlap, actual takes visual priority.
 - Removed the single-mode "Type" column and `getEffectiveDates` helper.
 - Date range calculation considers both plan and actual dates across all tasks.
+
+## Work-Day Duration Counting on Gantt Dragging (May 23, 2026)
+
+- Replaced standard calendar day duration counting (`differenceInDays + 1`) during Gantt bar dragging, resizing, and drawing operations in `GanttChart.tsx` and `IntegratedView.tsx` with business day duration calculations (`getWorkDaysCount`).
+- The drag and visual movements of task bars remain calendar-day-based for smooth mouse feedback (natural movement over weekends), but the saved `duration` or `planDuration` value strictly reflects the business/working day calendar configuration (weekends and custom holidays are correctly excluded from the counted days).
+- Updated automated unit tests to verify the working day counting correctness during range drawing.
+

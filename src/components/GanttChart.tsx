@@ -19,7 +19,7 @@ import {
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay } from '../utils/date';
+import { isWorkDay, getWorkDaysCount } from '../utils/date';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 
 const HEADER_HEIGHT = 40;
@@ -348,7 +348,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             break;
         }
 
-        const newDuration = differenceInDays(end, start) + 1;
+        const newDuration = getWorkDaysCount(start, end, calendar);
         if (baselineLocked) {
           updateTask(taskId, {
             startDate: format(start, 'yyyy-MM-dd'),
@@ -365,7 +365,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       } else {
         const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
         if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
-          const newDuration = differenceInDays(currentEndDate, currentStartDate) + 1;
+          const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
           if (baselineLocked) {
             updateTask(taskId, {
               startDate: format(currentStartDate, 'yyyy-MM-dd'),

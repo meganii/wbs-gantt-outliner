@@ -270,7 +270,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     // Expected planEndDate: 2025-12-04 + 3 days = 2025-12-07
     expect(task.planStartDate).toBe('2025-12-04');
     expect(task.planEndDate).toBe('2025-12-07');
-    expect(task.planDuration).toBe(4); // 4, 5, 6, 7 are 4 days
+    expect(task.planDuration).toBe(2); // 4, 5 are work days. 6, 7 are weekends.
 
     vi.useRealTimers();
   });
