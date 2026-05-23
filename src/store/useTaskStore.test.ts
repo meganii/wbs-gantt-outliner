@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { getTemporalState, loadProjectState, useTaskStore } from './useTaskStore';
 import { act } from '@testing-library/react';
 import type { ProjectConfig } from '../types';
+import { propagateDependencyDates } from './taskStoreUtils';
 
 // To properly test the store, we need to interact with it outside of a React component.
 // We can grab the initial state to reset the store before each test.
@@ -312,6 +313,208 @@ describe('useTaskStore', () => {
     });
   });
 
+  describe('Parent Date Propagation', () => {
+    it('should propagate min startDate and max endDate to parent task when a child task\'s dates are set', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add a child task inside the root
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      // Set child 1 dates
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[rootId].startDate).toBe('2024-01-05');
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+
+    it('should update parent task startDate when child 2 is set with an earlier startDate', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+        useTaskStore.getState().updateTask(child2Id, {
+          startDate: '2024-01-02',
+          endDate: '2024-01-04',
+          duration: 3,
+        });
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Parent startDate should be min of both child start dates (2024-01-02)
+      expect(tasks[rootId].startDate).toBe('2024-01-02');
+      // Parent endDate should be max of both child end dates (2024-01-10)
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+
+    it('should recalculate parent dates when a child task is deleted', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2024-01-05',
+          endDate: '2024-01-10',
+          duration: 4,
+        });
+        useTaskStore.getState().updateTask(child2Id, {
+          startDate: '2024-01-02',
+          endDate: '2024-01-04',
+          duration: 3,
+        });
+      });
+
+      // Assert parent has dates from both
+      expect(useTaskStore.getState().tasks[rootId].startDate).toBe('2024-01-02');
+
+      // Delete the child task with the earlier start date
+      act(() => {
+        useTaskStore.getState().deleteTask(child2Id);
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Parent startDate should revert to child 1's startDate (2024-01-05)
+      expect(tasks[rootId].startDate).toBe('2024-01-05');
+      expect(tasks[rootId].endDate).toBe('2024-01-10');
+    });
+  });
+
+  describe('Hierarchical Dependency Cleanup', () => {
+    it('should automatically clear dependency between child1 and child2 when child2 is indented under child1', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 and Child 2 as siblings
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Setup dependency: child2 depends on child1
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      // Verify initial dependency exists
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).toContain(child1Id);
+
+      // Indent child 2 so it becomes a child of child 1
+      act(() => {
+        useTaskStore.getState().indentTask(child2Id);
+      });
+
+      // Verify the dependency has been automatically cleared
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[child2Id].parentId).toBe(child1Id);
+      expect(tasks[child2Id].dependencies).not.toContain(child1Id);
+    });
+
+    it('should restore cleared dependency and reset hierarchy when undoing the indent', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 and Child 2 as siblings
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Setup dependency
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      // Indent child 2
+      act(() => {
+        useTaskStore.getState().indentTask(child2Id);
+      });
+
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).not.toContain(child1Id);
+
+      // Undo the indent
+      act(() => {
+        getTemporalState().undo();
+      });
+
+      const { tasks } = useTaskStore.getState();
+      // Verify child 2 is sibling again
+      expect(tasks[child2Id].parentId).toBe(rootId);
+      // Verify dependency is restored
+      expect(tasks[child2Id].dependencies).toContain(child1Id);
+    });
+
+    it('should block manual addition of dependency involving any parent tasks', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add Child 1 inside root to make it a parent task
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+
+      // Add another root task sibling
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'after');
+      });
+      const siblingId = useTaskStore.getState().rootIds[1];
+
+      // Attempt to add a dependency from siblingId (child task) to rootId (parent task)
+      act(() => {
+        useTaskStore.getState().addDependency(siblingId, rootId);
+      });
+
+      // Verify dependency is NOT added (blocked because rootId has children)
+      expect(useTaskStore.getState().tasks[rootId].dependencies).not.toContain(siblingId);
+
+      // Attempt reverse direction (rootId to siblingId)
+      act(() => {
+        useTaskStore.getState().addDependency(rootId, siblingId);
+      });
+
+      // Verify dependency is NOT added (blocked because rootId has children)
+      expect(useTaskStore.getState().tasks[siblingId].dependencies).not.toContain(rootId);
+    });
+  });
+
   describe('loadProjectState', () => {
     it('should merge missing project config fields with defaults', () => {
       act(() => {
@@ -497,6 +700,102 @@ describe('useTaskStore', () => {
         expect(useTaskStore.getState().rootIds).toEqual(['imported']);
         expect(getTemporalState().pastStates).toEqual([]);
         expect(getTemporalState().futureStates).toEqual([]);
+    });
+  });
+
+  describe('Parent Task Date Propagation through Dependencies', () => {
+    it('should shift all children tasks together with parent when parent task shifts due to a dependency', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Setup task hierarchy:
+      // Parent B (child of Root) -> Child B1, Child B2
+      // Predecessor A (sibling of Parent B)
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside'); // Child under root (Parent B)
+      });
+      const parentBId = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parentBId, 'inside'); // Child B1
+      });
+      const childB1Id = useTaskStore.getState().tasks[parentBId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(childB1Id, 'after'); // Child B2
+      });
+      const childB2Id = useTaskStore.getState().tasks[parentBId].children[1];
+
+      // Add Predecessor A
+      act(() => {
+        useTaskStore.getState().addTask(parentBId, 'after');
+      });
+      const predAId = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Set initial dates
+      act(() => {
+        useTaskStore.getState().updateTask(predAId, {
+          startDate: '2026-05-11', // Monday
+          endDate: '2026-05-13',   // Wednesday (3 days duration)
+          duration: 3,
+        });
+
+        useTaskStore.getState().updateTask(childB1Id, {
+          startDate: '2026-05-11',
+          endDate: '2026-05-12',
+          duration: 2,
+        });
+
+        useTaskStore.getState().updateTask(childB2Id, {
+          startDate: '2026-05-13',
+          endDate: '2026-05-15',
+          duration: 3,
+        });
+      });
+
+      // Verify parent dates are correctly computed initially
+      let state = useTaskStore.getState();
+      expect(state.tasks[parentBId].startDate).toBe('2026-05-11');
+      expect(state.tasks[parentBId].endDate).toBe('2026-05-15');
+
+      // Setup the dependency manually in the tasks state to bypass addDependency block for parent task
+      act(() => {
+        const state = useTaskStore.getState();
+        const tasks = { ...state.tasks };
+        tasks[parentBId] = {
+          ...tasks[parentBId],
+          dependencies: [predAId],
+        };
+        useTaskStore.setState({ tasks });
+      });
+
+      // Now trigger propagateDependencyDates manually to test the engine
+      act(() => {
+        const state = useTaskStore.getState();
+        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar);
+        useTaskStore.setState({ tasks: updatedTasks });
+      });
+
+      state = useTaskStore.getState();
+      // Predecessor A should not move
+      expect(state.tasks[predAId].endDate).toBe('2026-05-13');
+
+      // Parent B's start date must be pushed to 2026-05-14 (Thursday)
+      expect(state.tasks[parentBId].startDate).toBe('2026-05-14');
+
+      // Child B1 (was starting 2026-05-11 Monday, offset 0 work days) -> should now start 2026-05-14 Thursday
+      expect(state.tasks[childB1Id].startDate).toBe('2026-05-14');
+      expect(state.tasks[childB1Id].endDate).toBe('2026-05-15'); // 2 work days duration (Thu, Fri)
+
+      // Child B2 (was starting 2026-05-13 Wednesday, offset 2 work days: Tue, Wed) -> should now start 2026-05-18 Monday (skip Sat, Sun)
+      // offset is getWorkDaysCount('2026-05-11', '2026-05-13') - 1 = 3 - 1 = 2 work days.
+      // newDescStart = addWorkDays('2026-05-14', 2) ->
+      // Thu (14) + 1 work day = Fri (15)
+      // Fri (15) + 1 work day = Mon (18)
+      expect(state.tasks[childB2Id].startDate).toBe('2026-05-18');
+      expect(state.tasks[childB2Id].endDate).toBe('2026-05-20');
+
+      // Parent B's overall end date should be 2026-05-20 (max of children's end dates)
+      expect(state.tasks[parentBId].endDate).toBe('2026-05-20');
     });
   });
 });

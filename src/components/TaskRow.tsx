@@ -284,6 +284,31 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   };
 
+  const handleRowMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left click
+
+    // Ignore interactive element clicks (buttons like drag handle, collapse chevron)
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) {
+      return;
+    }
+
+    const isMulti = e.ctrlKey || e.metaKey;
+    const isRange = e.shiftKey;
+
+    if (target.tagName === 'INPUT') {
+      const isReadOnly = target.hasAttribute('readonly');
+      if (isMulti || isRange || isReadOnly) {
+        // Prevent default browser text selection or cursor placement on modifier clicks or read-only fields
+        e.preventDefault();
+      }
+    }
+
+    if (onSelectionChange) {
+      onSelectionChange(taskId, isMulti, isRange);
+    }
+  };
+
   const rowStyle = clsx(
     "flex items-center group h-8 transition-colors duration-150",
     !suppressBorder && "border-b border-gray-100",
@@ -304,6 +329,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       className={rowStyle}
       onMouseEnter={disableHoverHandlers ? undefined : () => onHoverChange?.(taskId)}
       onMouseLeave={disableHoverHandlers ? undefined : () => onHoverChange?.(null)}
+      onMouseDown={handleRowMouseDown}
     >
         <div
           className="flex items-center flex-1"
@@ -367,6 +393,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             placeholder="New Task"
             data-task-id={taskId}
             data-field="title"
+            style={{ backgroundColor: 'transparent' }}
             className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300 truncate"
           />
         </div>
@@ -385,6 +412,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 placeholder="Description"
                 data-task-id={taskId}
                 data-field="description"
+                style={{ backgroundColor: 'transparent' }}
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
                 onKeyDown={(e) => handleDetailKeyDown(e, 'description')}
               />
@@ -400,6 +428,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 placeholder="Assignee"
                 data-task-id={taskId}
                 data-field="assignee"
+                style={{ backgroundColor: 'transparent' }}
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
                 onKeyDown={(e) => handleDetailKeyDown(e, 'assignee')}
               />
@@ -415,6 +444,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 placeholder="Deliverables"
                 data-task-id={taskId}
                 data-field="deliverables"
+                style={{ backgroundColor: 'transparent' }}
                 className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
                 onKeyDown={(e) => handleDetailKeyDown(e, 'deliverables')}
               />
@@ -428,8 +458,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={durationInputRef}
             type="number"
             value={task.duration}
-            onFocus={() => setFocusedTaskCell(taskId, 'duration')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'duration');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newDuration = parseInt(e.target.value) || 0;
               if (!task.startDate) return;
               const newEndDate = calculateEndDate(
@@ -443,8 +479,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'duration')}
             data-task-id={taskId}
             data-field="duration"
-            className="bg-transparent w-full text-center outline-none border-b border-transparent focus:border-gray-300 focus:text-gray-900"
-            title="Duration (days)"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent w-full text-center outline-none border-b border-transparent",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "focus:border-gray-300 focus:text-gray-900"
+            )}
+            title={task.children.length > 0 ? "Duration is automatically calculated from children" : "Duration (days)"}
           />
         </div>
 
@@ -454,8 +496,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={startDateInputRef}
             type="date"
             value={task.startDate || ''}
-            onFocus={() => setFocusedTaskCell(taskId, 'startDate')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'startDate');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newStartDate = e.target.value;
               if (!newStartDate) return;
               const newEndDate = calculateEndDate(
@@ -469,7 +517,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'startDate')}
             data-task-id={taskId}
             data-field="startDate"
-            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px]",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-gray-900 text-gray-600"
+            )}
+            title={task.children.length > 0 ? "Start date is automatically calculated from children" : undefined}
           />
 
           <span className="text-gray-400">-</span>
@@ -478,8 +533,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             ref={endDateInputRef}
             type="date"
             value={task.endDate || ''}
-            onFocus={() => setFocusedTaskCell(taskId, 'endDate')}
+            readOnly={task.children.length > 0}
+            tabIndex={task.children.length > 0 ? -1 : undefined}
+            onFocus={() => {
+              if (task.children.length > 0) return;
+              setFocusedTaskCell(taskId, 'endDate');
+            }}
             onChange={(e) => {
+              if (task.children.length > 0) return;
               const newEndDate = e.target.value;
               if (!newEndDate || !task.startDate) return;
               const start = new Date(task.startDate);
@@ -496,7 +557,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onKeyDown={(e) => handleDetailKeyDown(e, 'endDate')}
             data-task-id={taskId}
             data-field="endDate"
-            className="bg-transparent outline-none w-20 text-center cursor-pointer hover:text-gray-900 text-gray-600 text-[10px]"
+            style={{ backgroundColor: 'transparent' }}
+            className={clsx(
+              "bg-transparent outline-none w-20 text-center text-[10px]",
+              task.children.length > 0 
+                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
+                : "cursor-pointer hover:text-gray-900 text-gray-600"
+            )}
+            title={task.children.length > 0 ? "End date is automatically calculated from children" : undefined}
           />
         </div>
     </div>
