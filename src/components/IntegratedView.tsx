@@ -19,7 +19,7 @@ import {
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay } from '../utils/date';
+import { isWorkDay, getWorkDaysCount } from '../utils/date';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -267,7 +267,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
             break;
         }
 
-        const newDuration = differenceInDays(end, start) + 1;
+        const newDuration = getWorkDaysCount(start, end, calendar);
         if (baselineLocked) {
           updateTask(taskId, {
             startDate: format(start, 'yyyy-MM-dd'),
@@ -287,7 +287,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
           currentStartDate.getTime() !== initialStartDate.getTime() ||
           currentEndDate.getTime() !== initialEndDate.getTime()
         ) {
-          const newDuration = differenceInDays(currentEndDate, currentStartDate) + 1;
+          const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
           if (baselineLocked) {
             updateTask(taskId, {
               startDate: format(currentStartDate, 'yyyy-MM-dd'),
