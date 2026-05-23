@@ -237,3 +237,12 @@ pnpm run make
 - The drag and visual movements of task bars remain calendar-day-based for smooth mouse feedback (natural movement over weekends), but the saved `duration` or `planDuration` value strictly reflects the business/working day calendar configuration (weekends and custom holidays are correctly excluded from the counted days).
 - Updated automated unit tests to verify the working day counting correctness during range drawing.
 
+## React.FC Removal & Inline Props Refactoring (May 23, 2026)
+
+- Modernized the component definitions across the entire codebase to align with React 2026 best practices:
+  - Removed `React.FC` (and `React.FunctionComponent`) generic type annotations from 6 main components: `GanttChart.tsx`, `IntegratedView.tsx`, `Outliner.tsx`, `ProjectSettingsDialog.tsx`, `TaskRow.tsx`, and `TaskTableHeader.tsx`.
+  - Replaced them with standard component declarations by specifying the props type inline on the arguments: e.g., `const MyComponent = ({ prop1 }: MyComponentProps) => { ... }`.
+  - Cleaned up unused `React` imports (specifically fixed a `TS6133` error in `ProjectSettingsDialog.tsx`) to pass strict static code analysis checks (`tsc -b`).
+  - Verified all 72 automated Vitest tests pass and that the production build completes successfully.
+
+

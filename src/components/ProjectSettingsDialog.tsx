@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { CalendarDays, Plus, Trash2, X } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
@@ -8,7 +8,7 @@ interface ProjectSettingsDialogProps {
   onClose: () => void;
 }
 
-export const ProjectSettingsDialog: React.FC<ProjectSettingsDialogProps> = ({ isOpen, onClose }) => {
+export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialogProps) => {
   const holidays = useTaskStore((state) => state.projectConfig.calendar.holidays);
   const setCalendarHolidays = useTaskStore((state) => state.setCalendarHolidays);
   const [draftHoliday, setDraftHoliday] = useState('');

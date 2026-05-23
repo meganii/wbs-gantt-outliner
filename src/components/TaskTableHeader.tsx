@@ -6,7 +6,7 @@ interface TaskTableHeaderProps {
   hideDescriptionColumns?: boolean;
 }
 
-export const TaskTableHeader: React.FC<TaskTableHeaderProps> = ({ showDetails = false, hideDescriptionColumns = false }) => {
+export const TaskTableHeader = ({ showDetails = false, hideDescriptionColumns = false }: TaskTableHeaderProps) => {
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore((state) => state.setColumnWidth);
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
