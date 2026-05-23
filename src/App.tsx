@@ -91,6 +91,9 @@ function App() {
       const isRedo = (e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y');
       const isCollapseAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowUp';
       const isExpandAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowDown';
+      const isWbsView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '1';
+      const isIntegratedView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '2';
+      const isGanttView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '3';
 
       if (e.isComposing || e.keyCode === 229) {
         return;
@@ -123,10 +126,40 @@ function App() {
           useTaskStore.getState().setAllCollapsed(nextCollapsed);
         }
       }
+
+      if (isWbsView) {
+        e.preventDefault();
+        setView('wbs');
+      }
+
+      if (isIntegratedView) {
+        e.preventDefault();
+        setView('integrated');
+      }
+
+      if (isGanttView) {
+        e.preventDefault();
+        setView('gantt');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+  
+  // Listen to IPC View Switch
+  useEffect(() => {
+    if (window.ipcRenderer) {
+      const unsubscribe = window.ipcRenderer.on(
+        'switch-view',
+        (_event, viewName: any) => {
+          if (viewName === 'wbs' || viewName === 'integrated' || viewName === 'gantt') {
+            setView(viewName);
+          }
+        }
+      );
+      return unsubscribe;
+    }
   }, []);
 
   useEffect(() => {
