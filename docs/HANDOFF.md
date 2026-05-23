@@ -34,6 +34,13 @@
 - ヘッダーに `Expand All` / `Collapse All` を追加
   - ボタン操作と `Cmd/Ctrl + Alt + ↑ / ↓` のショートカットで全体の折り畳みを切り替えられる
 - WBSのインデント変更ショートカットを `Tab`/`Shift+Tab` から `Alt+Shift+→/←` (Macでは `Cmd+Shift+→/←` も可) に移行。これにより `Tab` キーは標準のフォーカス移動として利用可能になった
+- 「Gantt」View の表示と開閉操作性を改善
+  - タスク名の左側に WBS 番号（1, 1.1, 1.2 等）を表示し、階層の深さ（depth）に応じたインデントを適用
+  - 子タスクを持つ親タスクの左隣に開閉用 chevron ボタン（`ChevronRight` / `ChevronDown`）を配置し、クリックで展開/折り畳みをトグル可能に
+  - タスク名列をクリックすることで、WBS View と同様に選択（青色背景）できるように変更
+  - 選択中のタスクに対して、キーボードショートカット `Alt + ↑ / ↓` での折り畳み（Collapse）/ 展開（Expand）操作に対応。文字入力フォーカス時にはバイパスされ影響しません
+  - タスク名（Task Name）列の右端にリサイズバーを設置し、ドラッグにより列幅を手動調整できるように改善（WBS Viewのタスク名列幅と連動）
+  - キーボード `↑ / ↓`（ArrowUp/Down）による選択タスクの上下移動、および `Shift + ↑ / ↓` による範囲選択拡張に対応。行が上下のスクロール範囲外に出た場合の自動スクロール追従も実装しました
 
 ## 直近の検証結果
 
@@ -41,6 +48,7 @@
 - `pnpm run build` : 通過
 - `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
 - `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
+- `src/components/GanttChart.test.tsx` を追加し、Gantt View での WBS表示、階層インデント、Chevron開閉、タスク選択、Alt + ↑/↓ のトグル動作、列のドラッグリサイズ動作、および↑/↓（Shift含む）キーによる選択・行移動動作を網羅検証し、Vitest 全件通過を確認済み
 - Excel エクスポートを Electron main 側へ移動済み
   - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
   - `pnpm run build` で renderer 側の大きなチャンク警告は解消

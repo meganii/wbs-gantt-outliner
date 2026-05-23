@@ -20,6 +20,7 @@ import {
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
 import { isWorkDay } from '../utils/date';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 
 const HEADER_HEIGHT = 40;
 
@@ -47,6 +48,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const calendar = useTaskStore(state => state.projectConfig.calendar);
   const viewMode = useTaskStore(state => state.projectConfig.viewMode);
   const setViewMode = useTaskStore(state => state.setViewMode);
+  
+  const selectedTaskIds = useTaskStore(state => state.selectedTaskIds);
+  const setSelectedTaskIds = useTaskStore(state => state.setSelectedTaskIds);
+  const focusedTaskId = useTaskStore(state => state.focusedTaskId);
+  const setFocusedTaskId = useTaskStore(state => state.setFocusedTaskId);
+  const setCollapsed = useTaskStore(state => state.setCollapsed);
+  const toggleCollapse = useTaskStore(state => state.toggleCollapse);
+  const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
+  const setColumnWidth = useTaskStore(state => state.setColumnWidth);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -55,7 +65,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const NAME_COLUMN_WIDTH = 200;
+  const NAME_COLUMN_WIDTH = columnWidths.taskDescription;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
 
   const CELL_WIDTH = useMemo(() => {
@@ -152,6 +162,95 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       containerRef.current.scrollLeft = Math.max(0, scrollPos - containerWidth / 3);
     }
   }, [viewMode, timelineMetrics]);
+
+  // Keyboard Shortcut: Alt + ArrowUp / ArrowDown to Collapse/Expand, and Up/Down to Navigate Rows
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.getAttribute('contenteditable') === 'true'
+      )) {
+        return;
+      }
+
+      const isAltUp = !e.shiftKey && e.altKey && !e.metaKey && e.key === 'ArrowUp';
+      const isAltDown = !e.shiftKey && e.altKey && !e.metaKey && e.key === 'ArrowDown';
+
+      if (isAltUp || isAltDown) {
+        const targetIds = selectedTaskIds.length > 0 
+          ? selectedTaskIds 
+          : (hoveredTaskId ? [hoveredTaskId] : []);
+        
+        if (targetIds.length > 0) {
+          e.preventDefault();
+          setCollapsed(targetIds, isAltUp);
+        }
+        return;
+      }
+
+      const isUp = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.key === 'ArrowUp';
+      const isDown = !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.key === 'ArrowDown';
+      const isShiftUp = e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.key === 'ArrowUp';
+      const isShiftDown = e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.key === 'ArrowDown';
+
+      if (isUp || isDown || isShiftUp || isShiftDown) {
+        const activeId = focusedTaskId || (selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : null);
+        if (!activeId) return;
+
+        const currentIndex = flattenedItems.findIndex(item => item.id === activeId);
+        if (currentIndex === -1) return;
+
+        let targetIndex = -1;
+        if (isUp || isShiftUp) {
+          if (currentIndex > 0) {
+            targetIndex = currentIndex - 1;
+          }
+        } else if (isDown || isShiftDown) {
+          if (currentIndex < flattenedItems.length - 1) {
+            targetIndex = currentIndex + 1;
+          }
+        }
+
+        if (targetIndex !== -1) {
+          e.preventDefault();
+          const targetId = flattenedItems[targetIndex].id;
+
+          if (isShiftUp || isShiftDown) {
+            const anchorId = selectedTaskIds.length > 0 ? selectedTaskIds[0] : activeId;
+            const startIdx = flattenedItems.findIndex(item => item.id === anchorId);
+            const endIdx = targetIndex;
+            if (startIdx !== -1 && endIdx !== -1) {
+              const min = Math.min(startIdx, endIdx);
+              const max = Math.max(startIdx, endIdx);
+              setSelectedTaskIds(flattenedItems.slice(min, max + 1).map(item => item.id));
+            }
+          } else {
+            setSelectedTaskIds([targetId]);
+          }
+          setFocusedTaskId(targetId);
+
+          const container = containerRef.current;
+          if (container) {
+            const rowHeight = 32;
+            const targetTop = targetIndex * rowHeight;
+            const containerHeight = container.clientHeight;
+            const currentScrollTop = container.scrollTop;
+
+            if (targetTop < currentScrollTop) {
+              container.scrollTop = targetTop;
+            } else if (targetTop + rowHeight > currentScrollTop + containerHeight) {
+              container.scrollTop = targetTop + rowHeight - containerHeight;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
 
   const updateTask = useTaskStore(state => state.updateTask);
   const addDependency = useTaskStore(state => state.addDependency);
@@ -342,10 +441,33 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       >
         {showNames && (
           <div
-            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center"
+            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
             Task Name
+            <div
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 z-50 group-hover:opacity-50"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = NAME_COLUMN_WIDTH;
+
+                const onMouseMove = (moveEvent: MouseEvent) => {
+                  const delta = moveEvent.clientX - startX;
+                  setColumnWidth('taskDescription', Math.max(50, startWidth + delta));
+                };
+
+                const onMouseUp = () => {
+                  document.removeEventListener('mousemove', onMouseMove);
+                  document.removeEventListener('mouseup', onMouseUp);
+                  document.body.style.cursor = 'default';
+                };
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+                document.body.style.cursor = 'col-resize';
+              }}
+            />
           </div>
         )}
         <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
@@ -483,15 +605,19 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           )}
         </svg>
 
-        {flattenedItems.map(({ id, task }) => {
+        {flattenedItems.map(({ id, task, depth, wbsNumber }) => {
           const isHovered = hoveredTaskId === id;
+          const isSelected = selectedTaskIds.includes(id);
 
           return (
             <div
               key={id}
               className={clsx(
                 "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
-                isHovered ? "bg-gray-50" : "hover:bg-gray-50"
+                isSelected && isHovered && "bg-blue-100",
+                isSelected && !isHovered && "bg-blue-50",
+                !isSelected && isHovered && "bg-gray-50",
+                !isSelected && !isHovered && "hover:bg-gray-50"
               )}
               style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
               onMouseEnter={() => onHoverTaskChange?.(id)}
@@ -499,13 +625,70 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             >
               {showNames && (
                 <div
+                  onClick={(e) => {
+                    const isMulti = e.ctrlKey || e.metaKey;
+                    const isRange = e.shiftKey;
+                    
+                    if (isRange) {
+                      const targetAnchor = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id;
+                      const flattenedIds = flattenedItems.map(item => item.id);
+                      const startIdx = flattenedIds.indexOf(targetAnchor);
+                      const endIdx = flattenedIds.indexOf(id);
+                      if (startIdx !== -1 && endIdx !== -1) {
+                        const min = Math.min(startIdx, endIdx);
+                        const max = Math.max(startIdx, endIdx);
+                        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
+                        setFocusedTaskId(id);
+                        return;
+                      }
+                    }
+                    
+                    if (isMulti) {
+                      if (selectedTaskIds.includes(id)) {
+                        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
+                      } else {
+                        setSelectedTaskIds([...selectedTaskIds, id]);
+                      }
+                    } else {
+                      setSelectedTaskIds([id]);
+                    }
+                    setFocusedTaskId(id);
+                  }}
                   className={clsx(
-                    "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 px-2 flex items-center text-xs truncate transition-colors duration-150",
-                    isHovered ? "bg-gray-50" : "bg-white"
+                    "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 flex items-center text-xs truncate transition-colors duration-150 select-none cursor-pointer",
+                    isSelected && isHovered && "bg-blue-100",
+                    isSelected && !isHovered && "bg-blue-50",
+                    !isSelected && isHovered && "bg-gray-50",
+                    !isSelected && !isHovered && "bg-white"
                   )}
-                  style={{ width: NAME_COLUMN_WIDTH }}
+                  style={{ 
+                    width: NAME_COLUMN_WIDTH,
+                    paddingLeft: `${depth * 20 + 8}px`
+                  }}
                 >
-                  {task.title}
+                  {/* Collapse/Expand Chevron */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapse(id);
+                    }}
+                    className={clsx(
+                      "p-0.5 rounded hover:bg-gray-200 text-gray-400 mr-1 flex-shrink-0 transition-colors",
+                      task.children.length === 0 && "invisible"
+                    )}
+                  >
+                    {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  </button>
+
+                  {/* WBS Number */}
+                  <span className="text-xs text-gray-500 font-mono mr-2 min-w-[24px] text-right select-none flex-shrink-0">
+                    {wbsNumber}
+                  </span>
+
+                  {/* Title */}
+                  <span className="truncate font-medium text-gray-800 flex-1">
+                    {task.title || <span className="text-gray-400 italic">Untitled Task</span>}
+                  </span>
                 </div>
               )}
               {/* Bars Area */}
