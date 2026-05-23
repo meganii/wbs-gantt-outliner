@@ -199,3 +199,24 @@ pnpm run make
   - This ensures that the child task gets initialized with a valid schedule, and the parent task's duration and date range are kept intact rather than disappearing due to recalculation.
   - Plan Dates and Actual Dates are evaluated and copied independently.
   - Unit tests have been added to `useTaskStore.test.ts` to verify correct date propagation and override behavior.
+
+## Task Progress and Status Integration (May 23, 2026)
+
+- Introduced Task Progress Rate (%) and Status columns to WBS detail list.
+  - Added optional `status?: string` to `Task` interface in `types.ts`.
+  - Added new default column widths for progress and status.
+  - Initialized both fields inside initial state and added tasks.
+  - Set up reactive badge styling for WBS status select dropdown (green for `完了`, blue for `進行中`, gray for `未着手`, yellow for `保留`).
+- Built duration-weighted progress and status auto-recalculation recursively for parent summary tasks:
+  - Parent progress is the duration-weighted average of child task progress values.
+  - Parent status is automatically set to `完了` (if progress is 100%), `進行中` (if progress > 0%), and `未着手` (if progress is 0%).
+  - Both progress and status are locked (read-only) for parent tasks.
+- Re-architected dynamic Gantt chart actual/forecast taskbars to color-fill proportionally based on task progress:
+  - Applied CSS linear gradients to both child and parent actual taskbars:
+    - 0% progress: Empty white fill, amber/slate border.
+    - 50% progress: Left half filled, right half white.
+    - 100% progress: Fully filled.
+  - Adjusted text color to dark high-contrast shade (`text-amber-950` / `text-slate-800`) for perfect readability.
+- Added Status column support to Excel exports inside `export.ts`.
+- Integrated automated Vitest unit tests verifying correct parent propagation and state updates.
+

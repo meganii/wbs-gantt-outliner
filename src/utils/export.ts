@@ -65,10 +65,11 @@ export async function buildExcelExportFile({
     { header: 'Description', key: 'description', width: 40 },
     { header: 'Assignee', key: 'assignee', width: 15 },
     { header: 'Deliverables', key: 'deliverables', width: 25 },
+    { header: 'Status', key: 'status', width: 15 },
+    { header: 'Progress', key: 'progress', width: 10 },
     { header: 'Start Date', key: 'startDate', width: 12 },
     { header: 'End Date', key: 'endDate', width: 12 },
     { header: 'Duration', key: 'duration', width: 10 },
-    { header: 'Progress', key: 'progress', width: 10 },
   ];
 
   // Date columns
@@ -129,6 +130,7 @@ export async function buildExcelExportFile({
     row.getCell('description').value = task.description || '';
     row.getCell('assignee').value = task.assignee || '';
     row.getCell('deliverables').value = task.deliverables || '';
+    row.getCell('status').value = task.status || '';
 
     row.getCell('startDate').value = task.startDate;
     row.getCell('endDate').value = task.endDate;

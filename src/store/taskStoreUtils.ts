@@ -314,6 +314,9 @@ export function recalculateParentDatesRecursive(
     let minPlanStartDate: Date | null = null;
     let maxPlanEndDate: Date | null = null;
 
+    let totalDuration = 0;
+    let weightedProgressSum = 0;
+
     childrenIds.forEach((childId: string) => {
       const child: Task | undefined = nextTasks[childId];
       if (!child) return;
@@ -356,10 +359,35 @@ export function recalculateParentDatesRecursive(
           }
         }
       }
+
+      const childDur = child.duration || 1;
+      totalDuration += childDur;
+      weightedProgressSum += (child.progress || 0) * childDur;
     });
+
+    const parentProgress = totalDuration > 0 ? Math.round(weightedProgressSum / totalDuration) : 0;
+    
+    let parentStatus = '未着手';
+    if (parentProgress === 100) {
+      parentStatus = '完了';
+    } else if (parentProgress > 0) {
+      parentStatus = '進行中';
+    }
 
     const updatedParent: Task = { ...parent };
     let changed = false;
+
+    // Update progress
+    if (updatedParent.progress !== parentProgress) {
+      updatedParent.progress = parentProgress;
+      changed = true;
+    }
+
+    // Update status
+    if (updatedParent.status !== parentStatus) {
+      updatedParent.status = parentStatus;
+      changed = true;
+    }
 
     // Update startDate
     const minStartStr = minStartDate ? format(minStartDate, 'yyyy-MM-dd') : null;

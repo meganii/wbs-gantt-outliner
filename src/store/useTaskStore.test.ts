@@ -1126,5 +1126,67 @@ describe('useTaskStore', () => {
       expect(sibling.planStartDate).toBe('2026-05-26'); // Unchanged plan date
     });
   });
+
+  describe('Parent Task Progress and Status Propagation', () => {
+    it('should recursively calculate parent progress and status based on child tasks progress', () => {
+      const rootId = useTaskStore.getState().rootIds[0];
+
+      // Add two children to root
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[rootId].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(child1Id, 'after');
+      });
+      const child2Id = useTaskStore.getState().tasks[rootId].children[1];
+
+      // Set child 1 dates and duration
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, {
+          startDate: '2026-05-11',
+          endDate: '2026-05-11', // 1 day
+          duration: 1,
+          progress: 0,
+        });
+      });
+
+      // Set child 2 dates and duration
+      act(() => {
+        useTaskStore.getState().updateTask(child2Id, {
+          startDate: '2026-05-11',
+          endDate: '2026-05-13', // 3 days
+          duration: 3,
+          progress: 0,
+        });
+      });
+
+      // Initially progress should be 0, status '未着手'
+      let root = useTaskStore.getState().tasks[rootId];
+      expect(root.progress).toBe(0);
+      expect(root.status).toBe('未着手');
+
+      // Update child 1 progress to 100%
+      act(() => {
+        useTaskStore.getState().updateTask(child1Id, { progress: 100 });
+      });
+
+      // Parent progress: (100 * 1 + 0 * 3) / (1 + 3) = 25%
+      root = useTaskStore.getState().tasks[rootId];
+      expect(root.progress).toBe(25);
+      expect(root.status).toBe('進行中');
+
+      // Update child 2 progress to 100%
+      act(() => {
+        useTaskStore.getState().updateTask(child2Id, { progress: 100 });
+      });
+
+      // Parent progress: 100%
+      root = useTaskStore.getState().tasks[rootId];
+      expect(root.progress).toBe(100);
+      expect(root.status).toBe('完了');
+    });
+  });
 });
 

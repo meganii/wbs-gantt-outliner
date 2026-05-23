@@ -420,7 +420,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
           className="border-r border-gray-300 overflow-hidden flex-shrink-0 bg-gray-100"
           style={{ width: outlinerWidth }}
         >
-          <TaskTableHeader showDetails={false} />
+          <TaskTableHeader showDetails={true} hideDescriptionColumns={true} />
         </div>
         <div className="flex-1 relative overflow-hidden bg-gray-100 border-b border-gray-300">
           <div ref={headerRef} className="h-[40px] overflow-hidden">
@@ -566,7 +566,8 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                   isHovered={isHovered}
                   onHoverChange={onHoverTaskChange}
                   onSelectionChange={handleSelectionChange}
-                  showDetails={false}
+                  showDetails={true}
+                  hideDescriptionColumns={true}
                   disableHoverHandlers
                   suppressBorder
                   renderContainer={({ content, setContainerRef, containerStyle }) => (
@@ -808,16 +809,25 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                 <div
                                   data-task-id={id}
                                   className={clsx(
-                                    "absolute text-[9px] flex items-center shadow-sm group z-30 transition-all",
+                                    "absolute text-[8px] flex items-center shadow-sm group z-30 transition-all",
                                     isParent
-                                      ? "top-[18px] h-2 bg-slate-500 cursor-default rounded-sm"
+                                      ? "top-[18px] h-2 cursor-default rounded-sm"
                                       : [
-                                          "top-[17px] h-2.5 rounded text-white bg-amber-500 hover:bg-amber-600 cursor-pointer",
-                                          isDraggingActual && "bg-amber-600 cursor-grabbing animate-pulse"
+                                          "top-[17px] h-2.5 rounded text-amber-950 cursor-pointer hover:shadow-sm",
+                                          isDraggingActual && "cursor-grabbing border-amber-600 shadow-md animate-pulse"
                                         ]
                                   )}
-                                  style={{ left: offset, width: Math.max(0, width - 2) }}
-                                  title={`Actual: ${task.title} (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
+                                  style={{
+                                    left: offset,
+                                    width: Math.max(0, width - 2),
+                                    background: isParent
+                                      ? `linear-gradient(to right, #475569 ${task.progress}%, #ffffff ${task.progress}%)`
+                                      : `linear-gradient(to right, #f59e0b ${task.progress}%, #ffffff ${task.progress}%)`,
+                                    border: isParent
+                                      ? '1px solid #475569'
+                                      : '1px solid #d97706',
+                                  }}
+                                  title={`Actual: ${task.title} (${task.progress}%) (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
                                   onMouseDown={(e) => {
                                     if (e.button !== 0 || isParent) return;
                                     e.stopPropagation();
@@ -883,7 +893,7 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
                                     />
                                   )}
 
-                                  <span className={clsx("px-1 truncate pointer-events-none text-white", isParent && "font-semibold")}>
+                                  <span className={clsx("px-1 truncate pointer-events-none text-[8px] leading-none", isParent ? "text-slate-800 font-semibold" : "text-amber-950 font-semibold")}>
                                     {task.title}
                                   </span>
                                 </div>

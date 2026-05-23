@@ -36,6 +36,7 @@ const initialTask: Task = {
   endDate: null,
   duration: 1,
   progress: 0,
+  status: '',
   isCollapsed: false,
   children: [],
   dependencies: [],
@@ -70,6 +71,7 @@ const taskStore = create<TaskStoreState>()(
           endDate: null,
           duration: 1,
           progress: 0,
+          status: '',
           isCollapsed: false,
           children: [],
           dependencies: [],
@@ -187,7 +189,9 @@ const taskStore = create<TaskStoreState>()(
           finalUpdates.endDate !== undefined ||
           finalUpdates.startDate !== undefined ||
           finalUpdates.planEndDate !== undefined ||
-          finalUpdates.planStartDate !== undefined
+          finalUpdates.planStartDate !== undefined ||
+          finalUpdates.progress !== undefined ||
+          finalUpdates.status !== undefined
         ) {
           tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
           if (oldTask.parentId) {
