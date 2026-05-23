@@ -185,3 +185,10 @@ pnpm run make
   - Gantt dependency arrows are always calculated using plan bar coordinates (taskBarRefs are bound to plan bars).
   - Actual dates are purely manual and decoupled from any dependency shift constraints.
 
+## Day-Level Precision in Week View (May 23, 2026)
+
+- Enabled day-level precision when dragging to draw task date ranges in **Week** view mode:
+  - Bypassed the week-level snapping (`startOfWeek` and `endOfWeek` rounding) when drawing a task range in `GanttChart.tsx` and `IntegratedView.tsx`.
+  - This allows users to perform rough inputs in the Week view mode while preserving the exact daily granularity, which can later be detailed in the Day view mode.
+  - Standalone `GanttChart.test.tsx` has been updated with a unit test to verify that the drag-drawn ranges inside the Week scale correctly store day-level precision.
+

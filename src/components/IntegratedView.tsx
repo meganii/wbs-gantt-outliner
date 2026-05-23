@@ -257,10 +257,6 @@ export const IntegratedView: React.FC<IntegratedViewProps> = ({
         let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
 
         switch (viewMode) {
-          case 'Week':
-            start = startOfWeek(start, { weekStartsOn: 1 });
-            end = endOfWeek(end, { weekStartsOn: 1 });
-            break;
           case 'Month':
             start = startOfMonth(start);
             end = endOfMonth(end);

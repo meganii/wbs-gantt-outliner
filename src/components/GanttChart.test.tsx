@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render } from '@testing-library/react';
 import { GanttChart } from './GanttChart';
 import { getTemporalState, useTaskStore } from '../store/useTaskStore';
@@ -217,5 +217,61 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     // Both should be selected
     expect(useTaskStore.getState().selectedTaskIds).toContain(rootId);
     expect(useTaskStore.getState().selectedTaskIds).toContain(secondId);
+  });
+
+  it('allows day-level precision when drawing ranges in Week view mode', () => {
+    // Mock system time to make date calculations predictable
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-23T15:00:00Z'));
+
+    // Set viewMode to 'Week'
+    act(() => {
+      useTaskStore.getState().setViewMode('Week');
+    });
+
+    const rootId = useTaskStore.getState().rootIds[0];
+    act(() => {
+      useTaskStore.getState().updateTask(rootId, { title: 'Test Task' });
+    });
+
+    const { container } = render(<GanttChart showNames />);
+
+    // Find the bar area of the task row (the drag surface, which is cursor-crosshair)
+    const barArea = container.querySelector('.cursor-crosshair') as HTMLDivElement;
+    expect(barArea).not.toBeNull();
+
+    // Mock getBoundingClientRect for the barArea to have a predictable size and position
+    barArea.getBoundingClientRect = () => ({
+      left: 0,
+      right: 9000,
+      top: 50,
+      bottom: 82,
+      width: 9000,
+      height: 32,
+      x: 0,
+      y: 50,
+      toJSON: () => {}
+    } as DOMRect);
+
+    // We want drag start relative X to be 143px.
+    // clientX = left + relativeX = 0 + 143 = 143.
+    fireEvent.mouseDown(barArea, { button: 0, clientX: 143, clientY: 66 });
+
+    // Drag to deltaX = 43px.
+    // new clientX = 143 + 43 = 186.
+    fireEvent.mouseMove(window, { clientX: 186, clientY: 66 });
+
+    // Mouse up to end drag
+    fireEvent.mouseUp(window);
+
+    // Verify task is updated with exact day-level precision instead of being rounded to week boundaries!
+    const task = useTaskStore.getState().tasks[rootId];
+    // Expected planStartDate: 2025-11-24 (timelineStart) + 10 days = 2025-12-04
+    // Expected planEndDate: 2025-12-04 + 3 days = 2025-12-07
+    expect(task.planStartDate).toBe('2025-12-04');
+    expect(task.planEndDate).toBe('2025-12-07');
+    expect(task.planDuration).toBe(4); // 4, 5, 6, 7 are 4 days
+
+    vi.useRealTimers();
   });
 });
