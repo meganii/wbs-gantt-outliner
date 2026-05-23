@@ -82,17 +82,14 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar'],
-  baselineLocked?: boolean
+  calendar: ProjectConfig['calendar']
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
-  if (!parent || !parent.startDate) return nextTasks;
+  if (!parent || !parent.planStartDate) return nextTasks;
 
-  const oldParentStart = parseISO(parent.startDate);
+  const oldParentStart = parseISO(parent.planStartDate);
   if (!isValid(oldParentStart)) return nextTasks;
-
-  const isSyncPlan = !baselineLocked;
 
   // 1. Collect all descendant IDs recursively
   const getDescendantIds = (id: string): string[] => {
@@ -112,9 +109,9 @@ export function shiftDescendants(
   // 2. Shift each descendant
   descendantIds.forEach((descId) => {
     const descTask = nextTasks[descId];
-    if (!descTask || !descTask.startDate) return;
+    if (!descTask || !descTask.planStartDate) return;
 
-    const descStart = parseISO(descTask.startDate);
+    const descStart = parseISO(descTask.planStartDate);
     if (!isValid(descStart)) return;
 
     // Calculate work days offset from oldParentStart to descStart
@@ -122,17 +119,12 @@ export function shiftDescendants(
     
     // Calculate new start date
     const newDescStart = addWorkDays(newParentStart, offset, calendar);
-    const newDescEnd = calculateEndDate(newDescStart, descTask.duration, calendar);
+    const newDescEnd = calculateEndDate(newDescStart, descTask.planDuration || descTask.duration, calendar);
 
     nextTasks[descId] = {
       ...descTask,
-      startDate: format(newDescStart, 'yyyy-MM-dd'),
-      endDate: format(newDescEnd, 'yyyy-MM-dd'),
-      ...(isSyncPlan ? {
-        planStartDate: format(newDescStart, 'yyyy-MM-dd'),
-        planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
-        planDuration: descTask.duration,
-      } : {}),
+      planStartDate: format(newDescStart, 'yyyy-MM-dd'),
+      planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
     };
   });
 
@@ -153,7 +145,6 @@ export function propagateDependencyDates(
   const queue = [...dependents];
   const visited = new Set(dependents);
   const parentsToRecalculate = new Set<string>();
-  const isSyncPlan = !baselineLocked;
 
   while (queue.length > 0) {
     const currentId = queue.shift();
@@ -170,11 +161,11 @@ export function propagateDependencyDates(
 
     currentTask.dependencies.forEach((depId) => {
       const depTask = nextTasks[depId];
-      if (!depTask?.endDate) {
+      if (!depTask?.planEndDate) {
         return;
       }
 
-      const depEndDate = parseISO(depTask.endDate);
+      const depEndDate = parseISO(depTask.planEndDate);
       if (!isValid(depEndDate)) {
         return;
       }
@@ -203,7 +194,7 @@ export function propagateDependencyDates(
         const descIds = getDescendantIds(currentId);
 
         // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, baselineLocked);
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -218,17 +209,14 @@ export function propagateDependencyDates(
         });
       }
 
-      const newEndDate = calculateEndDate(newStartDate, nextTasks[currentId].duration, calendar);
+      const duration = currentTask.planDuration !== undefined ? currentTask.planDuration : currentTask.duration;
+      const newEndDate = calculateEndDate(newStartDate, duration, calendar);
 
       nextTasks[currentId] = {
         ...nextTasks[currentId],
-        startDate: format(newStartDate, 'yyyy-MM-dd'),
-        endDate: format(newEndDate, 'yyyy-MM-dd'),
-        ...(isSyncPlan ? {
-          planStartDate: format(newStartDate, 'yyyy-MM-dd'),
-          planEndDate: format(newEndDate, 'yyyy-MM-dd'),
-          planDuration: nextTasks[currentId].duration,
-        } : {}),
+        planStartDate: format(newStartDate, 'yyyy-MM-dd'),
+        planEndDate: format(newEndDate, 'yyyy-MM-dd'),
+        planDuration: duration,
       };
 
       if (nextTasks[currentId].parentId) {
@@ -247,7 +235,7 @@ export function propagateDependencyDates(
   // Final pass: Recalculate parent dates for all modified tasks
   parentsToRecalculate.forEach((parentId) => {
     if (nextTasks[parentId]) {
-      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar);
+      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar, baselineLocked);
     }
   });
 
@@ -326,6 +314,9 @@ export function recalculateParentDatesRecursive(
     let minPlanStartDate: Date | null = null;
     let maxPlanEndDate: Date | null = null;
 
+    let totalDuration = 0;
+    let weightedProgressSum = 0;
+
     childrenIds.forEach((childId: string) => {
       const child: Task | undefined = nextTasks[childId];
       if (!child) return;
@@ -368,10 +359,35 @@ export function recalculateParentDatesRecursive(
           }
         }
       }
+
+      const childDur = child.duration || 1;
+      totalDuration += childDur;
+      weightedProgressSum += (child.progress || 0) * childDur;
     });
+
+    const parentProgress = totalDuration > 0 ? Math.round(weightedProgressSum / totalDuration) : 0;
+    
+    let parentStatus = '未着手';
+    if (parentProgress === 100) {
+      parentStatus = '完了';
+    } else if (parentProgress > 0) {
+      parentStatus = '進行中';
+    }
 
     const updatedParent: Task = { ...parent };
     let changed = false;
+
+    // Update progress
+    if (updatedParent.progress !== parentProgress) {
+      updatedParent.progress = parentProgress;
+      changed = true;
+    }
+
+    // Update status
+    if (updatedParent.status !== parentStatus) {
+      updatedParent.status = parentStatus;
+      changed = true;
+    }
 
     // Update startDate
     const minStartStr = minStartDate ? format(minStartDate, 'yyyy-MM-dd') : null;
@@ -397,6 +413,11 @@ export function recalculateParentDatesRecursive(
           updatedParent.duration = newDuration;
           changed = true;
         }
+      }
+    } else {
+      if (updatedParent.duration !== 0) {
+        updatedParent.duration = 0;
+        changed = true;
       }
     }
 

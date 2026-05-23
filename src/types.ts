@@ -9,6 +9,7 @@ export interface Task {
   endDate: string | null;   // ISO 8601 YYYY-MM-DD
   duration: number;  // Workdays
   progress: number;  // 0-100
+  status?: string;
   isCollapsed: boolean;
   children: string[]; // Ordered list of child IDs
   dependencies: string[]; // Array of Task IDs
@@ -30,6 +31,8 @@ export interface ProjectConfig {
     description: number;
     assignee: number;
     deliverables: number;
+    status: number;
+    progress: number;
     planDuration: number;
     planDate: number;
     duration: number;
@@ -43,6 +46,8 @@ export type TaskFocusableField =
   | 'description'
   | 'assignee'
   | 'deliverables'
+  | 'status'
+  | 'progress'
   | 'planDuration'
   | 'planStartDate'
   | 'planEndDate'

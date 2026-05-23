@@ -32,10 +32,11 @@ const initialTask: Task = {
   id: initialTaskId,
   parentId: null,
   title: 'Project Root',
-  startDate: format(new Date(), 'yyyy-MM-dd'),
-  endDate: format(new Date(), 'yyyy-MM-dd'),
+  startDate: null,
+  endDate: null,
   duration: 1,
   progress: 0,
+  status: '',
   isCollapsed: false,
   children: [],
   dependencies: [],
@@ -70,6 +71,7 @@ const taskStore = create<TaskStoreState>()(
           endDate: null,
           duration: 1,
           progress: 0,
+          status: '',
           isCollapsed: false,
           children: [],
           dependencies: [],
@@ -176,25 +178,6 @@ const taskStore = create<TaskStoreState>()(
           delete finalUpdates.planStartDate;
           delete finalUpdates.planEndDate;
           delete finalUpdates.planDuration;
-        } else {
-          // Sync plan and actual when baseline is not locked
-          if (finalUpdates.startDate !== undefined) {
-            finalUpdates.planStartDate = finalUpdates.startDate;
-          } else if (finalUpdates.planStartDate !== undefined) {
-            finalUpdates.startDate = finalUpdates.planStartDate;
-          }
-
-          if (finalUpdates.endDate !== undefined) {
-            finalUpdates.planEndDate = finalUpdates.endDate;
-          } else if (finalUpdates.planEndDate !== undefined) {
-            finalUpdates.endDate = finalUpdates.planEndDate;
-          }
-
-          if (finalUpdates.duration !== undefined) {
-            finalUpdates.planDuration = finalUpdates.duration;
-          } else if (finalUpdates.planDuration !== undefined) {
-            finalUpdates.duration = finalUpdates.planDuration;
-          }
         }
 
         let tasks = {
@@ -206,7 +189,9 @@ const taskStore = create<TaskStoreState>()(
           finalUpdates.endDate !== undefined ||
           finalUpdates.startDate !== undefined ||
           finalUpdates.planEndDate !== undefined ||
-          finalUpdates.planStartDate !== undefined
+          finalUpdates.planStartDate !== undefined ||
+          finalUpdates.progress !== undefined ||
+          finalUpdates.status !== undefined
         ) {
           tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
           if (oldTask.parentId) {
@@ -360,7 +345,30 @@ const taskStore = create<TaskStoreState>()(
         };
 
         sortedIds.forEach((id) => {
-          tasks[id] = { ...tasks[id], parentId: newParentId };
+          const childTask = tasks[id];
+          const hasPlanDate = childTask.planStartDate && childTask.planEndDate;
+          const hasActualDate = childTask.startDate && childTask.endDate;
+
+          const parentHasPlanDate = newParent.planStartDate && newParent.planEndDate;
+          const parentHasActualDate = newParent.startDate && newParent.endDate;
+
+          const taskUpdates: Partial<Task> = { parentId: newParentId };
+
+          // If child has no plan dates, inherit from parent
+          if (!hasPlanDate && parentHasPlanDate) {
+            taskUpdates.planStartDate = newParent.planStartDate;
+            taskUpdates.planEndDate = newParent.planEndDate;
+            taskUpdates.planDuration = newParent.planDuration;
+          }
+
+          // If child has no actual dates, inherit from parent
+          if (!hasActualDate && parentHasActualDate) {
+            taskUpdates.startDate = newParent.startDate;
+            taskUpdates.endDate = newParent.endDate;
+            taskUpdates.duration = newParent.duration;
+          }
+
+          tasks[id] = { ...childTask, ...taskUpdates };
         });
 
         let updatedTasks = cleanupHierarchicalDependencies(tasks);

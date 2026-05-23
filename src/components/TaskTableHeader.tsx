@@ -3,11 +3,13 @@ import { useTaskStore } from '../store/useTaskStore';
 
 interface TaskTableHeaderProps {
   showDetails?: boolean;
+  hideDescriptionColumns?: boolean;
 }
 
-export const TaskTableHeader: React.FC<TaskTableHeaderProps> = ({ showDetails = false }) => {
+export const TaskTableHeader: React.FC<TaskTableHeaderProps> = ({ showDetails = false, hideDescriptionColumns = false }) => {
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore((state) => state.setColumnWidth);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const handleResize = (columnId: keyof typeof columnWidths) => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -52,64 +54,94 @@ export const TaskTableHeader: React.FC<TaskTableHeaderProps> = ({ showDetails = 
       </div>
       {showDetails && (
         <>
+          {!hideDescriptionColumns && (
+            <>
+              <div
+                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
+                style={{
+                  width: columnWidths.description,
+                  minWidth: columnWidths.description,
+                  maxWidth: columnWidths.description,
+                }}
+              >
+                Description
+                <Resizer columnId="description" />
+              </div>
+              <div
+                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
+                style={{
+                  width: columnWidths.assignee,
+                  minWidth: columnWidths.assignee,
+                  maxWidth: columnWidths.assignee,
+                }}
+              >
+                Assignee
+                <Resizer columnId="assignee" />
+              </div>
+              <div
+                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
+                style={{
+                  width: columnWidths.deliverables,
+                  minWidth: columnWidths.deliverables,
+                  maxWidth: columnWidths.deliverables,
+                }}
+              >
+                Deliverables
+                <Resizer columnId="deliverables" />
+              </div>
+            </>
+          )}
           <div
-            className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
+            className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-gray-700 bg-gray-50/10"
             style={{
-              width: columnWidths.description,
-              minWidth: columnWidths.description,
-              maxWidth: columnWidths.description,
+              width: columnWidths.status,
+              minWidth: columnWidths.status,
+              maxWidth: columnWidths.status,
             }}
           >
-            Description
-            <Resizer columnId="description" />
+            Status
+            <Resizer columnId="status" />
           </div>
           <div
-            className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
+            className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-gray-700 bg-gray-50/10"
             style={{
-              width: columnWidths.assignee,
-              minWidth: columnWidths.assignee,
-              maxWidth: columnWidths.assignee,
+              width: columnWidths.progress,
+              minWidth: columnWidths.progress,
+              maxWidth: columnWidths.progress,
             }}
           >
-            Assignee
-            <Resizer columnId="assignee" />
-          </div>
-          <div
-            className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
-            style={{
-              width: columnWidths.deliverables,
-              minWidth: columnWidths.deliverables,
-              maxWidth: columnWidths.deliverables,
-            }}
-          >
-            Deliverables
-            <Resizer columnId="deliverables" />
+            Progress
+            <Resizer columnId="progress" />
           </div>
         </>
       )}
       {/* Plan Duration & Date */}
-      <div
-        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
-        style={{
-          width: columnWidths.planDuration,
-          minWidth: columnWidths.planDuration,
-          maxWidth: columnWidths.planDuration,
-        }}
-      >
-        Plan Dur.
-        <Resizer columnId="planDuration" />
-      </div>
-      <div
-        className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
-        style={{
-          width: columnWidths.planDate,
-          minWidth: columnWidths.planDate,
-          maxWidth: columnWidths.planDate,
-        }}
-      >
-        Plan Date
-        <Resizer columnId="planDate" />
-      </div>
+      {!baselineLocked && (
+        <>
+          <div
+            className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
+            style={{
+              width: columnWidths.planDuration,
+              minWidth: columnWidths.planDuration,
+              maxWidth: columnWidths.planDuration,
+            }}
+          >
+            Plan Dur.
+            <Resizer columnId="planDuration" />
+          </div>
+          <div
+            className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
+            style={{
+              width: columnWidths.planDate,
+              minWidth: columnWidths.planDate,
+              maxWidth: columnWidths.planDate,
+            }}
+          >
+            Plan Date
+            <Resizer columnId="planDate" />
+          </div>
+        </>
+      )}
 
       {/* Actual Duration & Date */}
       <div

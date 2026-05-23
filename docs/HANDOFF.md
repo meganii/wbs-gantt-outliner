@@ -175,3 +175,58 @@ pnpm test -- --run
 pnpm run build
 pnpm run make
 ```
+
+## Decoupled Plan and Actual Dates (May 23, 2026)
+
+- Completely decoupled Plan and Actual dates:
+  - Removed automatic synchronization between `planStartDate`/`planEndDate` and `startDate`/`endDate`.
+  - Initial actual dates are set to `null` (empty) and actual bars on the Gantt chart are only rendered when dates are manually entered.
+  - Dependencies (date propagation engine) are strictly bound to `planStartDate` and `planEndDate` only.
+  - Gantt dependency arrows are always calculated using plan bar coordinates (taskBarRefs are bound to plan bars).
+  - Actual dates are purely manual and decoupled from any dependency shift constraints.
+
+## Day-Level Precision in Week View (May 23, 2026)
+
+- Enabled day-level precision when dragging to draw task date ranges in **Week** view mode:
+  - Bypassed the week-level snapping (`startOfWeek` and `endOfWeek` rounding) when drawing a task range in `GanttChart.tsx` and `IntegratedView.tsx`.
+  - This allows users to perform rough inputs in the Week view mode while preserving the exact daily granularity, which can later be detailed in the Day view mode.
+  - Standalone `GanttChart.test.tsx` has been updated with a unit test to verify that the drag-drawn ranges inside the Week scale correctly store day-level precision.
+
+## Schedule Inheritance on Task Indentation (May 23, 2026)
+
+- Enabled automatic schedule inheritance when indenting an empty task under a parent task with set dates:
+  - If the child task being indented has no dates set (`null` plan or actual dates), but the target parent task has dates, those dates (and duration) are copied to the child task.
+  - This ensures that the child task gets initialized with a valid schedule, and the parent task's duration and date range are kept intact rather than disappearing due to recalculation.
+  - Plan Dates and Actual Dates are evaluated and copied independently.
+  - Unit tests have been added to `useTaskStore.test.ts` to verify correct date propagation and override behavior.
+
+## Task Progress and Status Integration (May 23, 2026)
+
+- Introduced Task Progress Rate (%) and Status columns to WBS detail list.
+  - Added optional `status?: string` to `Task` interface in `types.ts`.
+  - Added new default column widths for progress and status.
+  - Initialized both fields inside initial state and added tasks.
+  - Set up reactive badge styling for WBS status select dropdown (green for `完了`, blue for `進行中`, gray for `未着手`, yellow for `保留`).
+- Built duration-weighted progress and status auto-recalculation recursively for parent summary tasks:
+  - Parent progress is the duration-weighted average of child task progress values.
+  - Parent status is automatically set to `完了` (if progress is 100%), `進行中` (if progress > 0%), and `未着手` (if progress is 0%).
+  - Both progress and status are locked (read-only) for parent tasks.
+- Re-architected dynamic Gantt chart actual/forecast taskbars to color-fill proportionally based on task progress:
+  - Applied CSS linear gradients to both child and parent actual taskbars:
+    - 0% progress: Empty white fill, amber/slate border.
+    - 50% progress: Left half filled, right half white.
+    - 100% progress: Fully filled.
+  - Adjusted text color to dark high-contrast shade (`text-amber-950` / `text-slate-800`) for perfect readability.
+- Added Status column support to Excel exports inside `export.ts`.
+- Integrated automated Vitest unit tests verifying correct parent propagation and state updates.
+
+## Excel Export Dual Date Columns (May 23, 2026)
+
+- Redesigned Excel export to always display **both** plan and actual/forecast date columns side by side:
+  - **Plan columns** (blue font/header): `Plan Start`, `Plan End`, `Plan Dur.` — sourced from `planStartDate`, `planEndDate`, `planDuration`.
+  - **Actual columns** (orange font/header): `Act. Start`, `Act. End`, `Act. Dur.` — sourced from `startDate`, `endDate`, `duration`.
+- Gantt chart bars draw both layers:
+  - Plan bar (blue `#3B82F6`) drawn first.
+  - Actual bar (amber `#F59E0B`) drawn on top — when both overlap, actual takes visual priority.
+- Removed the single-mode "Type" column and `getEffectiveDates` helper.
+- Date range calculation considers both plan and actual dates across all tasks.
