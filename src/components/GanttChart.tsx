@@ -433,7 +433,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       }
     }
     setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar, timelineMetrics, baselineLocked]);
+  }, [flattenedItems, tasks, showSidebar, timelineMetrics, baselineLocked, dragState]);
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
@@ -769,17 +769,18 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   const { timelineStart, pixelsPerDay } = timelineMetrics;
 
                   // 1. Plan Bar Metrics
-                  const planStart = new Date(task.planStartDate || task.startDate!);
-                  const planEnd = new Date(task.planEndDate || task.endDate!);
+                  const isDraggingPlan = dragState?.taskId === id && !baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
+                  const planStart = isDraggingPlan ? dragState.currentStartDate : new Date(task.planStartDate || task.startDate!);
+                  const planEnd = isDraggingPlan ? dragState.currentEndDate : new Date(task.planEndDate || task.endDate!);
                   const planDiffDays = differenceInDays(planStart, timelineStart);
                   const planOffset = planDiffDays * pixelsPerDay;
                   const planDaySpan = differenceInDays(planEnd, planStart) + 1;
                   const planWidth = planDaySpan * pixelsPerDay;
 
                   // 2. Actual Bar Metrics
-                  const isDragging = dragState?.taskId === id && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                  const taskStart = isDragging ? dragState.currentStartDate : new Date(task.startDate!);
-                  const taskEnd = isDragging ? dragState.currentEndDate : new Date(task.endDate!);
+                  const isDraggingActual = dragState?.taskId === id && baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
+                  const taskStart = isDraggingActual ? dragState.currentStartDate : new Date(task.startDate!);
+                  const taskEnd = isDraggingActual ? dragState.currentEndDate : new Date(task.endDate!);
                   const diffDays = differenceInDays(taskStart, timelineStart);
                   const offset = diffDays * pixelsPerDay;
                   const daySpan = differenceInDays(taskEnd, taskStart) + 1;
@@ -808,7 +809,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                                   "top-[3px] h-3 rounded text-[8px] px-1 text-blue-700/80 bg-blue-100 border border-blue-300 font-medium select-none",
                                   baselineLocked ? "cursor-default" : [
                                     "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
-                                    isDragging && "bg-blue-600 text-white cursor-grabbing h-[14px]"
+                                    isDraggingPlan && "bg-blue-600 text-white cursor-grabbing h-[14px]"
                                   ]
                                 ]
                           )}
@@ -930,7 +931,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                               ? "top-[18px] h-2 bg-slate-500 cursor-default rounded-sm"
                               : [
                                   "top-[17px] h-2.5 rounded text-white bg-amber-500 hover:bg-amber-600 cursor-pointer",
-                                  isDragging && "bg-amber-600 cursor-grabbing"
+                                  isDraggingActual && "bg-amber-600 cursor-grabbing"
                                 ]
                           )}
                           style={{ left: offset, width: Math.max(0, width - 2) }}
