@@ -20,7 +20,7 @@ import {
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
 import { isWorkDay, getWorkDaysCount } from '../utils/date';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { TaskOutlineCell } from './cells/TaskOutlineCell';
 
 const HEADER_HEIGHT = 40;
 
@@ -54,7 +54,6 @@ export const GanttChart = ({
   const focusedTaskId = useTaskStore(state => state.focusedTaskId);
   const setFocusedTaskId = useTaskStore(state => state.setFocusedTaskId);
   const setCollapsed = useTaskStore(state => state.setCollapsed);
-  const toggleCollapse = useTaskStore(state => state.toggleCollapse);
   const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
   const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
@@ -68,6 +67,33 @@ export const GanttChart = ({
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const NAME_COLUMN_WIDTH = columnWidths.taskDescription;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
+
+  const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
+    if (range) {
+      const targetAnchor = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id;
+      const flattenedIds = flattenedItems.map(item => item.id);
+      const startIdx = flattenedIds.indexOf(targetAnchor);
+      const endIdx = flattenedIds.indexOf(id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const min = Math.min(startIdx, endIdx);
+        const max = Math.max(startIdx, endIdx);
+        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
+        setFocusedTaskId(id);
+        return;
+      }
+    }
+
+    if (multi) {
+      if (selectedTaskIds.includes(id)) {
+        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
+      } else {
+        setSelectedTaskIds([...selectedTaskIds, id]);
+      }
+    } else {
+      setSelectedTaskIds([id]);
+    }
+    setFocusedTaskId(id);
+  };
 
   const CELL_WIDTH = useMemo(() => {
     switch (viewMode) {
@@ -622,7 +648,7 @@ export const GanttChart = ({
           )}
         </svg>
 
-        {flattenedItems.map(({ id, task, depth, wbsNumber }) => {
+        {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
           const isHovered = hoveredTaskId === id;
           const isSelected = selectedTaskIds.includes(id);
 
@@ -642,34 +668,25 @@ export const GanttChart = ({
             >
               {showNames && (
                 <div
-                  onClick={(e) => {
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return; // Only left click
+
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button')) {
+                      return;
+                    }
+
                     const isMulti = e.ctrlKey || e.metaKey;
                     const isRange = e.shiftKey;
-                    
-                    if (isRange) {
-                      const targetAnchor = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id;
-                      const flattenedIds = flattenedItems.map(item => item.id);
-                      const startIdx = flattenedIds.indexOf(targetAnchor);
-                      const endIdx = flattenedIds.indexOf(id);
-                      if (startIdx !== -1 && endIdx !== -1) {
-                        const min = Math.min(startIdx, endIdx);
-                        const max = Math.max(startIdx, endIdx);
-                        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
-                        setFocusedTaskId(id);
-                        return;
+
+                    if (target.tagName === 'INPUT') {
+                      const isReadOnly = target.hasAttribute('readonly');
+                      if (isMulti || isRange || isReadOnly) {
+                        e.preventDefault();
                       }
                     }
-                    
-                    if (isMulti) {
-                      if (selectedTaskIds.includes(id)) {
-                        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
-                      } else {
-                        setSelectedTaskIds([...selectedTaskIds, id]);
-                      }
-                    } else {
-                      setSelectedTaskIds([id]);
-                    }
-                    setFocusedTaskId(id);
+
+                    handleSelectionChange(id, isMulti, isRange);
                   }}
                   className={clsx(
                     "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 flex items-center text-xs truncate transition-colors duration-150 select-none cursor-pointer",
@@ -680,32 +697,16 @@ export const GanttChart = ({
                   )}
                   style={{ 
                     width: NAME_COLUMN_WIDTH,
-                    paddingLeft: `${depth * 20 + 8}px`
                   }}
                 >
-                  {/* Collapse/Expand Chevron */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCollapse(id);
-                    }}
-                    className={clsx(
-                      "p-0.5 rounded hover:bg-gray-200 text-gray-400 mr-1 flex-shrink-0 transition-colors",
-                      task.children.length === 0 && "invisible"
-                    )}
-                  >
-                    {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </button>
-
-                  {/* WBS Number */}
-                  <span className="text-xs text-gray-500 font-mono mr-2 min-w-[24px] text-right select-none flex-shrink-0">
-                    {wbsNumber}
-                  </span>
-
-                  {/* Title */}
-                  <span className="truncate font-medium text-gray-800 flex-1">
-                    {task.title || <span className="text-gray-400 italic">Untitled Task</span>}
-                  </span>
+                  <TaskOutlineCell
+                    taskId={id}
+                    depth={depth}
+                    wbsNumber={wbsNumber}
+                    prevId={flattenedItems[index - 1]?.id}
+                    nextId={flattenedItems[index + 1]?.id}
+                    onSelectionChange={handleSelectionChange}
+                  />
                 </div>
               )}
               {/* Bars Area */}

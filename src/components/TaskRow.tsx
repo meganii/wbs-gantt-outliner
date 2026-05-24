@@ -1,12 +1,18 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useTaskStore } from '../store/useTaskStore';
-import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import type { TaskFocusableField } from '../types';
-import { useTaskRowLocalState } from '../hooks/useTaskRowLocalState';
+// Import newly refactored discrete cell components
+import { TaskOutlineCell } from './cells/TaskOutlineCell';
+import { TaskTextCell } from './cells/TaskTextCell';
+import { TaskStatusCell } from './cells/TaskStatusCell';
+import { TaskProgressCell } from './cells/TaskProgressCell';
+import { TaskPlanDurationCell } from './cells/TaskPlanDurationCell';
+import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
+import { TaskDurationCell } from './cells/TaskDurationCell';
+import { TaskDateCell } from './cells/TaskDateCell';
 
 interface TaskRowProps {
   taskId: string;
@@ -47,58 +53,6 @@ export const TaskRow = ({
   renderContainer,
 }: TaskRowProps) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const addTask = useTaskStore((state) => state.addTask);
-  const indentTask = useTaskStore((state) => state.indentTask);
-  const outdentTask = useTaskStore((state) => state.outdentTask);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const moveTask = useTaskStore((state) => state.moveTask);
-  const deleteTask = useTaskStore((state) => state.deleteTask);
-  const setCollapsed = useTaskStore((state) => state.setCollapsed);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
-
-  const effectiveIds = (selectedTaskIds.length > 0 && selectedTaskIds.includes(taskId))
-    ? selectedTaskIds
-    : [taskId];
-
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const descriptionInputRef = useRef<HTMLInputElement>(null);
-  const assigneeInputRef = useRef<HTMLInputElement>(null);
-  const deliverablesInputRef = useRef<HTMLInputElement>(null);
-  const statusSelectRef = useRef<HTMLSelectElement>(null);
-  const progressInputRef = useRef<HTMLInputElement>(null);
-  const planDurationInputRef = useRef<HTMLInputElement>(null);
-  const planStartDateInputRef = useRef<HTMLInputElement>(null);
-  const planEndDateInputRef = useRef<HTMLInputElement>(null);
-  const durationInputRef = useRef<HTMLInputElement>(null);
-  const startDateInputRef = useRef<HTMLInputElement>(null);
-  const endDateInputRef = useRef<HTMLInputElement>(null);
-
-  // Local state for performant typing and IME support (handled by hook)
-  const {
-    localTitle,
-    setLocalTitle,
-    localDescription,
-    setLocalDescription,
-    localAssignee,
-    setLocalAssignee,
-    localDeliverables,
-    setLocalDeliverables,
-    localStatus,
-    setLocalStatus,
-    localProgress,
-    setLocalProgress,
-    commitFieldLocalState,
-  } = useTaskRowLocalState(taskId, task);
-
-  const isComposing = useRef(false);
-
-  // Baseline Lock State
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const {
@@ -115,186 +69,10 @@ export const TaskRow = ({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-  const getInputRef = (field: TaskFocusableField) => {
-    switch (field) {
-      case 'title':
-        return titleInputRef;
-      case 'description':
-        return descriptionInputRef;
-      case 'assignee':
-        return assigneeInputRef;
-      case 'deliverables':
-        return deliverablesInputRef;
-      case 'status':
-        return statusSelectRef;
-      case 'progress':
-        return progressInputRef;
-      case 'planDuration':
-        return planDurationInputRef;
-      case 'planStartDate':
-        return planStartDateInputRef;
-      case 'planEndDate':
-        return planEndDateInputRef;
-      case 'duration':
-        return durationInputRef;
-      case 'startDate':
-        return startDateInputRef;
-      case 'endDate':
-        return endDateInputRef;
-    }
-  };
-
-  useEffect(() => {
-    if (focusedTaskId !== taskId) {
-      return;
-    }
-
-    const targetField =
-      !showDetails &&
-      (focusedTaskField === 'description' ||
-        focusedTaskField === 'assignee' ||
-        focusedTaskField === 'deliverables')
-        ? 'title'
-        : focusedTaskField;
-    const targetRef = getInputRef(targetField)?.current ?? titleInputRef.current;
-    if (targetRef && targetRef !== document.activeElement) {
-      targetRef.focus();
-    }
-  }, [focusedTaskField, focusedTaskId, showDetails, taskId]);
-
-  if (!task) return null;
-
-  const handleArrowNavigation = (
-    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
-    field: TaskFocusableField
-  ) => {
-    // Ignore key events during IME composition
-    if (isComposing.current || e.nativeEvent.isComposing) {
-      return true;
-    }
-
-    if (e.key === 'Escape') {
-      setSelectedTaskIds([]);
-      return true;
-    }
-
-    // Row Reordering (Move Task): Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys
-    if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      e.preventDefault();
-      commitFieldLocalState(field);
-      moveTask(effectiveIds, e.key === 'ArrowUp' ? 'up' : 'down');
-      return true;
-    }
-
-    // Indent/Outdent Task: Shift + Cmd (Mac) or Shift + Alt (Windows) + Arrow Keys (Left/Right)
-    if (e.shiftKey && (e.metaKey || e.altKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-      e.preventDefault();
-      commitFieldLocalState(field);
-      if (e.key === 'ArrowLeft') {
-        outdentTask(effectiveIds);
-      } else {
-        indentTask(effectiveIds);
-      }
-      return true;
-    }
-
-    // Collapse/Expand: Option + Arrow Keys
-    if (!e.shiftKey && e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      e.preventDefault();
-      setCollapsed(effectiveIds, e.key === 'ArrowUp');
-      return true;
-    }
-
-    // Selection Range Extension with Shift + Arrow Keys (No Cmd)
-    if (e.shiftKey && !e.metaKey && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      e.preventDefault();
-      const targetId = e.key === 'ArrowUp' ? prevId : nextId;
-      if (targetId) {
-        setFocusedTaskCell(targetId, field);
-        if (onSelectionChange) {
-          onSelectionChange(targetId, false, true);
-        }
-      }
-      return true;
-    }
-
-    if (e.key === 'ArrowUp') {
-      if (prevId && !e.metaKey) {
-        e.preventDefault();
-        setFocusedTaskCell(prevId, field);
-        if (onSelectionChange) onSelectionChange(prevId, false, false);
-        return true;
-      }
-    }
-
-    if (e.key === 'ArrowDown') {
-      if (nextId && !e.metaKey) {
-        e.preventDefault();
-        setFocusedTaskCell(nextId, field);
-        if (onSelectionChange) onSelectionChange(nextId, false, false);
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (handleArrowNavigation(e, 'title')) {
-      return;
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitFieldLocalState('title');
-      setSelectedTaskIds([]);
-      addTask(taskId, 'after');
-    }
-
-
-    if (e.key === 'Backspace') {
-      if (localTitle === '') {
-        e.preventDefault();
-        if (effectiveIds.length <= 1) {
-          const targetPrev = prevId;
-          deleteTask(taskId);
-          if (targetPrev) {
-            setFocusedTaskCell(targetPrev, 'title');
-          }
-        }
-      }
-    }
-
-    if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
-      e.preventDefault();
-      const idsToDelete = effectiveIds;
-      const targetFocus = prevId || nextId;
-
-      deleteTask(idsToDelete);
-
-      if (targetFocus && !idsToDelete.includes(targetFocus)) {
-        setFocusedTaskCell(targetFocus, 'title');
-      }
-    }
-  };
-
-  const handleDetailKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
-    field: TaskFocusableField
-  ) => {
-    if (handleArrowNavigation(e, field)) {
-      return;
-    }
-
-    if (e.key === 'Enter') {
-      e.stopPropagation();
-    }
-  };
 
   const handleRowMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return; // Only left click
 
-    // Ignore interactive element clicks (buttons like drag handle, collapse chevron)
     const target = e.target as HTMLElement;
     if (target.closest('button')) {
       return;
@@ -306,7 +84,6 @@ export const TaskRow = ({
     if (target.tagName === 'INPUT') {
       const isReadOnly = target.hasAttribute('readonly');
       if (isMulti || isRange || isReadOnly) {
-        // Prevent default browser text selection or cursor placement on modifier clicks or read-only fields
         e.preventDefault();
       }
     }
@@ -315,6 +92,8 @@ export const TaskRow = ({
       onSelectionChange(taskId, isMulti, isRange);
     }
   };
+
+  if (!task) return null;
 
   const rowStyle = clsx(
     "flex items-center group h-8 transition-colors duration-150",
@@ -325,12 +104,6 @@ export const TaskRow = ({
     !isSelected && !isHovered && "hover:bg-gray-50"
   );
 
-  const handleBlur = () => {
-    // If we're blurring because we are moving focus to the newly created task,
-    // we still want to save the title. 
-    commitFieldLocalState('title');
-  };
-
   const content = (
     <div
       className={rowStyle}
@@ -338,390 +111,95 @@ export const TaskRow = ({
       onMouseLeave={disableHoverHandlers ? undefined : () => onHoverChange?.(null)}
       onMouseDown={handleRowMouseDown}
     >
-        <div
-          className="flex items-center flex-1"
-          style={{ paddingLeft: `${depth * 20 + 8}px`, width: columnWidths.taskDescription, minWidth: columnWidths.taskDescription, maxWidth: columnWidths.taskDescription }}
-        >
-          {/* Drag Handle */}
-          <button
-            className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none flex-shrink-0"
-            {...attributes}
-            {...listeners}
-            onPointerDown={(e) => {
-              // Prioritize selection with modifiers over dragging
-              if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (onSelectionChange) {
-                  onSelectionChange(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
-                }
-                return;
-              }
-              // Otherwise, pass to dnd-kit
-              listeners?.onPointerDown(e);
-            }}
-            onClick={(e) => {
-              // Click without drag (fallback for simple click if dnd doesn't consume)
-              if (!e.shiftKey && !e.metaKey && !e.ctrlKey && onSelectionChange) {
-                onSelectionChange(taskId, false, false);
-              }
-            }}
-          >
-            <GripVertical size={14} />
-          </button>
+      {/* 1. Outline Cell (Chevron, Drag handle, WBS No, Title) */}
+      <TaskOutlineCell
+        taskId={taskId}
+        depth={depth}
+        wbsNumber={wbsNumber}
+        prevId={prevId}
+        nextId={nextId}
+        onSelectionChange={onSelectionChange}
+        attributes={attributes}
+        listeners={listeners}
+      />
 
-          {/* Collapse/Expand */}
-          <button
-            onClick={() => toggleCollapse(taskId)}
-            className={clsx(
-              "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1 flex-shrink-0",
-              task.children.length === 0 && "invisible"
-            )}
-          >
-            {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </button>
-
-          {/* WBS Number */}
-          <span className="text-xs text-gray-500 font-mono mr-2 min-w-[36px] text-right select-none flex-shrink-0">
-            {wbsNumber}
-          </span>
-
-          {/* Title Input */}
-          <input
-            ref={titleInputRef}
-            type="text"
-            value={localTitle}
-            onChange={(e) => setLocalTitle(e.target.value)}
-            onBlur={handleBlur}
-            onFocus={() => setFocusedTaskCell(taskId, 'title')}
-            onKeyDown={handleTitleKeyDown}
-            onCompositionStart={() => { isComposing.current = true; }}
-            onCompositionEnd={() => { isComposing.current = false; }}
-            placeholder="New Task"
-            data-task-id={taskId}
-            data-field="title"
-            style={{ backgroundColor: 'transparent' }}
-            className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300 truncate"
-          />
-        </div>
-
-        {/* Details Columns */}
-        {showDetails && (
-          <>
-            {!hideDescriptionColumns && (
-              <>
-                <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.description, minWidth: columnWidths.description, maxWidth: columnWidths.description }}>
-                  <input
-                    ref={descriptionInputRef}
-                    type="text"
-                    value={localDescription}
-                    onChange={(e) => setLocalDescription(e.target.value)}
-                    onBlur={() => commitFieldLocalState('description')}
-                    onFocus={() => setFocusedTaskCell(taskId, 'description')}
-                    placeholder="Description"
-                    data-task-id={taskId}
-                    data-field="description"
-                    style={{ backgroundColor: 'transparent' }}
-                    className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                    onKeyDown={(e) => handleDetailKeyDown(e, 'description')}
-                  />
-                </div>
-                <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.assignee, minWidth: columnWidths.assignee, maxWidth: columnWidths.assignee }}>
-                  <input
-                    ref={assigneeInputRef}
-                    type="text"
-                    value={localAssignee}
-                    onChange={(e) => setLocalAssignee(e.target.value)}
-                    onBlur={() => commitFieldLocalState('assignee')}
-                    onFocus={() => setFocusedTaskCell(taskId, 'assignee')}
-                    placeholder="Assignee"
-                    data-task-id={taskId}
-                    data-field="assignee"
-                    style={{ backgroundColor: 'transparent' }}
-                    className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                    onKeyDown={(e) => handleDetailKeyDown(e, 'assignee')}
-                  />
-                </div>
-                <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0" style={{ width: columnWidths.deliverables, minWidth: columnWidths.deliverables, maxWidth: columnWidths.deliverables }}>
-                  <input
-                    ref={deliverablesInputRef}
-                    type="text"
-                    value={localDeliverables}
-                    onChange={(e) => setLocalDeliverables(e.target.value)}
-                    onBlur={() => commitFieldLocalState('deliverables')}
-                    onFocus={() => setFocusedTaskCell(taskId, 'deliverables')}
-                    placeholder="Deliverables"
-                    data-task-id={taskId}
-                    data-field="deliverables"
-                    style={{ backgroundColor: 'transparent' }}
-                    className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
-                    onKeyDown={(e) => handleDetailKeyDown(e, 'deliverables')}
-                  />
-                </div>
-              </>
-            )}
-            <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0 justify-center" style={{ width: columnWidths.status, minWidth: columnWidths.status, maxWidth: columnWidths.status }}>
-              <select
-                ref={statusSelectRef}
-                value={localStatus}
-                disabled={task.children.length > 0}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setLocalStatus(val);
-                  updateTask(taskId, { status: val });
-                }}
-                onFocus={() => setFocusedTaskCell(taskId, 'status')}
-                data-task-id={taskId}
-                data-field="status"
-                style={{ backgroundColor: 'transparent' }}
-                className={clsx(
-                  "w-full bg-transparent border border-gray-200 rounded px-1 py-0.5 text-[10px] font-medium focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-all",
-                  task.children.length > 0 ? "text-gray-400 cursor-not-allowed select-none font-semibold border-transparent" : "text-gray-700 cursor-pointer",
-                  localStatus === '完了' && "bg-green-50 text-green-700 border-green-200",
-                  localStatus === '進行中' && "bg-blue-50 text-blue-700 border-blue-200",
-                  localStatus === '未着手' && "bg-gray-50 text-gray-700 border-gray-200",
-                  localStatus === '保留' && "bg-yellow-50 text-yellow-700 border-yellow-200"
-                )}
-                onKeyDown={(e) => handleDetailKeyDown(e, 'status')}
-              >
-                <option value="">-</option>
-                <option value="未着手">未着手</option>
-                <option value="進行中">進行中</option>
-                <option value="完了">完了</option>
-                <option value="保留">保留</option>
-              </select>
-            </div>
-            <div className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0 justify-center" style={{ width: columnWidths.progress, minWidth: columnWidths.progress, maxWidth: columnWidths.progress }}>
-              <input
-                ref={progressInputRef}
-                type="number"
-                min="0"
-                max="100"
-                value={localProgress}
-                readOnly={task.children.length > 0}
-                onChange={(e) => setLocalProgress(e.target.value)}
-                onBlur={() => {
-                  const val = Math.min(100, Math.max(0, parseInt(localProgress) || 0));
-                  setLocalProgress(String(val));
-                  updateTask(taskId, { progress: val });
-                }}
-                onFocus={() => {
-                  if (task.children.length > 0) return;
-                  setFocusedTaskCell(taskId, 'progress');
-                }}
-                placeholder="0"
-                data-task-id={taskId}
-                data-field="progress"
-                style={{ backgroundColor: 'transparent' }}
-                className={clsx(
-                  "w-full bg-transparent border-none outline-none text-xs text-center font-mono placeholder-gray-300",
-                  task.children.length > 0 ? "text-gray-400 cursor-not-allowed select-none font-semibold" : "text-gray-600 focus:text-gray-900"
-                )}
-                onKeyDown={(e) => handleDetailKeyDown(e, 'progress')}
+      {/* 2. Details Columns */}
+      {showDetails && (
+        <>
+          {!hideDescriptionColumns && (
+            <>
+              <TaskTextCell
+                taskId={taskId}
+                field="description"
+                placeholder="Description"
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
               />
-              <span className="text-[10px] text-gray-400 select-none mr-1">%</span>
-            </div>
-          </>
-        )}
-
-        {/* Plan Duration */}
-        {!baselineLocked && (
-          <div className="flex items-center justify-center text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10" style={{ width: columnWidths.planDuration, minWidth: columnWidths.planDuration, maxWidth: columnWidths.planDuration }}>
-            <input
-              ref={planDurationInputRef}
-              type="number"
-              value={task.planDuration !== undefined ? task.planDuration : task.duration}
-              readOnly={baselineLocked || task.children.length > 0}
-              tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
-              onFocus={() => {
-                if (baselineLocked || task.children.length > 0) return;
-                setFocusedTaskCell(taskId, 'planDuration');
-              }}
-              onChange={(e) => {
-                if (baselineLocked || task.children.length > 0) return;
-                const newDuration = parseInt(e.target.value) || 0;
-                updateTask(taskId, { planDuration: newDuration });
-              }}
-              onKeyDown={(e) => handleDetailKeyDown(e, 'planDuration')}
-              data-task-id={taskId}
-              data-field="planDuration"
-              style={{ backgroundColor: 'transparent' }}
-              className={clsx(
-                "bg-transparent w-full text-center outline-none border-b border-transparent text-blue-700",
-                (baselineLocked || task.children.length > 0)
-                  ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                  : "focus:border-blue-300 focus:text-blue-900"
-              )}
-              title={task.children.length > 0 ? "Duration is automatically calculated from children" : "Plan Duration (days)"}
-            />
-          </div>
-        )}
-
-        {/* Plan Date Section */}
-        {!baselineLocked && (
-          <div className="flex items-center justify-center space-x-1 text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10" style={{ width: columnWidths.planDate, minWidth: columnWidths.planDate, maxWidth: columnWidths.planDate }}>
-            <input
-              ref={planStartDateInputRef}
-              type="date"
-              value={task.planStartDate || task.startDate || ''}
-              readOnly={baselineLocked || task.children.length > 0}
-              tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
-              onFocus={() => {
-                if (baselineLocked || task.children.length > 0) return;
-                setFocusedTaskCell(taskId, 'planStartDate');
-              }}
-              onChange={(e) => {
-                if (baselineLocked || task.children.length > 0) return;
-                const newStartDate = e.target.value;
-                if (!newStartDate) return;
-                updateTask(taskId, { planStartDate: newStartDate });
-              }}
-              onKeyDown={(e) => handleDetailKeyDown(e, 'planStartDate')}
-              data-task-id={taskId}
-              data-field="planStartDate"
-              style={{ backgroundColor: 'transparent' }}
-              className={clsx(
-                "bg-transparent outline-none w-20 text-center text-[10px] text-blue-700",
-                (baselineLocked || task.children.length > 0)
-                  ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                  : "cursor-pointer hover:text-blue-900 text-blue-600"
-              )}
-              title={task.children.length > 0 ? "Start date is automatically calculated from children" : undefined}
-            />
-
-            <span className="text-blue-300">-</span>
-
-            <input
-              ref={planEndDateInputRef}
-              type="date"
-              value={task.planEndDate || task.endDate || ''}
-              readOnly={baselineLocked || task.children.length > 0}
-              tabIndex={baselineLocked || task.children.length > 0 ? -1 : undefined}
-              onFocus={() => {
-                if (baselineLocked || task.children.length > 0) return;
-                setFocusedTaskCell(taskId, 'planEndDate');
-              }}
-              onChange={(e) => {
-                if (baselineLocked || task.children.length > 0) return;
-                const newEndDate = e.target.value;
-                const currentStart = task.planStartDate || task.startDate;
-                if (!newEndDate || !currentStart) return;
-                const start = new Date(currentStart);
-                const end = new Date(newEndDate);
-                if (end < start) return;
-                updateTask(taskId, { planEndDate: newEndDate });
-              }}
-              onKeyDown={(e) => handleDetailKeyDown(e, 'planEndDate')}
-              data-task-id={taskId}
-              data-field="planEndDate"
-              style={{ backgroundColor: 'transparent' }}
-              className={clsx(
-                "bg-transparent outline-none w-20 text-center text-[10px] text-blue-700",
-                (baselineLocked || task.children.length > 0)
-                  ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                  : "cursor-pointer hover:text-blue-900 text-blue-600"
-              )}
-              title={task.children.length > 0 ? "End date is automatically calculated from children" : undefined}
-            />
-          </div>
-        )}
-
-        {/* Duration */}
-        <div className="flex items-center justify-center text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.duration, minWidth: columnWidths.duration, maxWidth: columnWidths.duration }}>
-          <input
-            ref={durationInputRef}
-            type="number"
-            value={task.duration}
-            readOnly={task.children.length > 0}
-            tabIndex={task.children.length > 0 ? -1 : undefined}
-            onFocus={() => {
-              if (task.children.length > 0) return;
-              setFocusedTaskCell(taskId, 'duration');
-            }}
-            onChange={(e) => {
-              if (task.children.length > 0) return;
-              const newDuration = parseInt(e.target.value) || 0;
-              updateTask(taskId, { duration: newDuration });
-            }}
-            onKeyDown={(e) => handleDetailKeyDown(e, 'duration')}
-            data-task-id={taskId}
-            data-field="duration"
-            style={{ backgroundColor: 'transparent' }}
-            className={clsx(
-              "bg-transparent w-full text-center outline-none border-b border-transparent",
-              task.children.length > 0 
-                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                : "focus:border-gray-300 focus:text-gray-900"
-            )}
-            title={task.children.length > 0 ? "Duration is automatically calculated from children" : "Duration (days)"}
+              <TaskTextCell
+                taskId={taskId}
+                field="assignee"
+                placeholder="Assignee"
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+              <TaskTextCell
+                taskId={taskId}
+                field="deliverables"
+                placeholder="Deliverables"
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            </>
+          )}
+          <TaskStatusCell
+            taskId={taskId}
+            prevId={prevId}
+            nextId={nextId}
+            onSelectionChange={onSelectionChange}
           />
-        </div>
-
-        {/* Date Section */}
-        <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ width: columnWidths.date, minWidth: columnWidths.date, maxWidth: columnWidths.date }}>
-          <input
-            ref={startDateInputRef}
-            type="date"
-            value={task.startDate || ''}
-            readOnly={task.children.length > 0}
-            tabIndex={task.children.length > 0 ? -1 : undefined}
-            onFocus={() => {
-              if (task.children.length > 0) return;
-              setFocusedTaskCell(taskId, 'startDate');
-            }}
-            onChange={(e) => {
-              if (task.children.length > 0) return;
-              const newStartDate = e.target.value;
-              if (!newStartDate) return;
-              updateTask(taskId, { startDate: newStartDate });
-            }}
-            onKeyDown={(e) => handleDetailKeyDown(e, 'startDate')}
-            data-task-id={taskId}
-            data-field="startDate"
-            style={{ backgroundColor: 'transparent' }}
-            className={clsx(
-              "bg-transparent outline-none w-20 text-center text-[10px]",
-              task.children.length > 0 
-                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                : "cursor-pointer hover:text-gray-900 text-gray-600"
-            )}
-            title={task.children.length > 0 ? "Start date is automatically calculated from children" : undefined}
+          <TaskProgressCell
+            taskId={taskId}
+            prevId={prevId}
+            nextId={nextId}
+            onSelectionChange={onSelectionChange}
           />
+        </>
+      )}
 
-          <span className="text-gray-400">-</span>
-
-          <input
-            ref={endDateInputRef}
-            type="date"
-            value={task.endDate || ''}
-            readOnly={task.children.length > 0}
-            tabIndex={task.children.length > 0 ? -1 : undefined}
-            onFocus={() => {
-              if (task.children.length > 0) return;
-              setFocusedTaskCell(taskId, 'endDate');
-            }}
-            onChange={(e) => {
-              if (task.children.length > 0) return;
-              const newEndDate = e.target.value;
-              if (!newEndDate || !task.startDate) return;
-              const start = new Date(task.startDate);
-              const end = new Date(newEndDate);
-              if (end < start) return;
-              updateTask(taskId, { endDate: newEndDate });
-            }}
-            onKeyDown={(e) => handleDetailKeyDown(e, 'endDate')}
-            data-task-id={taskId}
-            data-field="endDate"
-            style={{ backgroundColor: 'transparent' }}
-            className={clsx(
-              "bg-transparent outline-none w-20 text-center text-[10px]",
-              task.children.length > 0 
-                ? "text-gray-400 cursor-not-allowed select-none font-semibold" 
-                : "cursor-pointer hover:text-gray-900 text-gray-600"
-            )}
-            title={task.children.length > 0 ? "End date is automatically calculated from children" : undefined}
+      {/* 3. Plan / Baseline Columns */}
+      {!baselineLocked && (
+        <>
+          <TaskPlanDurationCell
+            taskId={taskId}
+            prevId={prevId}
+            nextId={nextId}
+            onSelectionChange={onSelectionChange}
           />
-        </div>
+          <TaskPlanDateCell
+            taskId={taskId}
+            prevId={prevId}
+            nextId={nextId}
+            onSelectionChange={onSelectionChange}
+          />
+        </>
+      )}
+
+      {/* 4. Actual / Forecast Columns */}
+      <TaskDurationCell
+        taskId={taskId}
+        prevId={prevId}
+        nextId={nextId}
+        onSelectionChange={onSelectionChange}
+      />
+      <TaskDateCell
+        taskId={taskId}
+        prevId={prevId}
+        nextId={nextId}
+        onSelectionChange={onSelectionChange}
+      />
     </div>
   );
 

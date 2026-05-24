@@ -313,3 +313,26 @@ pnpm run make
   - `src/hooks/useTaskRowLocalState.ts` を新規作成し、パフォーマンス確保と IME 入力対応のためのローカルな入力状態（`localTitle`, `localDescription`, `localAssignee`, `localDeliverables`, `localStatus`, `localProgress`）、外部の Undo/Redo 時の自動的な状態同期（`useEffect`）、および変更値をストアに安全に保存する `commitFieldLocalState` メソッドをこの Hook 内へ集約。
   - `TaskRow.tsx` の上部を占めていた大量の `useState` / `useEffect` およびインラインのコミット処理をこのフックの呼び出しに完全に置き換えることで、コードの見通しを大幅に改善。
   - 既存の 72 個のテストがすべて問題なくパスすることを確認済み。
+
+## Refactoring TaskRow - Step 3 Completed (May 24, 2026)
+
+- `TaskRow.tsx` のリファクタリング計画の Step 3 (キーボードナビゲーションのカスタムフック抽出) を実装完了:
+  - `src/hooks/useTaskRowKeyboard.ts` を新規作成し、WBS の各入力欄の `useRef` 参照、アクティブセルへのフォーカス制御、IME 入力開始・終了時のフラグ管理、上下矢印キーでのフォーカス移動、Alt + Shift + 矢印でのタスク並べ替えおよびインデント・アウトデントトグル、Backspace や Delete によるタスク削除などの、複雑かつ巨大なキーボードハンドリングロジック（約 180 行）をこの Hook 内に完全カプセル化。
+  - `TaskRow.tsx` のコンポーネント内から `useRef` 定義、フォーカス制御 `useEffect`、および `KeyDown` ハンドラ群を一掃し、Hook の呼び出しと受け取った参照・ハンドラの適用のみに集約。これによりコンポーネントの記述がさらに軽量化し、描画責務へと大きく集中。
+  - 静的型検査および既存の 72 個のテストがすべて問題なくパスすることを確認済み。
+  - フック化に伴い `TaskRow.tsx` および `useTaskRowKeyboard.ts` 内で不要になった未使用のインポートや Zustand セレクター、プロパティ受け渡し（`task`）を完全に削除・整理し、TypeScript コンパイルエラー（`tsc -b`）が完全に0件であることを確認。
+
+## WBS Cell Component Refactoring (May 24, 2026)
+
+- `TaskRow.tsx` の肥大化した Ref、ローカル state、キーボード制御を完全に解消するため、セル単位へのコンポーネント分割を完了しました：
+  - `src/components/cells/` ディレクトリ配下に、個別の入力セル (`TaskOutlineCell`, `TaskTextCell`, `TaskStatusCell`, `TaskProgressCell`, `TaskPlanDurationCell`, `TaskPlanDateCell`, `TaskDurationCell`, `TaskDateCell`) を作成。
+  - 各セルが自身に必要な入力用の `useRef` を 1 つだけカプセル化し、Zustand の `focusedTaskId` と `focusedTaskField` を直接監視して自律的にフォーカスする宣言的フローへ移行。
+  - セル間の格子状キー移動や並び替えショートカットは共通フック `useTaskCellKeyboard.ts` に集約。
+- **Gantt View Sidebar での `TaskOutlineCell` の再利用**:
+  - `GanttChart.tsx` の左サイドバーに直書きされていた Chevron、WBS 番号、タスク名表示エリアを `<TaskOutlineCell />` に完全統合。これにより、全ビューにおける編集挙動・折りたたみ動作・行選択・キー操作の一貫性を 100% 担保しました。
+- **不要になった古いフックの完全削除**:
+  - `src/hooks/useTaskRowLocalState.ts` および `src/hooks/useTaskRowKeyboard.ts` を完全にクリーンアップしました。
+- **自動テストの適合化と全件グリーン**:
+  - テストおよび外部クエリのために、各セル内入力要素へ `data-task-id` および `data-field` 属性を付与。
+  - `Outliner.test.tsx` および `GanttChart.test.tsx` のイベントシミュレーション・アサーションを最新の HTML 構造・Editable Outline 挙動に合わせてアップデート。
+  - `pnpm tsc -b --noEmit` および `pnpm test -- --run` が **72テスト全件無敗の 100% グリーン** で通過することを確認済み。

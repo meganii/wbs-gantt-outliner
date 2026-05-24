@@ -39,15 +39,19 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Parent cell
     const parentCell = cells[0];
-    expect(parentCell.textContent).toContain('Parent Task');
+    const parentOutlineCell = parentCell.firstElementChild as HTMLDivElement;
+    const parentInput = parentCell.querySelector('input')!;
+    expect(parentInput.value).toBe('Parent Task');
     expect(parentCell.textContent).toContain('1');
-    expect(parentCell.style.paddingLeft).toBe('8px'); // depth 0: 0 * 20 + 8 = 8px
+    expect(parentOutlineCell.style.paddingLeft).toBe('8px'); // depth 0: 0 * 20 + 8 = 8px
 
     // Child cell
     const childCell = cells[1];
-    expect(childCell.textContent).toContain('Child Task');
+    const childOutlineCell = childCell.firstElementChild as HTMLDivElement;
+    const childInput = childCell.querySelector('input')!;
+    expect(childInput.value).toBe('Child Task');
     expect(childCell.textContent).toContain('1.1');
-    expect(childCell.style.paddingLeft).toBe('28px'); // depth 1: 1 * 20 + 8 = 28px
+    expect(childOutlineCell.style.paddingLeft).toBe('28px'); // depth 1: 1 * 20 + 8 = 28px
   });
 
   it('toggles collapse state when clicking the chevron button', () => {
@@ -103,7 +107,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     expect(firstTaskCell).not.toBeNull();
 
     act(() => {
-      fireEvent.click(firstTaskCell!);
+      fireEvent.mouseDown(firstTaskCell!);
     });
 
     expect(useTaskStore.getState().selectedTaskIds).toContain(rootId);
@@ -120,6 +124,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     act(() => {
       useTaskStore.getState().updateTask(rootId, { title: 'Parent Task' });
       useTaskStore.getState().setSelectedTaskIds([rootId]);
+      useTaskStore.getState().setFocusedTaskId(null);
     });
 
     render(<GanttChart showNames />);
@@ -193,7 +198,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press ArrowDown to move to the second task
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
     });
 
     // Selection should move to secondId
@@ -202,7 +207,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press ArrowUp to move back to the first task
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
     });
 
     // Selection should move back to rootId
@@ -211,7 +216,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press Shift + ArrowDown to extend selection
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', shiftKey: true });
     });
 
     // Both should be selected
