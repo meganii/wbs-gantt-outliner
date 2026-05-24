@@ -8,17 +8,35 @@ interface UseKeyboardShortcutsProps {
 export function useKeyboardShortcuts({ setView }: UseKeyboardShortcutsProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey;
-      const isRedo = (e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y');
-      const isCollapseAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowUp';
-      const isExpandAll = (e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key === 'ArrowDown';
-      const isWbsView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '1';
-      const isIntegratedView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '2';
-      const isGanttView = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key === '3';
-
-      if (e.isComposing || e.keyCode === 229) {
+      // IME変換中のキー入力は無視する
+      if (e.isComposing) {
         return;
       }
+
+      // キーボードショートカットはCtrl/Cmd押しを前提としている
+      // そのため、Ctrl/Cmd が押されていないときは無視する
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      if (!isCmdOrCtrl) {
+        return;
+      }
+
+      // キーの判定
+      const key = e.key;
+      const lowerKey = key.toLowerCase();
+      const { altKey, shiftKey } = e;
+
+      // Undo / Redo Ctrl + Z / Ctrl + Y
+      const isUndo = lowerKey === 'z' && !shiftKey;
+      const isRedo = (lowerKey === 'z' && shiftKey) || lowerKey === 'y';
+
+      // タスクの展開・折り畳み Ctrl + Alt + Up/Down
+      const isCollapseAll = altKey && !shiftKey && key === 'ArrowUp';
+      const isExpandAll = altKey && !shiftKey && key === 'ArrowDown';
+
+      // Viewの切り替え Ctrl + 1 | 2 | 3
+      const isWbsView = !altKey && !shiftKey && key === '1';
+      const isIntegratedView = !altKey && !shiftKey && key === '2';
+      const isGanttView = !altKey && !shiftKey && key === '3';
 
       if (isUndo) {
         const temporalApi = getTemporalState();
@@ -26,6 +44,7 @@ export function useKeyboardShortcuts({ setView }: UseKeyboardShortcutsProps) {
           e.preventDefault();
           temporalApi.undo();
         }
+        return;
       }
 
       if (isRedo) {
@@ -34,6 +53,7 @@ export function useKeyboardShortcuts({ setView }: UseKeyboardShortcutsProps) {
           e.preventDefault();
           temporalApi.redo();
         }
+        return;
       }
 
       if (isCollapseAll || isExpandAll) {
@@ -46,21 +66,25 @@ export function useKeyboardShortcuts({ setView }: UseKeyboardShortcutsProps) {
           e.preventDefault();
           useTaskStore.getState().setAllCollapsed(nextCollapsed);
         }
+        return;
       }
 
       if (isWbsView) {
         e.preventDefault();
         setView('wbs');
+        return;
       }
 
       if (isIntegratedView) {
         e.preventDefault();
         setView('integrated');
+        return;
       }
 
       if (isGanttView) {
         e.preventDefault();
         setView('gantt');
+        return;
       }
     };
 

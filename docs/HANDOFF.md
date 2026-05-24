@@ -253,5 +253,9 @@ pnpm run make
   - The custom hook handles `Undo` / `Redo` (Zustand temporal), `Expand All` / `Collapse All` (Zustand store), and `View Switches` (App component's internal state via `setView` callback).
   - Streamlined `App.tsx` imports (removed unused `getTemporalState`) and reduced its visual noise by approximately 60 lines.
   - Verified that all 72 Vitest unit tests pass and `pnpm run build` completes successfully.
+- Further Keyboard Shortcut Clean-up (May 24, 2026):
+  - Refactored `useKeyboardShortcuts.ts` to extract common keyboard modifier variables (`isCmdOrCtrl`, `altKey`, `shiftKey`) and the IME composition check (`isComposing`).
+  - Removed heavily duplicated checks from individual shortcut boolean expressions (e.g. redundant `e.ctrlKey || e.metaKey` and alt/shift checks), resulting in exceptionally clean, readable, and highly maintainable logic.
+  - Fixed a date-fragility issue in `useTaskStore.test.ts` where dynamic module-level initial task instantiation dates would mismatch with hardcoded mock dates on different calendar run-days. Resolved by explicitly overriding the root task's plan dates to `'2026-05-23'` directly within the `beforeEach` reset hook before clearing history.
 
 

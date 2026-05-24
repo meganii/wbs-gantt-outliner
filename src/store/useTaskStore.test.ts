@@ -14,6 +14,19 @@ describe('useTaskStore', () => {
   beforeEach(() => {
     act(() => {
       useTaskStore.setState(initialState, true);
+      // Ensure the root task has a fixed planStartDate/planEndDate for stable testing across different dates
+      const rootId = useTaskStore.getState().rootIds[0];
+      if (rootId) {
+        const tasks = { ...useTaskStore.getState().tasks };
+        if (tasks[rootId]) {
+          tasks[rootId] = {
+            ...tasks[rootId],
+            planStartDate: '2026-05-23',
+            planEndDate: '2026-05-23',
+          };
+          useTaskStore.setState({ tasks });
+        }
+      }
       getTemporalState().clear();
     });
   });
