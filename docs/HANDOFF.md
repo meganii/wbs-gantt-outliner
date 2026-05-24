@@ -258,6 +258,22 @@ pnpm run make
   - Removed heavily duplicated checks from individual shortcut boolean expressions (e.g. redundant `e.ctrlKey || e.metaKey` and alt/shift checks), resulting in exceptionally clean, readable, and highly maintainable logic.
   - Fixed a date-fragility issue in `useTaskStore.test.ts` where dynamic module-level initial task instantiation dates would mismatch with hardcoded mock dates on different calendar run-days. Resolved by explicitly overriding the root task's plan dates to `'2026-05-23'` directly within the `beforeEach` reset hook before clearing history.
 
+## AppHeader Component Extraction & Props Slim-down (May 24, 2026)
+
+- `App.tsx` の `<header>` ブロックを `src/components/AppHeader.tsx` へ分離し、さらに props を16個→3個へ削減:
+  - **`src/hooks/useProjectFileHandlers.ts`** を新規作成
+    - `handleSave` / `handleLoad` / `handleExport` (ipcRenderer 呼び出し) をカプセル化
+    - Zustand ストアから `tasks` / `rootIds` / `projectConfig` を直接取得するため、呼び出し元への依存ゼロ
+  - **`AppHeader`** が Zustand ストアを直接購読するよう変更
+    - `useTaskStore` から `projectConfig`, `setAllCollapsed`, `setBaselineLocked`, `tasks` を購読
+    - `useStore(useTaskStore.temporal, ...)` で `undo` / `redo` / `canUndo` / `canRedo` を取得
+    - `collapsibleTasks`, `canExpandAll`, `canCollapseAll` を内部 `useMemo` で算出
+    - `useProjectFileHandlers` を内部で呼び出し
+    - 残る props は `view`, `setView`, `onOpenProjectSettings` の3つのみ
+  - **`App.tsx`** から `useStore` / `loadProjectState` / `clsx` / `useRef` 等、ヘッダー専用だった import とロジックをすべて削除
+- `pnpm tsc -b --noEmit` : 通過
+- `pnpm test -- --run` : 72テスト全件通過
+
 ## App.tsx Hook Extraction (May 24, 2026)
 
 - `App.tsx` に残っていた `useEffect` / `useCallback` をさらに専用 Hook へ切り出し:
