@@ -22,24 +22,25 @@
 - **Ganttビュー・統合ビュー（IntegratedView）の共通ロジック完全分離（重複の根絶）**:
   - `GanttChart.tsx` と `IntegratedView.tsx` の間にあった約 80% 以上の重複コード（タイムライン・カレンダー計算、ドラッグ＆ドロップ操作、SVG 依存関係線のパス計算）を 3 つの共通カスタムフック (`useGanttTimeline`, `useGanttDrag`, `useGanttDependencies`) へ完全抽出。
   - コンポーネント側からピクセル座標計算や window マウスイベント、DOM 矩形追従の `useLayoutEffect` が一掃され、コンポーネントコードが劇的に軽量化（約 50% 削減）され、描画レイアウト責務に専念する綺麗な設計へ改善。
+- **Zustandストア内ツリー変形ロジックの純粋関数外出し（スリム化）**:
+  - `useTaskStore.ts` に直接記述されていたツリー変形（インデント・アウトデント・並び替え・上下移動）ロジックを、すべて純粋関数 (`indentTaskInGraph`, `outdentTaskInGraph`, `reorderTaskInGraph`, `moveTaskInGraph`) として `src/store/taskStoreUtils.ts` に分離。
+  - ストアファイル `useTaskStore.ts` を **約 750 行 ➔ 約 450 行へと大幅にスリム化 (約40%削減)**。
 
 ## 直近の検証結果
 
 - `pnpm test -- --run` : 通過 (75テスト全件無敗の100%合格)
-  - 新規追加した「複数タスク同時一括削除時のクリーンアップ」「多段依存チェーン (A -> B -> C) の中間削除時の前後依存解消」「直接の相互依存を持つタスク同士の同時削除」の Vitest 統合テストがすべてグリーンで合格。
+  - ストアスリム化移行後も、既存のツリー操作・スケジュール継承・親日程再計算テストがすべて 100% グリーンで合格。
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
 - `pnpm tsc -b --noEmit` : 型エラーおよび未使用変数/インポートの警告 0 件で完全通過。
 
 ## 次に着手する優先課題
 
-1. **WBS 横方向キーナビゲーション（詳細列間の移動）の実装**
-   - 左右矢印キー（または特定のキー）で、WBS の Title ➔ Description ➔ Assignee ➔ Deliverables ➔ Dates などの隣の列のセルへスムーズにフォーカスが横移動できる仕組みを `useTaskCellKeyboard` に実装する。
-2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+1. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
-3. **Zustand ストアのツリー操作ロジックのさらなる分離**
-   - `useTaskStore.ts` に残っているタスクのインデント (`indentTask`)、アウトデント (`outdentTask`)、ドラッグ並び替え (`reorderTask`) などのツリー構造変形ロジックを `src/store/taskStoreUtils.ts` に排出し、ストアファイルをスリム化する。
-4. **ガント操作の E2E/UI 統合テストの補強**
+2. **ガント操作の E2E/UI 統合テストの補強**
    - ドラッグ移動、リサイズ、依存線追加の UI マウスジェスチャーが正しくストアの日付計算と連動しているかのテストを補強する。
+3. **JSON インポートの互換性・異常値バリデーション強化**
+   - インポート処理の入り口にスキーマバリデーションを導入し、破損データや不正なフォーマットの日付、循環依存が含まれている場合のガードを強化する。
 
 ## 注意点
 
@@ -58,20 +59,20 @@
 
 ## 履歴 (History)
 
+### Store Tree Operations Modularization (May 24, 2026)
+- **ストアからツリー変形ロジックを別ファイルへ完全排出**:
+  - `useTaskStore.ts` 内のインデント (`indentTask`)、アウトデント (`outdentTask`)、ドラッグ並び替え (`reorderTask`)、上下移動 (`moveTask`) を、`taskStoreUtils.ts` に純粋関数として移行。
+  - ストアファイルを 750行 ➔ 450行 へスリム化。
+  - 静的型チェック (`tsc -b`) および Vitest 全 75 件のテスト合格を検証済み。
+
 ### Task Deletion Integrity Tests (May 24, 2026)
 - **削除整合性のための強力な Vitest 統合テストを補強**:
-  - `useTaskStore.test.ts` の `deleteTask` グループに、3 つの高度なエッジケーステストを追加：
-    1. 「複数タスクの同時一括削除時における、全ての子孫および交差する階層間依存のクリーンアップ整合性」
-    2. 「多段（A -> B -> C）の依存チェーンの中間タスク B 削除時における、無効な参照の完全クリーンアップ整合性」
-    3. 「直接の相互依存関係を持つタスク同士を同時に削除するエッジケースにおける、Null 参照エラーの抑止」
-  - すべてのテストが 100% グリーンで完全に合格し、削除整合性がプロダクション品質で担保されていることを実証。
+  - 複数タスク一括削除、多段依存チェーン (A -> B -> C) の中間削除、相互依存タスクの同時削除のテストケースを追加。75件全件合格。
 
 ### Gantt & Integrated View Hooks Extraction (May 24, 2026)
 - **タイムライン、ドラッグ、依存線パス計算ロジックの抽出**:
   - `useGanttTimeline.ts`, `useGanttDrag.ts`, `useGanttDependencies.ts` を新規作成し、`GanttChart.tsx` と `IntegratedView.tsx` に適用。
-  - 重複コードを一掃し、各コンポーネントを 40〜60% スリム化。
 
 ### WBS Cell Component Refactoring (May 24, 2026)
 - **TaskRow.tsx のセル単位へのコンポーネント分割**:
-  - `src/components/cells/` 配下に、個別の入力セル (`TaskOutlineCell`, `TaskTextCell` 等 8つ) を作成。
-  - 宣言的フォーカス制御へ移行し、`GanttChart` サイドバーでの `TaskOutlineCell` の再利用を完了。
+  - `src/components/cells/` 配下に、個別の入力セルを作成。
