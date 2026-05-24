@@ -258,4 +258,13 @@ pnpm run make
   - Removed heavily duplicated checks from individual shortcut boolean expressions (e.g. redundant `e.ctrlKey || e.metaKey` and alt/shift checks), resulting in exceptionally clean, readable, and highly maintainable logic.
   - Fixed a date-fragility issue in `useTaskStore.test.ts` where dynamic module-level initial task instantiation dates would mismatch with hardcoded mock dates on different calendar run-days. Resolved by explicitly overriding the root task's plan dates to `'2026-05-23'` directly within the `beforeEach` reset hook before clearing history.
 
+## App.tsx Hook Extraction (May 24, 2026)
+
+- `App.tsx` に残っていた `useEffect` / `useCallback` をさらに専用 Hook へ切り出し:
+  - `useIpcSwitchView` (`src/hooks/useIpcSwitchView.ts`): Electron IPC `switch-view` リスナー
+  - `useOutlinerResize` (`src/hooks/useOutlinerResize.ts`): Outliner ペイン幅のマウスドラッグリサイズ管理
+  - `useClickOutside` (`src/hooks/useClickOutside.ts`): 指定 ref 外クリック検出の汎用 Hook
+- `App.tsx` に残る `useEffect` は view 切り替え時の `hoveredTaskId` リセットのみ。`useCallback` は完全に排除。
+- `pnpm test -- --run` : 72テスト全件通過
+- `pnpm run build` : 通過
 

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from 'zustand';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
@@ -6,6 +6,9 @@ import { IntegratedView } from './components/IntegratedView';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog';
 import { loadProjectState, useTaskStore } from './store/useTaskStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useIpcSwitchView } from './hooks/useIpcSwitchView';
+import { useOutlinerResize } from './hooks/useOutlinerResize';
+import { useClickOutside } from './hooks/useClickOutside';
 import clsx from 'clsx';
 import { CalendarDays, ChevronDown, Undo, Redo } from 'lucide-react';
 import { flattenTree } from './utils/tree';
@@ -38,29 +41,9 @@ function App() {
   const canUndo = pastStates.length > 0;
   const canRedo = futureStates.length > 0;
 
-  const [outlinerWidth, setOutlinerWidth] = useState(600);
-  const [isResizing, setIsResizing] = useState(false);
-
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  const stopResizing = useCallback(() => {
-    setIsResizing(false);
-  }, []);
-
-  const resize = useCallback((e: MouseEvent) => {
-    if (isResizing) {
-      const minWidth =
-        projectConfig.columnWidths.taskDescription +
-        projectConfig.columnWidths.duration +
-        projectConfig.columnWidths.date +
-        16;
-      const maxWidth = Math.max(minWidth, window.innerWidth - 240);
-      setOutlinerWidth(Math.min(Math.max(e.clientX, minWidth), maxWidth));
-    }
-  }, [isResizing, projectConfig.columnWidths]);
+  const { outlinerWidth, startResizing } = useOutlinerResize({
+    columnWidths: projectConfig.columnWidths,
+  });
 
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
@@ -89,50 +72,15 @@ function App() {
 
   // Keyboard Shortcuts for Undo/Redo & View Switches
   useKeyboardShortcuts({ setView });
-  
-  // Listen to IPC View Switch
-  useEffect(() => {
-    if (window.ipcRenderer) {
-      const unsubscribe = window.ipcRenderer.on(
-        'switch-view',
-        (_event, viewName: any) => {
-          if (viewName === 'wbs' || viewName === 'integrated' || viewName === 'gantt') {
-            setView(viewName);
-          }
-        }
-      );
-      return unsubscribe;
-    }
-  }, []);
+  // IPC View Switch (Electron)
+  useIpcSwitchView(setView);
+  // Project menu outside-click
+  useClickOutside(projectMenuRef, () => setIsProjectMenuOpen(false));
 
-  useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', resize);
-      window.addEventListener('mouseup', stopResizing);
-    } else {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-    }
-    return () => {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-    };
-  }, [isResizing, resize, stopResizing]);
-
+  // View 切り替え時に hover 状態をリセット
   useEffect(() => {
     setHoveredTaskId(null);
   }, [view]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!projectMenuRef.current?.contains(event.target as Node)) {
-        setIsProjectMenuOpen(false);
-      }
-    };
-
-    window.addEventListener('mousedown', handlePointerDown);
-    return () => window.removeEventListener('mousedown', handlePointerDown);
-  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">
