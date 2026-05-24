@@ -39,7 +39,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Parent cell
     const parentCell = cells[0];
-    const parentOutlineCell = parentCell.firstElementChild as HTMLDivElement;
+    const parentOutlineCell = parentCell.querySelector('.flex.items-center.flex-1.h-full') as HTMLDivElement;
     const parentInput = parentCell.querySelector('input')!;
     expect(parentInput.value).toBe('Parent Task');
     expect(parentCell.textContent).toContain('1');
@@ -47,7 +47,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Child cell
     const childCell = cells[1];
-    const childOutlineCell = childCell.firstElementChild as HTMLDivElement;
+    const childOutlineCell = childCell.querySelector('.flex.items-center.flex-1.h-full') as HTMLDivElement;
     const childInput = childCell.querySelector('input')!;
     expect(childInput.value).toBe('Child Task');
     expect(childCell.textContent).toContain('1.1');
@@ -75,7 +75,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     const firstTaskCell = allCells[1];
     expect(firstTaskCell).not.toBeNull();
 
-    const chevronButton = firstTaskCell!.querySelector('button');
+    const chevronButton = firstTaskCell!.querySelector('.lucide-chevron-down, .lucide-chevron-right')?.closest('button');
     expect(chevronButton).not.toBeNull();
 
     act(() => {
@@ -161,8 +161,8 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     const resizer = headerCell!.querySelector('.cursor-col-resize');
     expect(resizer).not.toBeNull();
 
-    // The initial width of taskDescription is 200 (based on DEFAULT_PROJECT_CONFIG)
-    expect(useTaskStore.getState().projectConfig.columnWidths.taskDescription).toBe(200);
+    // The initial width of taskName is 200 (based on DEFAULT_PROJECT_CONFIG)
+    expect(useTaskStore.getState().projectConfig.columnWidths.taskName).toBe(200);
 
     // Simulate drag start on the resizer
     fireEvent.mouseDown(resizer!, { clientX: 200 });
@@ -171,7 +171,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     fireEvent.mouseMove(document, { clientX: 250 });
 
     // Verify it updated the store width to 250!
-    expect(useTaskStore.getState().projectConfig.columnWidths.taskDescription).toBe(250);
+    expect(useTaskStore.getState().projectConfig.columnWidths.taskName).toBe(250);
 
     // Release mouse
     fireEvent.mouseUp(document);

@@ -15,7 +15,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   },
   viewMode: 'Day',
   columnWidths: {
-    taskDescription: 200,
+    taskName: 200,
     description: 256,
     assignee: 128,
     deliverables: 192,

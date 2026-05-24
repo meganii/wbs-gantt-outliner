@@ -8,7 +8,8 @@ import {
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
 import { isWorkDay } from '../utils/date';
-import { TaskOutlineCell } from './cells/TaskOutlineCell';
+import { TaskRow } from './TaskRow';
+import type { ColumnId } from '../types';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
@@ -49,13 +50,15 @@ export const GanttChart = ({
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
   const removeDependency = useTaskStore(state => state.removeDependency);
 
+  const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
+
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
     [flattenedItemsProp, tasks, rootIds]
   );
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const NAME_COLUMN_WIDTH = columnWidths.taskDescription;
+  const NAME_COLUMN_WIDTH = columnWidths.taskName;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
 
   // Use custom timeline hook
@@ -139,9 +142,10 @@ export const GanttChart = ({
       const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
       const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
       const containerWidth = containerRef.current.clientWidth;
-      containerRef.current.scrollLeft = Math.max(0, scrollPos - containerWidth / 3);
+      const timelineViewportWidth = Math.max(0, containerWidth - nameOffset);
+      containerRef.current.scrollLeft = Math.max(0, scrollPos - timelineViewportWidth / 3);
     }
-  }, [viewMode, timelineMetrics]);
+  }, [viewMode, timelineMetrics, nameOffset]);
 
   // Keyboard Shortcut: Alt + ArrowUp / ArrowDown to Collapse/Expand, and Up/Down to Navigate Rows
   useEffect(() => {
@@ -242,7 +246,7 @@ export const GanttChart = ({
       >
         {showNames && (
           <div
-            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
+            className="flex-shrink-0 border-r border-gray-300 p-2 pl-4 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
             Task Name
@@ -255,7 +259,7 @@ export const GanttChart = ({
 
                 const onMouseMove = (moveEvent: MouseEvent) => {
                   const delta = moveEvent.clientX - startX;
-                  setColumnWidth('taskDescription', Math.max(50, startWidth + delta));
+                  setColumnWidth('taskName', Math.max(50, startWidth + delta));
                 };
 
                 const onMouseUp = () => {
@@ -456,13 +460,18 @@ export const GanttChart = ({
                     width: NAME_COLUMN_WIDTH,
                   }}
                 >
-                  <TaskOutlineCell
+                  <TaskRow
                     taskId={id}
                     depth={depth}
                     wbsNumber={wbsNumber}
                     prevId={flattenedItems[index - 1]?.id}
                     nextId={flattenedItems[index + 1]?.id}
+                    isSelected={isSelected}
+                    isHovered={isHovered}
                     onSelectionChange={handleSelectionChange}
+                    visibleColumns={visibleColumns}
+                    disableHoverHandlers
+                    suppressBorder
                   />
                 </div>
               )}

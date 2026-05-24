@@ -14,6 +14,8 @@ import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
 import { TaskDurationCell } from './cells/TaskDurationCell';
 import { TaskDateCell } from './cells/TaskDateCell';
 
+import type { ColumnId } from '../types';
+
 interface TaskRowProps {
   taskId: string;
   depth?: number;
@@ -24,8 +26,7 @@ interface TaskRowProps {
   isHovered?: boolean;
   onHoverChange?: (taskId: string | null) => void;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
-  showDetails?: boolean;
-  hideDescriptionColumns?: boolean;
+  visibleColumns: ColumnId[];
   suppressBorder?: boolean;
   disableHoverHandlers?: boolean;
   renderContainer?: (args: {
@@ -46,14 +47,12 @@ export const TaskRow = ({
   isHovered = false,
   onHoverChange,
   onSelectionChange,
-  showDetails = false,
-  hideDescriptionColumns = false,
+  visibleColumns,
   suppressBorder = false,
   disableHoverHandlers = false,
   renderContainer,
 }: TaskRowProps) => {
   const task = useTaskStore((state) => state.tasks[taskId]);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const {
     attributes,
@@ -111,24 +110,26 @@ export const TaskRow = ({
       onMouseLeave={disableHoverHandlers ? undefined : () => onHoverChange?.(null)}
       onMouseDown={handleRowMouseDown}
     >
-      {/* 1. Outline Cell (Chevron, Drag handle, WBS No, Title) */}
-      <TaskOutlineCell
-        taskId={taskId}
-        depth={depth}
-        wbsNumber={wbsNumber}
-        prevId={prevId}
-        nextId={nextId}
-        onSelectionChange={onSelectionChange}
-        attributes={attributes}
-        listeners={listeners}
-      />
-
-      {/* 2. Details Columns */}
-      {showDetails && (
-        <>
-          {!hideDescriptionColumns && (
-            <>
+      {visibleColumns.map((colId) => {
+        switch (colId) {
+          case 'taskName':
+            return (
+              <TaskOutlineCell
+                key="taskName"
+                taskId={taskId}
+                depth={depth}
+                wbsNumber={wbsNumber}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+                attributes={attributes}
+                listeners={listeners}
+              />
+            );
+          case 'description':
+            return (
               <TaskTextCell
+                key="description"
                 taskId={taskId}
                 field="description"
                 placeholder="Description"
@@ -136,7 +137,11 @@ export const TaskRow = ({
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
               />
+            );
+          case 'assignee':
+            return (
               <TaskTextCell
+                key="assignee"
                 taskId={taskId}
                 field="assignee"
                 placeholder="Assignee"
@@ -144,7 +149,11 @@ export const TaskRow = ({
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
               />
+            );
+          case 'deliverables':
+            return (
               <TaskTextCell
+                key="deliverables"
                 taskId={taskId}
                 field="deliverables"
                 placeholder="Deliverables"
@@ -152,54 +161,71 @@ export const TaskRow = ({
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
               />
-            </>
-          )}
-          <TaskStatusCell
-            taskId={taskId}
-            prevId={prevId}
-            nextId={nextId}
-            onSelectionChange={onSelectionChange}
-          />
-          <TaskProgressCell
-            taskId={taskId}
-            prevId={prevId}
-            nextId={nextId}
-            onSelectionChange={onSelectionChange}
-          />
-        </>
-      )}
-
-      {/* 3. Plan / Baseline Columns */}
-      {!baselineLocked && (
-        <>
-          <TaskPlanDurationCell
-            taskId={taskId}
-            prevId={prevId}
-            nextId={nextId}
-            onSelectionChange={onSelectionChange}
-          />
-          <TaskPlanDateCell
-            taskId={taskId}
-            prevId={prevId}
-            nextId={nextId}
-            onSelectionChange={onSelectionChange}
-          />
-        </>
-      )}
-
-      {/* 4. Actual / Forecast Columns */}
-      <TaskDurationCell
-        taskId={taskId}
-        prevId={prevId}
-        nextId={nextId}
-        onSelectionChange={onSelectionChange}
-      />
-      <TaskDateCell
-        taskId={taskId}
-        prevId={prevId}
-        nextId={nextId}
-        onSelectionChange={onSelectionChange}
-      />
+            );
+          case 'status':
+            return (
+              <TaskStatusCell
+                key="status"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          case 'progress':
+            return (
+              <TaskProgressCell
+                key="progress"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          case 'planDuration':
+            return (
+              <TaskPlanDurationCell
+                key="planDuration"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          case 'planDate':
+            return (
+              <TaskPlanDateCell
+                key="planDate"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          case 'duration':
+            return (
+              <TaskDurationCell
+                key="duration"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          case 'date':
+            return (
+              <TaskDateCell
+                key="date"
+                taskId={taskId}
+                prevId={prevId}
+                nextId={nextId}
+                onSelectionChange={onSelectionChange}
+              />
+            );
+          default:
+            return null;
+        }
+      })}
     </div>
   );
 

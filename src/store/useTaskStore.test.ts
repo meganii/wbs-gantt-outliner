@@ -735,7 +735,7 @@ describe('useTaskStore', () => {
             } as ProjectConfig['calendar'],
             viewMode: 'Week',
             columnWidths: {
-              taskDescription: 320,
+              taskName: 320,
             } as ProjectConfig['columnWidths'],
           },
         });
@@ -744,7 +744,7 @@ describe('useTaskStore', () => {
       const { projectConfig } = useTaskStore.getState();
       expect(projectConfig.viewMode).toBe('Week');
       expect(projectConfig.calendar.holidays).toEqual([]);
-      expect(projectConfig.columnWidths.taskDescription).toBe(320);
+      expect(projectConfig.columnWidths.taskName).toBe(320);
       expect(projectConfig.columnWidths.date).toBe(224);
     });
   });

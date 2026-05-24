@@ -18,6 +18,18 @@ export interface Task {
   planDuration?: number;         // Workdays (Plan / Baseline)
 }
 
+export type ColumnId =
+  | 'taskName'
+  | 'description'
+  | 'assignee'
+  | 'deliverables'
+  | 'status'
+  | 'progress'
+  | 'planDuration'
+  | 'planDate'
+  | 'duration'
+  | 'date';
+
 export interface WorkCalendar {
   workDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
   holidays: string[]; // ISO 8601 YYYY-MM-DD strings
@@ -27,7 +39,7 @@ export interface ProjectConfig {
   calendar: WorkCalendar;
   viewMode: 'Day' | 'Week' | 'Month' | 'Year';
   columnWidths: {
-    taskDescription: number;
+    taskName: number;
     description: number;
     assignee: number;
     deliverables: number;

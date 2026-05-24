@@ -13,6 +13,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
+import type { ColumnId } from '../types';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
@@ -56,6 +57,7 @@ export const IntegratedView = ({
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   // Use custom timeline hook
   const {
@@ -65,6 +67,15 @@ export const IntegratedView = ({
     viewMode,
     calendar,
   } = useGanttTimeline();
+
+  const visibleColumns = useMemo((): ColumnId[] => {
+    const cols: ColumnId[] = ['taskName', 'status', 'progress'];
+    if (!baselineLocked) {
+      cols.push('planDuration', 'planDate');
+    }
+    cols.push('duration', 'date');
+    return cols;
+  }, [baselineLocked]);
 
   // Use custom drag interaction hook
   const {
@@ -82,8 +93,6 @@ export const IntegratedView = ({
     timelineMetrics,
     dragState
   );
-
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -159,7 +168,7 @@ export const IntegratedView = ({
           className="border-r border-gray-300 overflow-hidden flex-shrink-0 bg-gray-100"
           style={{ width: outlinerWidth }}
         >
-          <TaskTableHeader showDetails={true} hideDescriptionColumns={true} />
+          <TaskTableHeader visibleColumns={visibleColumns} />
         </div>
         <div className="flex-1 relative overflow-hidden bg-gray-100 border-b border-gray-300">
           <div ref={headerRef} className="h-[40px] overflow-hidden">
@@ -305,8 +314,7 @@ export const IntegratedView = ({
                   isHovered={isHovered}
                   onHoverChange={onHoverTaskChange}
                   onSelectionChange={handleSelectionChange}
-                  showDetails={true}
-                  hideDescriptionColumns={true}
+                  visibleColumns={visibleColumns}
                   disableHoverHandlers
                   suppressBorder
                   renderContainer={({ content, setContainerRef, containerStyle }) => (

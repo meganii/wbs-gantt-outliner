@@ -8,6 +8,7 @@ import { flattenTree, type FlattenedItem } from '../utils/tree';
 import { TaskTableHeader } from './TaskTableHeader';
 import { useOutlinerKeyboard } from '../hooks/useOutlinerKeyboard';
 import { useTaskSelection } from '../hooks/useTaskSelection';
+import type { ColumnId } from '../types';
 
 interface OutlinerProps {
   showDetails?: boolean;
@@ -26,6 +27,7 @@ export const Outliner = ({
   const rootIds = useTaskStore((state) => state.rootIds);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const addTask = useTaskStore((state) => state.addTask);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const flattenedItems = useMemo(() =>
     flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -33,6 +35,18 @@ export const Outliner = ({
   );
 
   const flattenedIds = useMemo(() => flattenedItems.map(i => i.id), [flattenedItems]);
+
+  const visibleColumns = useMemo((): ColumnId[] => {
+    const cols: ColumnId[] = ['taskName'];
+    if (showDetails) {
+      cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
+    }
+    if (!baselineLocked) {
+      cols.push('planDuration', 'planDate');
+    }
+    cols.push('duration', 'date');
+    return cols;
+  }, [showDetails, baselineLocked]);
 
   useOutlinerKeyboard();
   const { selectedTaskIds, handleSelectionChange } = useTaskSelection(flattenedIds);
@@ -47,7 +61,7 @@ export const Outliner = ({
   return (
     <div className="bg-white text-gray-900 overflow-x-auto min-h-full">
       <div className="min-w-full w-min">
-        <TaskTableHeader showDetails={showDetails} />
+        <TaskTableHeader visibleColumns={visibleColumns} />
       <div className="pb-4 w-max">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
@@ -63,12 +77,12 @@ export const Outliner = ({
                 isHovered={hoveredTaskId === id}
                 onHoverChange={onHoverTaskChange}
                 onSelectionChange={handleSelectionChange}
-                showDetails={showDetails}
+                visibleColumns={visibleColumns}
               />
             ))}
           </SortableContext>
         </DndContext>
-
+ 
         {rootIds.length === 0 && (
           /* ... empty state ... */
           <div

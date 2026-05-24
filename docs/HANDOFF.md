@@ -60,6 +60,18 @@
 
 ## 履歴 (History)
 
+### Gantt Scroll Alignment & Column List Driven Refactoring (May 24, 2026)
+- **カラム配列駆動設計（Column List Driven）への完全リファクタリングと移行**:
+  - `showDetails` や `hideDescriptionColumns` などの複雑な boolean 表示フラグ群を完全に廃止。
+  - 各ビューから `visibleColumns: ColumnId[]` 配列を注入して、ヘッダーと行を表示列に基づいて動的・宣言的にレンダリングする新設計に完全移行。
+- **コンポーネントの完全流用・一元化**:
+  - `GanttChart.tsx` のタスク名表示セルを、共通の **`TaskRow`** を流用する設計に一本化。
+  - WBS view、Integrated view、Gantt view のすべてのビュー間でヘッダーとセルの横位置、余白、Grip スペースが 1px の狂いもなく「完璧に」一致するようになり、ビュー切り替え時のガタつきが完全に解消。
+- **ガントチャートの初期表示位置ズレの修正**:
+  - `GanttChart.tsx` の初期スクロール処理（`useLayoutEffect`）において、左端のタスク名列の幅（`nameOffset`）をタイムラインの可視幅計算に反映し、初期表示の「今日」へのスクロール位置が右にズレるバグを解消。
+- **タスク名クリック時における表示ズレバグの根本解決**:
+  - `TaskOutlineCell.tsx` の中の `input` 要素に `min-w-0`（`min-width: 0`）を付与し、インデントが深くなった際のはみ出しによるブラウザ自動横スクロールバグを根本解決。
+
 ### Gantt UI Interaction Tests (May 24, 2026)
 - **ガント操作の UI マウスジェスチャー統合テストを追加**:
   - ドラッグ移動 (Move)、右端リサイズ (Resize-Right)、依存関係追加 (Dependency Connection) のテストを `src/components/GanttChartInteraction.test.tsx` に実装。

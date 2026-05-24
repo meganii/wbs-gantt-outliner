@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 interface ColumnWidths {
-  taskDescription: number;
+  taskName: number;
   duration: number;
   date: number;
   [key: string]: number;
@@ -42,7 +42,7 @@ export function useOutlinerResize({
     (e: MouseEvent) => {
       if (!isResizing) return;
       const minWidth =
-        columnWidths.taskDescription + columnWidths.duration + columnWidths.date + 16;
+        columnWidths.taskName + columnWidths.duration + columnWidths.date + 16;
       const maxWidth = Math.max(minWidth, window.innerWidth - 240);
       setOutlinerWidth(Math.min(Math.max(e.clientX, minWidth), maxWidth));
     },

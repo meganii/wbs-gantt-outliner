@@ -111,9 +111,9 @@ export const TaskOutlineCell = ({
       className="flex items-center flex-1 h-full"
       style={{
         paddingLeft: `${depth * 20 + 8}px`,
-        width: columnWidths.taskDescription,
-        minWidth: columnWidths.taskDescription,
-        maxWidth: columnWidths.taskDescription,
+        width: columnWidths.taskName,
+        minWidth: columnWidths.taskName,
+        maxWidth: columnWidths.taskName,
       }}
     >
       {/* Drag Handle */}
@@ -134,6 +134,9 @@ export const TaskOutlineCell = ({
         >
           <GripVertical size={14} />
         </button>
+      )}
+      {!listeners && (
+        <div className="w-[18px] flex-shrink-0" />
       )}
 
       {/* Collapse/Expand */}
@@ -174,7 +177,7 @@ export const TaskOutlineCell = ({
         }}
         placeholder="New Task"
         style={{ backgroundColor: 'transparent' }}
-        className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 placeholder-gray-400 focus:placeholder-gray-300 truncate"
+        className="bg-transparent border-none outline-none text-sm text-gray-800 flex-1 min-w-0 placeholder-gray-400 focus:placeholder-gray-300 truncate"
       />
     </div>
   );
