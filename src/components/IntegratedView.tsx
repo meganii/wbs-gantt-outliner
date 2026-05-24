@@ -2,11 +2,9 @@ import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 're
 import { useTaskStore } from '../store/useTaskStore';
 import {
   differenceInDays,
-  format,
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay } from '../utils/date';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -19,6 +17,7 @@ import { useGanttTimeline } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
 import { useGanttDependencies } from '../hooks/useGanttDependencies';
 import { GanttTimelineRow } from './GanttTimelineRow';
+import { TimelineHeader } from './TimelineHeader';
 
 interface IntegratedViewProps {
   outlinerWidth: number;
@@ -171,47 +170,13 @@ export const IntegratedView = ({
           <TaskTableHeader visibleColumns={visibleColumns} />
         </div>
         <div className="flex-1 relative overflow-hidden bg-gray-100 border-b border-gray-300">
-          <div ref={headerRef} className="h-[40px] overflow-hidden">
-            <div className="flex" style={{ width: timelineWidth }}>
-              {timeRange.map((date) => {
-                const isWeekend = !isWorkDay(date, calendar);
-                let label;
-                let subLabel;
-                switch (viewMode) {
-                  case 'Week':
-                    label = `W${format(date, 'w')}`;
-                    subLabel = format(date, 'M/d');
-                    break;
-                  case 'Month':
-                    label = format(date, 'MMM');
-                    subLabel = format(date, 'yyyy');
-                    break;
-                  case 'Year':
-                    label = format(date, 'yyyy');
-                    subLabel = '';
-                    break;
-                  case 'Day':
-                  default:
-                    label = format(date, 'd');
-                    subLabel = format(date, 'EE');
-                    break;
-                }
-
-                return (
-                  <div
-                    key={date.toISOString()}
-                    className={clsx(
-                      'flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center',
-                      viewMode === 'Day' && isWeekend ? 'bg-gray-200/50 text-gray-400' : 'text-gray-600'
-                    )}
-                    style={{ width: cellWidth, height: 40 }}
-                  >
-                    <span>{label}</span>
-                    <span className="text-[8px]">{subLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <div ref={headerRef} className="h-[56px] overflow-hidden">
+            <TimelineHeader
+              timeRange={timeRange}
+              cellWidth={cellWidth}
+              viewMode={viewMode}
+              calendar={calendar}
+            />
           </div>
           <div className="absolute right-0 top-0 h-full bg-gray-100/90 backdrop-blur-sm border-l border-gray-300 px-3 flex items-center z-40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
             <select

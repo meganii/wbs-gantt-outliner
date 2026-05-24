@@ -2,21 +2,20 @@ import React, { useMemo, useLayoutEffect, useRef, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   differenceInDays,
-  format,
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay } from '../utils/date';
 import { TaskRow } from './TaskRow';
 import type { ColumnId } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
+import { TimelineHeader } from './TimelineHeader';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
 import { useGanttDependencies } from '../hooks/useGanttDependencies';
 
-const HEADER_HEIGHT = 40;
+const HEADER_HEIGHT = 56;
 
 interface GanttChartProps {
   showSidebar?: boolean;
@@ -275,44 +274,12 @@ export const GanttChart = ({
             />
           </div>
         )}
-        <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
-          {timeRange.map(date => {
-            const isWknd = !isWorkDay(date, calendar);
-            let label;
-            let subLabel;
-            switch (viewMode) {
-              case 'Week':
-                label = `W${format(date, 'w')}`;
-                subLabel = `${format(date, 'M/d')}`;
-                break;
-              case 'Month':
-                label = format(date, 'MMM');
-                subLabel = format(date, 'yyyy');
-                break;
-              case 'Year':
-                label = format(date, 'yyyy');
-                subLabel = '';
-                break;
-              case 'Day':
-              default:
-                label = format(date, 'd');
-                subLabel = format(date, 'EE');
-            }
-            return (
-              <div
-                key={date.toISOString()}
-                className={clsx(
-                  "flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center",
-                  viewMode === 'Day' && isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
-                )}
-                style={{ width: CELL_WIDTH }}
-              >
-                <span>{label}</span>
-                <span className="text-[8px]">{subLabel}</span>
-              </div>
-            );
-          })}
-        </div>
+        <TimelineHeader
+          timeRange={timeRange}
+          cellWidth={CELL_WIDTH}
+          viewMode={viewMode}
+          calendar={calendar}
+        />
 
         {/* Toggle Selector on the right */}
         {showSidebar && (

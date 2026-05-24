@@ -51,6 +51,10 @@ export interface ProjectConfig {
     date: number;
   };
   baselineLocked?: boolean;
+  timelineRange?: {
+    start: string; // ISO date YYYY-MM-DD
+    end: string;   // ISO date YYYY-MM-DD
+  };
 }
 
 export type TaskFocusableField =

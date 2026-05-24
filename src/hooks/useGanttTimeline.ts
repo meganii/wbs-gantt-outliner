@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addMonths,
+  addWeeks,
   addYears,
   differenceInDays,
   eachDayOfInterval,
@@ -15,6 +16,7 @@ import {
   startOfWeek,
   startOfYear,
 } from 'date-fns';
+import type { Task } from '../types';
 
 export interface TimelineMetrics {
   timelineStart: Date;
@@ -24,9 +26,27 @@ export interface TimelineMetrics {
   pixelsPerDay: number;
 }
 
+/** タスク群から最小開始日・最大終了日を取得する */
+function getTaskDateRange(tasks: Record<string, Task>): { minDate: Date | null; maxDate: Date | null } {
+  let minDate: Date | null = null;
+  let maxDate: Date | null = null;
+  for (const task of Object.values(tasks)) {
+    const dates = [task.startDate, task.endDate, task.planStartDate, task.planEndDate];
+    for (const d of dates) {
+      if (!d) continue;
+      const date = new Date(d);
+      if (!minDate || date < minDate) minDate = date;
+      if (!maxDate || date > maxDate) maxDate = date;
+    }
+  }
+  return { minDate, maxDate };
+}
+
 export const useGanttTimeline = () => {
   const viewMode = useTaskStore((state) => state.projectConfig.viewMode);
   const calendar = useTaskStore((state) => state.projectConfig.calendar);
+  const tasks = useTaskStore((state) => state.tasks);
+  const timelineRangeConfig = useTaskStore((state) => state.projectConfig.timelineRange);
 
   const cellWidth = useMemo(() => {
     switch (viewMode) {
@@ -44,30 +64,55 @@ export const useGanttTimeline = () => {
 
   const timeRange = useMemo(() => {
     const today = new Date();
+
+    // 手動指定がある場合は最優先
+    if (timelineRangeConfig?.start && timelineRangeConfig?.end) {
+      const start = new Date(timelineRangeConfig.start);
+      const end = new Date(timelineRangeConfig.end);
+      switch (viewMode) {
+        case 'Week':
+          return eachWeekOfInterval({ start: startOfWeek(start, { weekStartsOn: 1 }), end: endOfWeek(end, { weekStartsOn: 1 }) }, { weekStartsOn: 1 });
+        case 'Month':
+          return eachMonthOfInterval({ start: startOfMonth(start), end: endOfMonth(end) });
+        case 'Year':
+          return eachYearOfInterval({ start: startOfYear(start), end: endOfYear(end) });
+        case 'Day':
+        default:
+          return eachDayOfInterval({ start: startOfWeek(start, { weekStartsOn: 1 }), end: endOfWeek(end, { weekStartsOn: 1 }) });
+      }
+    }
+
+    // タスクデータから日付範囲を計算
+    const { minDate, maxDate } = getTaskDateRange(tasks);
+
     switch (viewMode) {
       case 'Week': {
-        const start = startOfWeek(addMonths(today, -6), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 12), { weekStartsOn: 1 });
+        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
+        const start = startOfWeek(base ? addMonths(base.min, -1) : addMonths(today, -6), { weekStartsOn: 1 });
+        const end = endOfWeek(base ? addMonths(base.max, 1) : addMonths(today, 12), { weekStartsOn: 1 });
         return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
       }
       case 'Month': {
-        const start = startOfMonth(addYears(today, -1));
-        const end = endOfMonth(addYears(today, 2));
+        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
+        const start = startOfMonth(base ? addMonths(base.min, -3) : addYears(today, -1));
+        const end = endOfMonth(base ? addMonths(base.max, 3) : addYears(today, 2));
         return eachMonthOfInterval({ start, end });
       }
       case 'Year': {
-        const start = startOfYear(addYears(today, -5));
-        const end = endOfYear(addYears(today, 10));
+        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
+        const start = startOfYear(base ? addYears(base.min, -1) : addYears(today, -5));
+        const end = endOfYear(base ? addYears(base.max, 1) : addYears(today, 10));
         return eachYearOfInterval({ start, end });
       }
       case 'Day':
       default: {
-        const start = startOfWeek(addMonths(today, -1), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 3), { weekStartsOn: 1 });
+        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
+        const start = startOfWeek(base ? addWeeks(base.min, -2) : addMonths(today, -1), { weekStartsOn: 1 });
+        const end = endOfWeek(base ? addWeeks(base.max, 2) : addMonths(today, 3), { weekStartsOn: 1 });
         return eachDayOfInterval({ start, end });
       }
     }
-  }, [viewMode]);
+  }, [viewMode, tasks, timelineRangeConfig]);
 
   const timelineMetrics = useMemo((): TimelineMetrics => {
     const timelineStart = timeRange[0];

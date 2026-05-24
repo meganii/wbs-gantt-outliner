@@ -28,13 +28,17 @@
 - **ガントUI操作のインタラクション統合テスト補強**:
   - `src/components/GanttChartInteraction.test.tsx` を新規作成。ドラッグによる日付移動、右端リサイズによる期間変更、コネクタボタンからの依存関係接続のマウスジェスチャーをシミュレートするテストを追加。
   - ベースラインロックOFF時の `planStartDate` / `planEndDate` 連動、およびドラッグによる `addDependency` がストアと完全に連動していることを実証。
+- **タイムラインヘッダー 2段化 ＆ タスクデータ駆動の日付範囲計算** (May 24, 2026):
+  - **Dayスケールで何月か不明だった問題を解決**。ヘッダーを2段構成に変更: 上段に年月グループ(`2026年5月`)、下段に日+曜日(`24 Mon`)を表示。
+  - **月の境目に太い区切り線**を入れて視覚的にグループ変わり目を明確化。
+  - ヘッダー描画コードを `GanttChart.tsx` / `IntegratedView.tsx` から抽出し、共通コンポーネント `src/components/TimelineHeader.tsx` を新規作成（重複排除）。
+  - タイムライン日付範囲を固定値から**タスクデータ駆動**に変更。全タスクの最小開始日〜最大終了日 + マージンで自動算出。タスクなし時は今日中心のフォールバック。
+  - `ProjectConfig` に `timelineRange?: { start, end }` を追加（将来のユーザー指定範囲指定用）。
 
 ## 直近の検証結果
 
-- `pnpm test -- --run` : 通過 (78テスト全件無敗 of 100%合格)
-  - `GanttTimelineRow` 抽出リファクタリング後も既存テストがすべてそのまま合格。
+- `pnpm test -- --run` : **78テスト全件合格** (タイムライン範囲変更に伴うテスト期待値も更新済み)
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
-- `pnpm tsc -b --noEmit` : 型エラーおよび未使用変数/インポートの警告 0 件で完全通過。
 
 ## 次に着手する優先課題
 
@@ -50,18 +54,33 @@
 - `useGanttDrag` の中で `updateTask` や `addDependency` を直接叩いており、コンポーネントからの依存を最小限に抑えています。
 - 祝日変更時、既存タスク日付の自動再計算はまだ行わない。必要なら仕様を決めてから入れること。
 - Excel エクスポートは Electron main 側で生成・保存する構成を維持する。
+- `useGanttTimeline.ts` はタスクストア (`tasks`) を購読するため、タスク追加・編集のたびにタイムライン範囲が再計算される。パフォーマンス上の問題が出た場合は `useMemo` の依存配列を見直すこと。
 
 ## 次の作業で最初に見るとよい場所
 
 - `src/store/useTaskStore.ts`
 - `src/store/taskStoreUtils.ts`
 - `src/store/useTaskStore.test.ts`
+- `src/components/TimelineHeader.tsx` (新規 2段ヘッダーコンポーネント)
+- `src/hooks/useGanttTimeline.ts` (タスクデータ駆動の日付範囲ロジック)
 
 ---
 
 ## 履歴 (History)
 
-### GanttTimelineRow 共通コンポーネント抽出によるコードベース見通し改善 (May 24, 2026)
+### タイムラインヘッダー 2段化 ＆ タスクデータ駆動の日付範囲計算 (May 24, 2026)
+- **Dayスケールで月が不明な問題を解決**:
+  - `src/components/TimelineHeader.tsx` を新規作成。Day/Week → 上段に年月・下段に日/週番号+曜日、Month → 上段に年・下段に月名、Year → 1段のみ。
+  - 月の境目（グループ境界）に `border-l-2` 太線を入れて視覚的に強調。
+  - ヘッダー高さ: `HEADER_HEIGHT = 56px`（グループ行20px + 詳細行36px）。
+  - `GanttChart.tsx` と `IntegratedView.tsx` のインラインヘッダー描画コードを `<TimelineHeader>` に一本化（重複排除）。
+- **タイムライン日付範囲のタスクデータ駆動化**:
+  - `useGanttTimeline.ts` を全面改修。`tasks` ストアを購読して全タスクの日付（startDate, endDate, planStartDate, planEndDate）から min/max を算出し、viewMode別マージンを付与。
+  - タスクが0件または全日付未設定の場合は今日基準のフォールバック。
+  - `types.ts` の `ProjectConfig` に `timelineRange?: { start: string; end: string }` を追加（将来のユーザー手動指定用）。
+  - タイムライン範囲変更に伴い `GanttChart.test.tsx` の期待値を更新。78テスト全件合格。
+
+
 - **重複した約320行のタイムライン行描画JSXを共通コンポーネントへ一元化**:
   - `IntegratedView.tsx` と `GanttChart.tsx` の両ファイルに100%同じ内容で重複していたタイムライン行の描画（グリッド背景、予定バー・実績バー、D&Dムーブ・リサイズ・依存関係コネクタハンドラ）を、新規の `src/components/GanttTimelineRow.tsx` に完全抽出・カプセル化。
   - `IntegratedView.tsx` が約670行 → **約370行**、`GanttChart.tsx` が約800行 → **約490行**へとそれぞれ大幅にスリム化し、各ビューの全体構造（WBS Outliner列とタイムライン列の横並び、カスタムフックとの接続）が一目で把握できる見通しの良いコードへ刷新。

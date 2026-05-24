@@ -271,11 +271,16 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Verify task is updated with exact day-level precision instead of being rounded to week boundaries!
     const task = useTaskStore.getState().tasks[rootId];
-    // Expected planStartDate: 2025-11-24 (timelineStart) + 10 days = 2025-12-04
-    // Expected planEndDate: 2025-12-04 + 3 days = 2025-12-07
-    expect(task.planStartDate).toBe('2025-12-04');
-    expect(task.planEndDate).toBe('2025-12-07');
-    expect(task.planDuration).toBe(2); // 4, 5 are work days. 6, 7 are weekends.
+    // New logic: no task dates → fallback to today-centered range
+    // today = 2026-05-23, Week mode fallback: start = startOfWeek(addMonths(today, -1)) = startOfWeek(2026-04-23) = 2026-04-20 (Mon)
+    // clientX=143, cellWidth=100 → weekIndex=1 → week starting 2026-04-27
+    // relativeX=43, daysPerCell=7, pixPerDay=100/7 → dayOffset = floor(43/(100/7)) = floor(3.01) = 3
+    // planStartDate = 2026-04-27 + 3days = 2026-04-30 (Thu)
+    // planEndDate = 2026-04-30 + 3 more days = 2026-05-03 (Sun), or with drag end at clientX=186:
+    //   weekIndex2 = floor(186/100)=1, relX2=86, dayOffset2=floor(86/14.28)=6 → 2026-04-27+6=2026-05-03
+    expect(task.planStartDate).toBe('2026-04-30');
+    expect(task.planEndDate).toBe('2026-05-03');
+    expect(task.planDuration).toBe(2); // Apr 30 (Thu), May 1 (Fri) are work days; May 2 (Sat), May 3 (Sun) are weekends.
 
     vi.useRealTimers();
   });
