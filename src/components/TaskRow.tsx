@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { calculateEndDate, getWorkDaysCount } from '../utils/date';
-import { format } from 'date-fns';
+
 import type { TaskFocusableField } from '../types';
+import { useTaskRowLocalState } from '../hooks/useTaskRowLocalState';
 
 interface TaskRowProps {
   taskId: string;
@@ -79,31 +79,27 @@ export const TaskRow = ({
   const startDateInputRef = useRef<HTMLInputElement>(null);
   const endDateInputRef = useRef<HTMLInputElement>(null);
 
-  // Local state for performant typing and IME support
-  const [localTitle, setLocalTitle] = useState(task?.title || '');
-  const [localDescription, setLocalDescription] = useState(task?.description || '');
-  const [localAssignee, setLocalAssignee] = useState(task?.assignee || '');
-  const [localDeliverables, setLocalDeliverables] = useState(task?.deliverables || '');
-  const [localStatus, setLocalStatus] = useState(task?.status || '');
-  const [localProgress, setLocalProgress] = useState(task?.progress !== undefined ? String(task.progress) : '0');
+  // Local state for performant typing and IME support (handled by hook)
+  const {
+    localTitle,
+    setLocalTitle,
+    localDescription,
+    setLocalDescription,
+    localAssignee,
+    setLocalAssignee,
+    localDeliverables,
+    setLocalDeliverables,
+    localStatus,
+    setLocalStatus,
+    localProgress,
+    setLocalProgress,
+    commitFieldLocalState,
+  } = useTaskRowLocalState(taskId, task);
+
   const isComposing = useRef(false);
-  const taskTitle = task?.title ?? '';
-  const taskDescription = task?.description || '';
-  const taskAssignee = task?.assignee || '';
-  const taskDeliverables = task?.deliverables || '';
 
   // Baseline Lock State
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
-
-  // Sync local state if external state changes (e.g. undo/redo, or other user)
-  useEffect(() => {
-    setLocalTitle(taskTitle);
-    setLocalDescription(taskDescription);
-    setLocalAssignee(taskAssignee);
-    setLocalDeliverables(taskDeliverables);
-    setLocalStatus(task?.status || '');
-    setLocalProgress(task?.progress !== undefined ? String(task.progress) : '0');
-  }, [taskAssignee, taskDeliverables, taskDescription, taskTitle, task?.status, task?.progress]);
 
   const {
     attributes,
@@ -167,26 +163,6 @@ export const TaskRow = ({
   }, [focusedTaskField, focusedTaskId, showDetails, taskId]);
 
   if (!task) return null;
-
-  // Save local state to the global store for the specified field if there are changes
-  const commitFieldLocalState = (field: TaskFocusableField) => {
-    if (field === 'title' && task.title !== localTitle) {
-      updateTask(taskId, { title: localTitle });
-    } else if (field === 'description' && task.description !== localDescription) {
-      updateTask(taskId, { description: localDescription });
-    } else if (field === 'assignee' && task.assignee !== localAssignee) {
-      updateTask(taskId, { assignee: localAssignee });
-    } else if (field === 'deliverables' && task.deliverables !== localDeliverables) {
-      updateTask(taskId, { deliverables: localDeliverables });
-    } else if (field === 'status' && task.status !== localStatus) {
-      updateTask(taskId, { status: localStatus });
-    } else if (field === 'progress') {
-      const parsed = Math.min(100, Math.max(0, parseInt(localProgress) || 0));
-      if (task.progress !== parsed) {
-        updateTask(taskId, { progress: parsed });
-      }
-    }
-  };
 
   const handleArrowNavigation = (
     e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,

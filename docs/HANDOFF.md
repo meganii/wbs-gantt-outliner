@@ -306,3 +306,10 @@ pnpm run make
   - `TaskRow.tsx` の日付入力の `onChange` ハンドラが極めてシンプルに。
   - 手動指定やドラッグ時等で競合が起きないよう、整合データが一度に updates に渡された場合は自動計算をスキップする洗練されたクランプ処理をストア側に実装。
   - 既存の 72 個のテストすべてが完全に通過することを確認済み。
+
+## Refactoring TaskRow - Step 2 Completed (May 24, 2026)
+
+- `TaskRow.tsx` のリファクタリング計画の Step 2 (ローカル入力状態のカスタムフック抽出) を実装完了:
+  - `src/hooks/useTaskRowLocalState.ts` を新規作成し、パフォーマンス確保と IME 入力対応のためのローカルな入力状態（`localTitle`, `localDescription`, `localAssignee`, `localDeliverables`, `localStatus`, `localProgress`）、外部の Undo/Redo 時の自動的な状態同期（`useEffect`）、および変更値をストアに安全に保存する `commitFieldLocalState` メソッドをこの Hook 内へ集約。
+  - `TaskRow.tsx` の上部を占めていた大量の `useState` / `useEffect` およびインラインのコミット処理をこのフックの呼び出しに完全に置き換えることで、コードの見通しを大幅に改善。
+  - 既存の 72 個のテストがすべて問題なくパスすることを確認済み。
