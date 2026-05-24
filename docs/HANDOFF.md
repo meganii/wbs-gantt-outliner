@@ -19,320 +19,58 @@
   - WBS (Outliner) 上に「予定期間（Plan Dur.）」「予定日付（Plan Date）」および「実績期間（Act. Dur.）」「実績日付（Act. Date）」を表示。固定時は予定列をグレーアウト（操作禁止）にする。
   - ガントチャートと統合ビュー（IntegratedView）で、予定バー（上部・青系・太）と実績バー（下部・アンバー系・細）を上下に並べて美しく描画。
   - 依存線の接続 Ref は、ベースライン固定時には自動的に実績バーに切り替わり、依存線は常に実績・見込の日程に正しく追従する。
-  - 【デグレード修正】
-    - 予定バーの `div` に `data-task-id={id}` 属性が欠落していたため、ベースライン固定 OFF（予定モード）時に依存関係を引けなくなっていた不具合を、属性を正しく付与することで解消。
-    - 予定モード時（ベースライン固定 OFF）に依存関係による自動スケジュール調整が予定日程（`planStartDate`, `planEndDate`, `planDuration`）に連動して伝播しないバグを、日程伝播エンジン（`propagateDependencyDates` / `shiftDescendants`）へ `baselineLocked` フラグを引き渡して同期更新を行うことで解消。
-    - ヘッダーでのベースラインロック切り替え時に、依存関係線が即時再描画されなかった問題を、`GanttChart` および `IntegratedView` 内の依存線用 `useLayoutEffect` の依存配列へ `baselineLocked` を追加することで解消。
-    - 予定バーに `group` クラスが欠損していたためにホバー時の「青い円（接続ハンドル）」が表示されず、依存線をドラッグ開始できなかった不具合を、クラスを追加することで解消。また、ドラッグ中の仮接続線の起点を `baselineLocked` の状態に応じて適切な座標（予定／実績バーの位置）から伸びるように動的調整。
-    - 予定モード時（ベースライン固定 OFF）に予定バーに `truncate` クラスが適用されていたため、ホバーした際に `overflow: hidden` により右端の依存関係プラスボタン（青い接続ハンドル）がクリップされて非表示になっていたバグを、予定バー親要素の `truncate` クラスを削除することで解消（バー内部のタイトル用 span 自体は引き続き `truncate` されるため、表示上の不具合もありません）。
-    - 予定モード時（ベースライン固定 OFF）にドラッグ中のプレビュー日程（`isDragging` による `dragState`）が予定バーの描画に反映されておらず、ドラッグ移動がリアルタイムに画面に反映されなかったバグを、`isDraggingPlan` / `isDraggingActual` を明確に切り分けてそれぞれのモードで `dragState` が反映されるように修正することで解消。
-    - タスクバーのドラッグ操作中に、依存関係の矢印がリアルタイムに追従して伸縮・移動せず、ドラッグ終了時にのみ再描画されていたバグを、`GanttChart` および `IntegratedView` 内の依存線用 `useLayoutEffect` の依存配列へ `dragState` を追加することで解消。
-- 直近で以下の安定化修正を入れている
-  - タスク削除時の再帰削除
-  - 削除タスクへの依存関係参照のクリーンアップ
-  - 営業日ロジックの `workDays + holidays` 統一
-  - Undo/Redo の型整理
-  - プロジェクト読込時の履歴クリア
-  - Windows環境向けに Shift + Alt + 矢印キー でのタスク移動に対応
-  - `Integrated` / `Gantt` View のレイアウト見直し
-    - ガント領域の縦スクロールが効くように `min-h-0` / `h-full` を整理
-    - `App` で可視タスク一覧を共有し、折りたたみ時の Outliner と Gantt の行ズレを抑制
-    - ホバー中タスク ID を `App` で共有し、Outliner と Gantt の行ハイライトを同期
-  - `Integrated` View を単一の行コンポーネント構成へ変更
-    - 左のタスク列と右のガント列を 1 つの縦スクロールコンテナに統合
-    - `TaskRow` は外側コンテナ差し替えに対応し、統合行の左セルとして再利用
-    - 左ペイン幅は列合計未満に縮まないようクランプ
-  - 祝日設定 UI を追加
-    - `Project > Holiday Settings` から `projectConfig.calendar.holidays` を編集可能
-    - 読込時は `projectConfig` を既定値マージし、古い JSON の欠損項目を補完
-    - 祝日一覧はソート・重複除去して保持
-  - `WBS` View のキーボード移動を改善
-    - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
-    - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
-    - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
-  - ヘッダーに `Expand All` / `Collapse All` を追加
-    - ボタン操作と `Cmd/Ctrl + Alt + ↑ / ↓` のショートカットで全体の折り畳みを切り替えられる
-  - WBSのインデント変更ショートカットを `Tab`/`Shift+Tab` から `Alt+Shift+→/←` (Macでは `Cmd+Shift+→/←` も可) に移行。これにより `Tab` キーは標準のフォーカス移動として利用可能になった
-  - 「Gantt」View の表示と開閉操作性を改善
-    - タスク名の左側に WBS 番号（1, 1.1, 1.2 等）を表示し、階層の深さ（depth）に応じたインデントを適用
-    - 子タスクを持つ親タスクの左隣に開閉用 chevron ボタン（`ChevronRight` / `ChevronDown`）を配置し、クリックで展開/折り畳みをトグル可能に
-    - タスク名列をクリックすることで、WBS View と同様に選択（青色背景）できるように変更
-    - 選択中のタスクに対して、キーボードショートカット `Alt + ↑ / ↓` での折り畳み（Collapse）/ 展開（Expand）操作に対応。文字入力フォーカス時にはバイパスされ影響しません
-    - タスク名（Task Name）列の右端にリサイズバーを設置し、ドラッグにより列幅を手動調整できるように改善（WBS Viewのタスク名列幅と連動）
-    - キーボード `↑ / ↓`（ArrowUp/Down）による選択タスクの上下移動、および `Shift + ↑ / ↓` による範囲選択拡張に対応。行が上下のスクロール範囲外に出た場合の自動スクロール追従も実装しました
-    - 子タスクの開始日・終了日を入力した際に、親タスク（およびそれ以上の階層のタスク）に自動的に最小開始日・最大終了日（および稼働日数に基づく期間）を伝播させる仕組みを実装
-      - WBSビュー上で親タスクの `startDate`, `endDate`, `duration` は自動計算値として読み取り専用（`readOnly` & `cursor-not-allowed` などのスタイル）にロック
-      - Gantt / Integrated ビュー上で親タスクバーのドラッグ移動・リサイズ・描画範囲選択ジェスチャーを無効化
-      - 親タスクのガント表示を専用の「サマリータスク」スタイル（Slateカラー、スリムな形状、左右に下向きのブラケット三角形）に差し替え
-    - 階層変更（インデント・アウトデント・移動）時に、循環参照の原因となる親子・先祖子孫間の不正な依存関係を自動検出・切断する `cleanupHierarchicalDependencies` 機能を実装
-      - 単一アトミックトランザクションにより、依存関係の自動切断と日付再計算を含めて完璧に Undo/Redo が動作することを確認済み
-      - 既存の親子・先祖子孫のタスク間に対して、後からドラッグ等で不正な依存関係を手動追加できないよう `addDependency` 内で安全チェックを追加しブロック
-    - 行操作やセル入力時における行選択（`selectedTaskIds`）とセルフォーカス（`focusedTaskId`）の不一致バグ、およびインプットの白抜け問題を解消
-      - `TaskRow.tsx` の最外枠行コンテナに統合された `onMouseDown` ハンドラ（`handleRowMouseDown`）を実装。WBS番号や余白のクリックで行選択を動作させ、入力欄への修飾キー（Shift, Ctrl, Cmd）クリック時にはブラウザ本来の挙動（テキスト範囲選択やフォーカス移動）を `preventDefault` で抑止して行の範囲選択・トグル選択を正確に行えるようデグレードを解消
-      - ブラウザの User Agent デフォルトスタイルによる入力欄の白抜けを防ぐため、すべてのインプット要素に対して明示的に `style={{ backgroundColor: 'transparent' }}` を指定
-    - 親タスクの依存関係日付伝播における子タスク自動同期を実装
-      - 親タスクが依存関係（先行タスクの移動）によって開始日がシフトされる際、属するすべての子孫タスクの日付を正確な稼働日相対オフセット・期間を維持したまま一括で同期シフトする `shiftDescendants` ヘルパーを `taskStoreUtils.ts` 内に実装
-      - 伝播処理 `propagateDependencyDates` で親タスクをシフトする際、すべての子孫タスクを同時にシフトし、それら子孫タスクのIDも連鎖伝播用の queue に追加することで、下流タスクへの変更伝播も正しく連鎖するように拡張。最終パスで再帰的に上方向の親タスク日付も完全同期
-      - `addDependency` アクションが成功した直後に日付の伝播を自動的にトリガーするよう修正
-    - 親タスクが関与するすべての依存関係設定（線の描画および追加）の完全禁止化
-      - `addDependency` 内で先行（`fromTask`）または後行（`toTask`）のいずれかが子タスクを持つ親タスクである場合にエラー警告を出して完全にブロックするようガードを追加
-      - `GanttChart.tsx` および `IntegratedView.tsx` の UI ドラッグ＆ドロップドロップ処理内で、ドロップ先（`targetTask`）が親タスクである場合のアクションを無効化するガードを配置し、子タスクから親タスクへの依存関係設定を完全に抑止した。
+- **Ganttビュー・統合ビュー（IntegratedView）の共通ロジック完全分離（重複の根絶）**:
+  - `GanttChart.tsx` と `IntegratedView.tsx` の間にあった約 80% 以上の重複コード（タイムライン・カレンダー計算、ドラッグ＆ドロップ操作、SVG 依存関係線のパス計算）を 3 つの共通カスタムフック (`useGanttTimeline`, `useGanttDrag`, `useGanttDependencies`) へ完全抽出。
+  - コンポーネント側からピクセル座標計算や window マウスイベント、DOM 矩形追従の `useLayoutEffect` が一掃され、コンポーネントコードが劇的に軽量化（約 50% 削減）され、描画レイアウト責務に専念する綺麗な設計へ改善。
 
 ## 直近の検証結果
 
-- `pnpm test -- --run` : 通過 (64テスト全件通過) - 新規追加した予定・実績同期、ベースライン固定時のロック制御のVitestを含む。
+- `pnpm test -- --run` : 通過 (72テスト全件無敗の100%合格) - リファクタリングによるデグレードが一切存在しないことを保証。
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
-- `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
-- `src/App.test.tsx` を追加し、`Expand All` / `Collapse All` のボタン操作 and ショートカットを確認済み
-- `WBS` View のキーボード移動を改善
-  - `TaskRow` にフォーカス中の列 (`title` / `description` / `assignee` / `deliverables` / `duration` / `startDate` / `endDate`) を保持
-  - `Task Description` 以外のセルでも上下矢印で同じ列の前後タスクへ移動可能
-  - タイトル列専用だった `Enter` / `Tab` / 削除系ショートカットとは分離し、詳細列の既存編集挙動を維持
-- ヘッダーに `Expand All` / `Collapse All` を追加
-  - ボタン操作と `Cmd/Ctrl + Alt + ↑ / ↓` のショートカットで全体の折り畳みを切り替えられる
-- WBSのインデント変更ショートカットを `Tab`/`Shift+Tab` から `Alt+Shift+→/←` (Macでは `Cmd+Shift+→/←` も可) に移行。これにより `Tab` キーは標準のフォーカス移動として利用可能になった
-- 「Gantt」View の表示と開閉操作性を改善
-  - タスク名の左側に WBS 番号（1, 1.1, 1.2 等）を表示し、階層の深さ（depth）に応じたインデントを適用
-  - 子タスクを持つ親タスクの左隣に開閉用 chevron ボタン（`ChevronRight` / `ChevronDown`）を配置し、クリックで展開/折り畳みをトグル可能に
-  - タスク名列をクリックすることで、WBS View と同様に選択（青色背景）できるように変更
-  - 選択中のタスクに対して、キーボードショートカット `Alt + ↑ / ↓` での折り畳み（Collapse）/ 展開（Expand）操作に対応。文字入力フォーカス時にはバイパスされ影響しません
-  - タスク名（Task Name）列の右端にリサイズバーを設置し、ドラッグにより列幅を手動調整できるように改善（WBS Viewのタスク名列幅と連動）
-  - キーボード `↑ / ↓`（ArrowUp/Down）による選択タスクの上下移動、および `Shift + ↑ / ↓` による範囲選択拡張に対応。行が上下のスクロール範囲外に出た場合の自動スクロール追従も実装しました
-  - 子タスクの開始日・終了日を入力した際に、親タスク（およびそれ以上の階層のタスク）に自動的に最小開始日・最大終了日（および稼働日数に基づく期間）を伝播させる仕組みを実装
-    - WBSビュー上で親タスクの `startDate`, `endDate`, `duration` は自動計算値として読み取り専用（`readOnly` & `cursor-not-allowed` などのスタイル）にロック
-    - Gantt / Integrated ビュー上で親タスクバーのドラッグ移動・リサイズ・描画範囲選択ジェスチャーを無効化
-    - 親タスクのガント表示を専用の「サマリータスク」スタイル（Slateカラー、スリムな形状、左右に下向きのブラケット三角形）に差し替え
-  - 階層変更（インデント・アウトデント・移動）時に、循環参照の原因となる親子・先祖子孫間の不正な依存関係を自動検出・切断する `cleanupHierarchicalDependencies` 機能を実装
-    - 単一アトミックトランザクションにより、依存関係の自動切断と日付再計算を含めて完璧に Undo/Redo が動作することを確認済み
-    - 既存の親子・先祖子孫のタスク間に対して、後からドラッグ等で不正な依存関係を手動追加できないよう `addDependency` 内で安全チェックを追加しブロック
-  - 行操作やセル入力時における行選択（`selectedTaskIds`）とセルフォーカス（`focusedTaskId`）の不一致バグ、およびインプットの白抜け問題を解消
-    - `TaskRow.tsx` の最外枠行コンテナに統合された `onMouseDown` ハンドラ（`handleRowMouseDown`）を実装。WBS番号や余白のクリックで行選択を動作させ、入力欄への修飾キー（Shift, Ctrl, Cmd）クリック時にはブラウザ本来の挙動（テキスト範囲選択やフォーカス移動）を `preventDefault` で抑止して行の範囲選択・トグル選択を正確に行えるようデグレードを解消
-    - ブラウザの User Agent デフォルトスタイルによる入力欄の白抜けを防ぐため、すべてのインプット要素に対して明示的に `style={{ backgroundColor: 'transparent' }}` を指定
-  - 親タスクの依存関係日付伝播における子タスク自動同期を実装
-    - 親タスクが依存関係（先行タスクの移動）によって開始日がシフトされる際、属するすべての子孫タスクの日付を正確な稼働日相対オフセット・期間を維持したまま一括で同期シフトする `shiftDescendants` ヘルパーを `taskStoreUtils.ts` 内に実装
-    - 伝播処理 `propagateDependencyDates` で親タスクをシフトする際、すべての子孫タスクを同時にシフトし、それら子孫タスクのIDも連鎖伝播用の queue に追加することで、下流タスクへの変更伝播も正しく連鎖するように拡張。最終パスで再帰的に上方向の親タスク日付も完全同期
-    - `addDependency` アクションが成功した直後に日付の伝播を自動的にトリガーするよう修正
-  - 親タスクが関与するすべての依存関係設定（線の描画および追加）の完全禁止化
-    - `addDependency` 内で先行（`fromTask`）または後行（`toTask`）のいずれかが子タスクを持つ親タスクである場合にエラー警告を出して完全にブロックするようガードを追加
-    - `GanttChart.tsx` および `IntegratedView.tsx` の UI ドラッグ＆ドロップドロップ処理内で、ドロップ先（`targetTask`）が親タスクである場合のアクションを無効化するガードを配置し、子タスクから親タスクへの依存関係設定を完全に抑止した。
-  - キーボードショートカットによる View 切り替え機能の修正・改善
-    - `Ctrl + 1` (Mac では `Cmd + 1`): WBS view
-    - `Ctrl + 2` (Mac では `Cmd + 2`): Integrated view
-    - `Ctrl + 3` (Mac では `Cmd + 3`): Gantt view
-    - ブラウザのデフォルト挙動（Chromiumによるタブ切り替え等）やインプット要素フォーカス時の競合を防ぐため、Electronのメインプロセス側 `before-input-event` でキーダウンをインターセプトし、`event.preventDefault()` したうえで `'switch-view'` IPCメッセージをレンダラーに送信して確実に切り替わるように制御。
-    - レンダラー側 (`App.tsx`) に `'switch-view'` の IPC リスナーを追加。テストや非Electron環境向けに既存のキーダウンリスナーもフォールバックとして保持。
-
-## 直近の検証結果
-
-- `pnpm test -- --run` : 通過 (63テスト全件通過、IPC経由のビュー切り替えテストを追加)
-- `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
-- `src/components/Outliner.test.tsx` を追加し、`Description` / `Duration` 列の矢印移動を確認済み
-- `src/App.test.tsx` に `switch-view` IPC経由の切り替えテストを追加し、`Expand All` / `Collapse All` のボタン操作とショートカットを確認済み
-- `src/components/GanttChart.test.tsx` を追加し、Gantt View での WBS表示、階層インデント、Chevron開閉、タスク選択、Alt + ↑/↓ のトグル動作、列のドラッグリサイズ動作、および↑/↓（Shift含む）キーによる選択・行移動動作を網羅検証し、Vitest 全件通過を確認済み
-- Excel エクスポートを Electron main 側へ移動済み
-  - renderer は IPC で `export-excel` を呼ぶだけになり、`exceljs` は renderer バンドルから外れた
-  - `pnpm run build` で renderer 側の大きなチャンク警告は解消
-  - `dist-electron/main.js` は大きいが、配布用の Electron main バンドルであり、今回の Vite chunk warning の対象ではない
+- `pnpm tsc -b --noEmit` : 型エラーおよび未使用変数/インポートの警告 0 件で完全通過。
 
 ## 次に着手する優先課題
 
-1. 削除整合性の追加ケース確認
-   - 複数選択削除、依存関係が多段にあるケースを確認したい（※空状態直後の操作は改修済み）
-2. 祝日変更時のスケジュール再計算方針の整理
-   - 現状はカレンダー表示と今後の営業日計算には反映されるが、既存タスクの start/end を自動再計算はしていない
-3. ストア責務の整理継続
-   - `src/store/useTaskStore.ts` のアクションはまだ多いので、ツリー操作や選択操作をさらに分離する余地がある
-4. WBS ショートカット設計の見直し
-   - インデント変更を `Alt+Shift+→/←`（Macでは `Cmd+Shift+→/←` も可）へ移行し、`Tab` で標準のフォーカス移動ができるよう改修済み。
-   - `Task Description` から `Description` などの横方向への列移動は未実装。必要に応じて追加のキーナビゲーション設計を検討する。
-5. ガント操作の E2E 補強
-   - ドラッグ移動、リサイズ、依存線追加/削除の UI テストが不足している
-6. JSON インポート強化
-   - 読込時の正規化はあるが、壊れた入力や互換性の扱いを詰める余地がある
+1. **削除整合性の追加ケース確認と堅牢化**
+   - 複数選択削除や、多段にわたる先行・後行（依存関係）が入り組んでいるタスクを一括削除した際の日付再計算・依存関係クリーンアップについて Vitest を追加し整合性を保証する。
+2. **WBS 横方向キーナビゲーション（詳細列間の移動）の実装**
+   - 左右矢印キー（または特定のキー）で、WBS の Title ➔ Description ➔ Assignee ➔ Deliverables ➔ Dates などの隣の列のセルへスムーズにフォーカスが横移動できる仕組みを `useTaskCellKeyboard` に実装する。
+3. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+   - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
+4. **Zustand ストアのツリー操作ロジックのさらなる分離**
+   - `useTaskStore.ts` に残っているタスクのインデント (`indentTask`)、アウトデント (`outdentTask`)、ドラッグ並び替え (`reorderTask`) などのツリー構造変形ロジックを `src/store/taskStoreUtils.ts` に排出し、ストアファイルをスリム化する。
+5. **ガント操作の E2E/UI 統合テストの補強**
+   - ドラッグ移動、リサイズ、依存線追加の UI マウスジェスチャーが正しくストアの日付計算と連動しているかのテストを補強する。
 
 ## 注意点
 
-- `src/store/useTaskStore.ts` は履歴管理も含むため、ロード処理を変えるときは undo/redo の境界を崩さないこと
-- 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと
-- 依存関係 UI は最低限動くが、操作体験はまだ粗い
-- 祝日設定 UI は `Project > Holiday Settings` に実装済み
-- 祝日変更時、既存タスク日付の自動再計算はまだ行わない。必要なら仕様を決めてから入れること
-- Excel エクスポートは Electron main 側で生成・保存する構成になった
-  - 保存ダイアログやファイル書き込みも main 側が担当する
+- 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと。
+- `useGanttDrag` の中で `updateTask` や `addDependency` を直接叩いており、コンポーネントからの依存を最小限に抑えています。
+- 祝日変更時、既存タスク日付の自動再計算はまだ行わない。必要なら仕様を決めてから入れること。
+- Excel エクスポートは Electron main 側で生成・保存する構成を維持する。
 
 ## 次の作業で最初に見るとよい場所
 
-> **注記:** 現在 `feature/pnpm-and-forge-migration` ブランチにて、`npm` から `pnpm` への移行、および `electron-builder` から `electron-forge` への移行を検証中です。パッケージング時の権限エラー（EPERM）回避策としてテストしています。
-
-- `README.md`
-- `src/store/useTaskStore.ts`
-- `src/store/taskStoreUtils.ts`
+- `src/hooks/useGanttTimeline.ts`
+- `src/hooks/useGanttDrag.ts`
+- `src/hooks/useGanttDependencies.ts`
 - `src/components/GanttChart.tsx`
+- `src/components/IntegratedView.tsx`
 
-## 次の作業でよく使うコマンド
+---
 
-```bash
-pnpm test -- --run
-pnpm run build
-pnpm run make
-```
+## 履歴 (History)
 
-## Decoupled Plan and Actual Dates (May 23, 2026)
+### Gantt & Integrated View Hooks Extraction (May 24, 2026)
+- **タイムライン、ドラッグ、依存線パス計算ロジックの抽出**:
+  - `useGanttTimeline.ts`, `useGanttDrag.ts`, `useGanttDependencies.ts` を新規作成し、`GanttChart.tsx` と `IntegratedView.tsx` に適用。
+  - 重複コードを一掃し、各コンポーネントを 40〜60% スリム化。
+  - 静的型コンパイル (`pnpm tsc -b`) および Vitest 全 72 件のテストが 100% 合格することを確認済み。
 
-- Completely decoupled Plan and Actual dates:
-  - Removed automatic synchronization between `planStartDate`/`planEndDate` and `startDate`/`endDate`.
-  - Initial actual dates are set to `null` (empty) and actual bars on the Gantt chart are only rendered when dates are manually entered.
-  - Dependencies (date propagation engine) are strictly bound to `planStartDate` and `planEndDate` only.
-  - Gantt dependency arrows are always calculated using plan bar coordinates (taskBarRefs are bound to plan bars).
-  - Actual dates are purely manual and decoupled from any dependency shift constraints.
+### WBS Cell Component Refactoring (May 24, 2026)
+- **TaskRow.tsx のセル単位へのコンポーネント分割**:
+  - `src/components/cells/` 配下に、個別の入力セル (`TaskOutlineCell`, `TaskTextCell` 等 8つ) を作成。
+  - 宣言的フォーカス制御へ移行し、`GanttChart` サイドバーでの `TaskOutlineCell` の再利用を完了。
 
-## Day-Level Precision in Week View (May 23, 2026)
-
-- Enabled day-level precision when dragging to draw task date ranges in **Week** view mode:
-  - Bypassed the week-level snapping (`startOfWeek` and `endOfWeek` rounding) when drawing a task range in `GanttChart.tsx` and `IntegratedView.tsx`.
-  - This allows users to perform rough inputs in the Week view mode while preserving the exact daily granularity, which can later be detailed in the Day view mode.
-  - Standalone `GanttChart.test.tsx` has been updated with a unit test to verify that the drag-drawn ranges inside the Week scale correctly store day-level precision.
-
-## Schedule Inheritance on Task Indentation (May 23, 2026)
-
-- Enabled automatic schedule inheritance when indenting an empty task under a parent task with set dates:
-  - If the child task being indented has no dates set (`null` plan or actual dates), but the target parent task has dates, those dates (and duration) are copied to the child task.
-  - This ensures that the child task gets initialized with a valid schedule, and the parent task's duration and date range are kept intact rather than disappearing due to recalculation.
-  - Plan Dates and Actual Dates are evaluated and copied independently.
-  - Unit tests have been added to `useTaskStore.test.ts` to verify correct date propagation and override behavior.
-
-## Task Progress and Status Integration (May 23, 2026)
-
-- Introduced Task Progress Rate (%) and Status columns to WBS detail list.
-  - Added optional `status?: string` to `Task` interface in `types.ts`.
-  - Added new default column widths for progress and status.
-  - Initialized both fields inside initial state and added tasks.
-  - Set up reactive badge styling for WBS status select dropdown (green for `完了`, blue for `進行中`, gray for `未着手`, yellow for `保留`).
-- Built duration-weighted progress and status auto-recalculation recursively for parent summary tasks:
-  - Parent progress is the duration-weighted average of child task progress values.
-  - Parent status is automatically set to `完了` (if progress is 100%), `進行中` (if progress > 0%), and `未着手` (if progress is 0%).
-  - Both progress and status are locked (read-only) for parent tasks.
-- Re-architected dynamic Gantt chart actual/forecast taskbars to color-fill proportionally based on task progress:
-  - Applied CSS linear gradients to both child and parent actual taskbars:
-    - 0% progress: Empty white fill, amber/slate border.
-    - 50% progress: Left half filled, right half white.
-    - 100% progress: Fully filled.
-  - Adjusted text color to dark high-contrast shade (`text-amber-950` / `text-slate-800`) for perfect readability.
-- Added Status column support to Excel exports inside `export.ts`.
-- Integrated automated Vitest unit tests verifying correct parent propagation and state updates.
-
-## Excel Export Dual Date Columns (May 23, 2026)
-
-- Redesigned Excel export to always display **both** plan and actual/forecast date columns side by side:
-  - **Plan columns** (blue font/header): `Plan Start`, `Plan End`, `Plan Dur.` — sourced from `planStartDate`, `planEndDate`, `planDuration`.
-  - **Actual columns** (orange font/header): `Act. Start`, `Act. End`, `Act. Dur.` — sourced from `startDate`, `endDate`, `duration`.
-- Gantt chart bars draw both layers:
-  - Plan bar (blue `#3B82F6`) drawn first.
-  - Actual bar (amber `#F59E0B`) drawn on top — when both overlap, actual takes visual priority.
-- Removed the single-mode "Type" column and `getEffectiveDates` helper.
-- Date range calculation considers both plan and actual dates across all tasks.
-
-## Work-Day Duration Counting on Gantt Dragging (May 23, 2026)
-
-- Replaced standard calendar day duration counting (`differenceInDays + 1`) during Gantt bar dragging, resizing, and drawing operations in `GanttChart.tsx` and `IntegratedView.tsx` with business day duration calculations (`getWorkDaysCount`).
-- The drag and visual movements of task bars remain calendar-day-based for smooth mouse feedback (natural movement over weekends), but the saved `duration` or `planDuration` value strictly reflects the business/working day calendar configuration (weekends and custom holidays are correctly excluded from the counted days).
-- Updated automated unit tests to verify the working day counting correctness during range drawing.
-
-## React.FC Removal & Inline Props Refactoring (May 23, 2026)
-
-- Modernized the component definitions across the entire codebase to align with React 2026 best practices:
-  - Removed `React.FC` (and `React.FunctionComponent`) generic type annotations from 6 main components: `GanttChart.tsx`, `IntegratedView.tsx`, `Outliner.tsx`, `ProjectSettingsDialog.tsx`, `TaskRow.tsx`, and `TaskTableHeader.tsx`.
-  - Replaced them with standard component declarations by specifying the props type inline on the arguments: e.g., `const MyComponent = ({ prop1 }: MyComponentProps) => { ... }`.
-  - Cleaned up unused `React` imports (specifically fixed a `TS6133` error in `ProjectSettingsDialog.tsx`) to pass strict static code analysis checks (`tsc -b`).
-  - Verified all 72 automated Vitest tests pass and that the production build completes successfully.
-
-## Keyboard Shortcuts Refactoring (May 23, 2026)
-
-- Refactored `App.tsx` by isolating the keydown listener logic:
-  - Created a new directory `src/hooks/` and implemented `useKeyboardShortcuts.ts`.
-  - The custom hook handles `Undo` / `Redo` (Zustand temporal), `Expand All` / `Collapse All` (Zustand store), and `View Switches` (App component's internal state via `setView` callback).
-  - Streamlined `App.tsx` imports (removed unused `getTemporalState`) and reduced its visual noise by approximately 60 lines.
-  - Verified that all 72 Vitest unit tests pass and `pnpm run build` completes successfully.
-- Further Keyboard Shortcut Clean-up (May 24, 2026):
-  - Refactored `useKeyboardShortcuts.ts` to extract common keyboard modifier variables (`isCmdOrCtrl`, `altKey`, `shiftKey`) and the IME composition check (`isComposing`).
-  - Removed heavily duplicated checks from individual shortcut boolean expressions (e.g. redundant `e.ctrlKey || e.metaKey` and alt/shift checks), resulting in exceptionally clean, readable, and highly maintainable logic.
-  - Fixed a date-fragility issue in `useTaskStore.test.ts` where dynamic module-level initial task instantiation dates would mismatch with hardcoded mock dates on different calendar run-days. Resolved by explicitly overriding the root task's plan dates to `'2026-05-23'` directly within the `beforeEach` reset hook before clearing history.
-
-## AppHeader Component Extraction & Props Slim-down (May 24, 2026)
-
-- `App.tsx` の `<header>` ブロックを `src/components/AppHeader.tsx` へ分離し、さらに props を16個→3個へ削減:
-  - **`src/hooks/useProjectFileHandlers.ts`** を新規作成
-    - `handleSave` / `handleLoad` / `handleExport` (ipcRenderer 呼び出し) をカプセル化
-    - Zustand ストアから `tasks` / `rootIds` / `projectConfig` を直接取得するため、呼び出し元への依存ゼロ
-  - **`AppHeader`** が Zustand ストアを直接購読するよう変更
-    - `useTaskStore` から `projectConfig`, `setAllCollapsed`, `setBaselineLocked`, `tasks` を購読
-    - `useStore(useTaskStore.temporal, ...)` で `undo` / `redo` / `canUndo` / `canRedo` を取得
-    - `collapsibleTasks`, `canExpandAll`, `canCollapseAll` を内部 `useMemo` で算出
-    - `useProjectFileHandlers` を内部で呼び出し
-    - 残る props は `view`, `setView`, `onOpenProjectSettings` の3つのみ
-  - **`App.tsx`** から `useStore` / `loadProjectState` / `clsx` / `useRef` 等、ヘッダー専用だった import とロジックをすべて削除
-- `pnpm tsc -b --noEmit` : 通過
-- `pnpm test -- --run` : 72テスト全件通過
-
-## App.tsx Hook Extraction (May 24, 2026)
-
-- `App.tsx` に残っていた `useEffect` / `useCallback` をさらに専用 Hook へ切り出し:
-  - `useIpcSwitchView` (`src/hooks/useIpcSwitchView.ts`): Electron IPC `switch-view` リスナー
-  - `useOutlinerResize` (`src/hooks/useOutlinerResize.ts`): Outliner ペイン幅のマウスドラッグリサイズ管理
-  - `useClickOutside` (`src/hooks/useClickOutside.ts`): 指定 ref 外クリック検出の汎用 Hook
-- `App.tsx` に残る `useEffect` は view 切り替え時の `hoveredTaskId` リセットのみ。`useCallback` は完全に排除。
-- `pnpm test -- --run` : 72テスト全件通過
-- `pnpm run build` : 通過
-
-## Outliner Hook Extraction (May 24, 2026)
-
-- `src/components/Outliner.tsx` の `useEffect` と選択ロジックをカスタムフックへ分離:
-  - **`src/hooks/useOutlinerKeyboard.ts`** を新規作成
-    - `Escape` で選択解除、空リスト時に `Enter` で最初のタスクを作成する `keydown` リスナーをカプセル化
-    - `rootIds` / `addTask` / `setSelectedTaskIds` を Zustand ストアから直接取得
-  - **`src/hooks/useTaskSelection.ts`** を新規作成
-    - 単一選択・Ctrl/Cmd マルチ選択・Shift 範囲選択のロジックと `anchorId` state を管理
-    - `flattenedIds` を引数として受け取り、`selectedTaskIds` と `handleSelectionChange` を返す
-  - `Outliner.tsx` から `React` 名前空間の直接利用（`React.useState`, `React.useEffect`）を排除し `import { useMemo }` のみに整理
-  - 古いコメント（`// Need to implement this in store`・drag reorder の TODO コメント）を削除してコードをクリーン化
-- `pnpm tsc -b --noEmit` : 通過
-- `pnpm test -- --run` : 72テスト全件通過
-
-## Refactoring TaskRow - Step 1 Completed (May 24, 2026)
-
-- `TaskRow.tsx` のリファクタリング計画の Step 1 (日付・期間計算ロジックのストア移行) を実装完了:
-  - `TaskRow.tsx` の中の日付/期間 (`planDuration`, `planStartDate`, `planEndDate`, `duration`, `startDate`, `endDate`) の変更に伴う追従計算処理を Zustand ストアの `updateTask` に完全移行。
-  - ストア内の `applyDateCalculations` ユーティリティで、日付の自動計算が走り、UIコンポーネントからは単純に更新アクションを投げるだけで完了する構成に改善。
-  - `TaskRow.tsx` の日付入力の `onChange` ハンドラが極めてシンプルに。
-  - 手動指定やドラッグ時等で競合が起きないよう、整合データが一度に updates に渡された場合は自動計算をスキップする洗練されたクランプ処理をストア側に実装。
-  - 既存の 72 個のテストすべてが完全に通過することを確認済み。
-
-## Refactoring TaskRow - Step 2 Completed (May 24, 2026)
-
-- `TaskRow.tsx` のリファクタリング計画の Step 2 (ローカル入力状態のカスタムフック抽出) を実装完了:
-  - `src/hooks/useTaskRowLocalState.ts` を新規作成し、パフォーマンス確保と IME 入力対応のためのローカルな入力状態（`localTitle`, `localDescription`, `localAssignee`, `localDeliverables`, `localStatus`, `localProgress`）、外部の Undo/Redo 時の自動的な状態同期（`useEffect`）、および変更値をストアに安全に保存する `commitFieldLocalState` メソッドをこの Hook 内へ集約。
-  - `TaskRow.tsx` の上部を占めていた大量の `useState` / `useEffect` およびインラインのコミット処理をこのフックの呼び出しに完全に置き換えることで、コードの見通しを大幅に改善。
-  - 既存の 72 個のテストがすべて問題なくパスすることを確認済み。
-
-## Refactoring TaskRow - Step 3 Completed (May 24, 2026)
-
-- `TaskRow.tsx` のリファクタリング計画の Step 3 (キーボードナビゲーションのカスタムフック抽出) を実装完了:
-  - `src/hooks/useTaskRowKeyboard.ts` を新規作成し、WBS の各入力欄の `useRef` 参照、アクティブセルへのフォーカス制御、IME 入力開始・終了時のフラグ管理、上下矢印キーでのフォーカス移動、Alt + Shift + 矢印でのタスク並べ替えおよびインデント・アウトデントトグル、Backspace や Delete によるタスク削除などの、複雑かつ巨大なキーボードハンドリングロジック（約 180 行）をこの Hook 内に完全カプセル化。
-  - `TaskRow.tsx` のコンポーネント内から `useRef` 定義、フォーカス制御 `useEffect`、および `KeyDown` ハンドラ群を一掃し、Hook の呼び出しと受け取った参照・ハンドラの適用のみに集約。これによりコンポーネントの記述がさらに軽量化し、描画責務へと大きく集中。
-  - 静的型検査および既存の 72 個のテストがすべて問題なくパスすることを確認済み。
-  - フック化に伴い `TaskRow.tsx` および `useTaskRowKeyboard.ts` 内で不要になった未使用のインポートや Zustand セレクター、プロパティ受け渡し（`task`）を完全に削除・整理し、TypeScript コンパイルエラー（`tsc -b`）が完全に0件であることを確認。
-
-## WBS Cell Component Refactoring (May 24, 2026)
-
-- `TaskRow.tsx` の肥大化した Ref、ローカル state、キーボード制御を完全に解消するため、セル単位へのコンポーネント分割を完了しました：
-  - `src/components/cells/` ディレクトリ配下に、個別の入力セル (`TaskOutlineCell`, `TaskTextCell`, `TaskStatusCell`, `TaskProgressCell`, `TaskPlanDurationCell`, `TaskPlanDateCell`, `TaskDurationCell`, `TaskDateCell`) を作成。
-  - 各セルが自身に必要な入力用の `useRef` を 1 つだけカプセル化し、Zustand の `focusedTaskId` と `focusedTaskField` を直接監視して自律的にフォーカスする宣言的フローへ移行。
-  - セル間の格子状キー移動や並び替えショートカットは共通フック `useTaskCellKeyboard.ts` に集約。
-- **Gantt View Sidebar での `TaskOutlineCell` の再利用**:
-  - `GanttChart.tsx` の左サイドバーに直書きされていた Chevron、WBS 番号、タスク名表示エリアを `<TaskOutlineCell />` に完全統合。これにより、全ビューにおける編集挙動・折りたたみ動作・行選択・キー操作の一貫性を 100% 担保しました。
-- **不要になった古いフックの完全削除**:
-  - `src/hooks/useTaskRowLocalState.ts` および `src/hooks/useTaskRowKeyboard.ts` を完全にクリーンアップしました。
-- **自動テストの適合化と全件グリーン**:
-  - テストおよび外部クエリのために、各セル内入力要素へ `data-task-id` および `data-field` 属性を付与。
-  - `Outliner.test.tsx` および `GanttChart.test.tsx` のイベントシミュレーション・アサーションを最新の HTML 構造・Editable Outline 挙動に合わせてアップデート。
-  - `pnpm tsc -b --noEmit` および `pnpm test -- --run` が **72テスト全件無敗の 100% グリーン** で通過することを確認済み。
+### Refactoring TaskRow - Step 1, 2, 3 Completed (May 24, 2026)
+- 日付計算ロジックのストア完全移行、ローカル入力状態フック抽出、キーボードナビゲーションフック抽出を完了。

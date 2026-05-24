@@ -2,29 +2,22 @@ import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 're
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addDays,
-  addMonths,
-  addYears,
   differenceInDays,
-  eachDayOfInterval,
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  eachYearOfInterval,
-  endOfMonth,
-  endOfWeek,
-  endOfYear,
   format,
-  startOfMonth,
-  startOfWeek,
-  startOfYear,
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay, getWorkDaysCount } from '../utils/date';
+import { isWorkDay } from '../utils/date';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
+
+// Import custom hooks
+import { useGanttTimeline } from '../hooks/useGanttTimeline';
+import { useGanttDrag } from '../hooks/useGanttDrag';
+import { useGanttDependencies } from '../hooks/useGanttDependencies';
 
 interface IntegratedViewProps {
   outlinerWidth: number;
@@ -45,17 +38,12 @@ export const IntegratedView = ({
 }: IntegratedViewProps) => {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
-  const calendar = useTaskStore((state) => state.projectConfig.calendar);
-  const viewMode = useTaskStore((state) => state.projectConfig.viewMode);
   const setViewMode = useTaskStore((state) => state.setViewMode);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
   const removeDependency = useTaskStore((state) => state.removeDependency);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const addDependency = useTaskStore((state) => state.addDependency);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -63,100 +51,39 @@ export const IntegratedView = ({
   );
   const flattenedIds = useMemo(() => flattenedItems.map((item) => item.id), [flattenedItems]);
 
-  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const [anchorId, setAnchorId] = useState<string | null>(null);
-  const [dragState, setDragState] = useState<{
-    taskId: string;
-    mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
-    startX: number;
-    startY: number;
-    initialStartDate: Date;
-    initialEndDate: Date;
-    currentStartDate: Date;
-    currentEndDate: Date;
-  } | null>(null);
-  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  const cellWidth = useMemo(() => {
-    switch (viewMode) {
-      case 'Week':
-        return 100;
-      case 'Month':
-        return 200;
-      case 'Year':
-        return 400;
-      case 'Day':
-      default:
-        return 40;
-    }
-  }, [viewMode]);
+  // Use custom timeline hook
+  const {
+    cellWidth,
+    timeRange,
+    timelineMetrics,
+    viewMode,
+    calendar,
+  } = useGanttTimeline();
 
-  const timeRange = useMemo(() => {
-    const today = new Date();
-    switch (viewMode) {
-      case 'Week': {
-        const start = startOfWeek(addMonths(today, -6), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 12), { weekStartsOn: 1 });
-        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
-      }
-      case 'Month': {
-        const start = startOfMonth(addYears(today, -1));
-        const end = endOfMonth(addYears(today, 2));
-        return eachMonthOfInterval({ start, end });
-      }
-      case 'Year': {
-        const start = startOfYear(addYears(today, -5));
-        const end = endOfYear(addYears(today, 10));
-        return eachYearOfInterval({ start, end });
-      }
-      case 'Day':
-      default: {
-        const start = startOfWeek(addMonths(today, -1), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 3), { weekStartsOn: 1 });
-        return eachDayOfInterval({ start, end });
-      }
-    }
-  }, [viewMode]);
+  // Use custom drag interaction hook
+  const {
+    dragState,
+    mousePos,
+    setDragState,
+  } = useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange);
 
-  const timelineMetrics = useMemo(() => {
-    const timelineStart = timeRange[0];
-    if (!timelineStart) {
-      return {
-        timelineStart: new Date(),
-        timelineEnd: new Date(),
-        totalDays: 0,
-        totalWidth: 0,
-        pixelsPerDay: 0,
-      };
-    }
+  // Use custom dependency line hook
+  const dependencyLines = useGanttDependencies(
+    flattenedItems,
+    taskBarRefs,
+    containerRef,
+    outlinerWidth,
+    timelineMetrics,
+    dragState
+  );
 
-    let timelineEnd: Date;
-    switch (viewMode) {
-      case 'Week':
-        timelineEnd = endOfWeek(timeRange[timeRange.length - 1], { weekStartsOn: 1 });
-        break;
-      case 'Month':
-        timelineEnd = endOfMonth(timeRange[timeRange.length - 1]);
-        break;
-      case 'Year':
-        timelineEnd = endOfYear(timeRange[timeRange.length - 1]);
-        break;
-      case 'Day':
-      default:
-        timelineEnd = timeRange[timeRange.length - 1];
-        break;
-    }
-
-    const totalDays = differenceInDays(timelineEnd, timelineStart) + 1;
-    const totalWidth = timeRange.length * cellWidth;
-    const pixelsPerDay = totalDays > 0 ? totalWidth / totalDays : 0;
-
-    return { timelineStart, timelineEnd, totalDays, totalWidth, pixelsPerDay };
-  }, [timeRange, viewMode, cellWidth]);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -184,194 +111,6 @@ export const IntegratedView = ({
       containerRef.current.scrollLeft = Math.max(0, timelineScrollLeft - timelineViewportWidth / 3);
     }
   }, [viewMode, timelineMetrics]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragState) {
-        return;
-      }
-
-      if (dragState.mode === 'dependency') {
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          setMousePos({
-            x: e.clientX - rect.left + containerRef.current.scrollLeft - outlinerWidth,
-            y: e.clientY - rect.top + containerRef.current.scrollTop,
-          });
-        }
-        return;
-      }
-
-      const deltaX = e.clientX - dragState.startX;
-      const daysPerPixel = differenceInDays(timeRange[timeRange.length - 1], timeRange[0]) / (timeRange.length * cellWidth);
-      const deltaDays = Math.round(deltaX * daysPerPixel);
-
-      setDragState((prev) => {
-        if (!prev) {
-          return null;
-        }
-
-        const next = { ...prev };
-        if (prev.mode === 'move') {
-          next.currentStartDate = addDays(prev.initialStartDate, deltaDays);
-          next.currentEndDate = addDays(prev.initialEndDate, deltaDays);
-        } else if (prev.mode === 'resize-left') {
-          const newStart = addDays(prev.initialStartDate, deltaDays);
-          if (newStart <= prev.initialEndDate) {
-            next.currentStartDate = newStart;
-          }
-        } else if (prev.mode === 'resize-right') {
-          const newEnd = addDays(prev.initialEndDate, deltaDays);
-          if (newEnd >= prev.initialStartDate) {
-            next.currentEndDate = newEnd;
-          }
-        } else if (prev.mode === 'draw-range') {
-          next.currentEndDate = addDays(prev.initialStartDate, deltaDays);
-        }
-        return next;
-      });
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!dragState) {
-        return;
-      }
-
-      if (dragState.mode === 'dependency') {
-        let target = e.target as HTMLElement;
-        while (target && !target.getAttribute?.('data-task-id')) {
-          target = target.parentElement as HTMLElement;
-        }
-        if (target) {
-          const targetId = target.getAttribute('data-task-id');
-          if (targetId && targetId !== dragState.taskId) {
-            const targetTask = tasks[targetId];
-            if (targetTask && targetTask.children.length === 0) {
-              addDependency(dragState.taskId, targetId);
-            }
-          }
-        }
-      } else if (dragState.mode === 'draw-range') {
-        const { taskId, currentStartDate, currentEndDate } = dragState;
-        let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
-        let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
-
-        switch (viewMode) {
-          case 'Month':
-            start = startOfMonth(start);
-            end = endOfMonth(end);
-            break;
-          case 'Year':
-            start = startOfYear(start);
-            end = endOfYear(end);
-            break;
-        }
-
-        const newDuration = getWorkDaysCount(start, end, calendar);
-        if (baselineLocked) {
-          updateTask(taskId, {
-            startDate: format(start, 'yyyy-MM-dd'),
-            endDate: format(end, 'yyyy-MM-dd'),
-            duration: newDuration,
-          });
-        } else {
-          updateTask(taskId, {
-            planStartDate: format(start, 'yyyy-MM-dd'),
-            planEndDate: format(end, 'yyyy-MM-dd'),
-            planDuration: newDuration,
-          });
-        }
-      } else {
-        const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
-        if (
-          currentStartDate.getTime() !== initialStartDate.getTime() ||
-          currentEndDate.getTime() !== initialEndDate.getTime()
-        ) {
-          const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
-          if (baselineLocked) {
-            updateTask(taskId, {
-              startDate: format(currentStartDate, 'yyyy-MM-dd'),
-              endDate: format(currentEndDate, 'yyyy-MM-dd'),
-              duration: newDuration,
-            });
-          } else {
-            updateTask(taskId, {
-              planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-              planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-              planDuration: newDuration,
-            });
-          }
-        }
-      }
-
-      setDragState(null);
-      setMousePos(null);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [addDependency, cellWidth, dragState, outlinerWidth, removeDependency, timeRange, updateTask, viewMode]);
-
-  useLayoutEffect(() => {
-    const lines = [];
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect || !timelineMetrics.pixelsPerDay) {
-      return;
-    }
-
-    for (const { id, task } of flattenedItems) {
-      if (!task.dependencies) {
-        continue;
-      }
-
-      for (const depId of task.dependencies) {
-        const sourceTask = tasks[depId];
-        const targetTask = tasks[id];
-        if (!sourceTask || !targetTask || !(sourceTask.planEndDate || sourceTask.endDate) || !(targetTask.planStartDate || targetTask.startDate)) {
-          continue;
-        }
-
-        const sourceEl = taskBarRefs.current.get(depId);
-        const targetEl = taskBarRefs.current.get(id);
-        if (!sourceEl || !targetEl) {
-          continue;
-        }
-
-        const sourceRect = sourceEl.getBoundingClientRect();
-        const targetRect = targetEl.getBoundingClientRect();
-        const scrollLeft = containerRef.current?.scrollLeft || 0;
-        const scrollTop = containerRef.current?.scrollTop || 0;
-
-        const startX = sourceRect.right - containerRect.left + scrollLeft - outlinerWidth;
-        const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-        const endX = targetRect.left - containerRect.left + scrollLeft - outlinerWidth;
-        const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
-
-        const boxPadding = 20;
-        let path = '';
-        if (endX > startX + boxPadding * 2) {
-          const midX = startX + (endX - startX) / 2;
-          path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-        } else {
-          const verticalLaneY = endY > startY ? startY + ROW_HEIGHT / 2 : startY - ROW_HEIGHT / 2;
-          path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
-        }
-
-        lines.push({
-          key: `${depId}::${id}`,
-          d: path,
-          fromId: depId,
-          toId: id,
-        });
-      }
-    }
-
-    setDependencyLines(lines);
-  }, [flattenedItems, outlinerWidth, tasks, timelineMetrics, baselineLocked, dragState]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -691,9 +430,9 @@ export const IntegratedView = ({
                                       ? "top-[3px] h-2.5 bg-slate-700/40 cursor-default rounded-sm"
                                       : [
                                           "top-[3px] h-3 rounded text-[8px] px-1 text-blue-700/80 bg-blue-100 border border-blue-300 font-medium select-none",
-                                            baselineLocked ? "cursor-default" : [
-                                             "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
-                                             isDraggingPlan && "bg-blue-600 text-white cursor-grabbing h-[14px]"
+                                          baselineLocked ? "cursor-default" : [
+                                            "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
+                                            isDraggingPlan && "bg-blue-600 text-white cursor-grabbing h-[14px]"
                                           ]
                                         ]
                                   )}

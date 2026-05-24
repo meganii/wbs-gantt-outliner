@@ -1,26 +1,19 @@
-import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useRef, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addDays,
-  addMonths,
-  addYears,
   differenceInDays,
-  eachDayOfInterval,
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  eachYearOfInterval,
-  endOfMonth,
-  endOfWeek,
-  endOfYear,
   format,
-  startOfMonth,
-  startOfWeek,
-  startOfYear,
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay, getWorkDaysCount } from '../utils/date';
+import { isWorkDay } from '../utils/date';
 import { TaskOutlineCell } from './cells/TaskOutlineCell';
+
+// Import custom hooks
+import { useGanttTimeline } from '../hooks/useGanttTimeline';
+import { useGanttDrag } from '../hooks/useGanttDrag';
+import { useGanttDependencies } from '../hooks/useGanttDependencies';
 
 const HEADER_HEIGHT = 40;
 
@@ -45,8 +38,6 @@ export const GanttChart = ({
 }: GanttChartProps) => {
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
-  const calendar = useTaskStore(state => state.projectConfig.calendar);
-  const viewMode = useTaskStore(state => state.projectConfig.viewMode);
   const setViewMode = useTaskStore(state => state.setViewMode);
   
   const selectedTaskIds = useTaskStore(state => state.selectedTaskIds);
@@ -56,17 +47,48 @@ export const GanttChart = ({
   const setCollapsed = useTaskStore(state => state.setCollapsed);
   const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
-  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
+  const removeDependency = useTaskStore(state => state.removeDependency);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
     [flattenedItemsProp, tasks, rootIds]
   );
 
-  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const NAME_COLUMN_WIDTH = columnWidths.taskDescription;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
+
+  // Use custom timeline hook
+  const {
+    cellWidth: CELL_WIDTH,
+    timeRange,
+    timelineMetrics,
+    viewMode,
+    calendar,
+  } = useGanttTimeline();
+
+  const internalContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = scrollRef || internalContainerRef;
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  // Use custom drag interaction hook
+  const {
+    dragState,
+    mousePos,
+    setDragState,
+  } = useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange);
+
+  // Use custom dependency line layout hook
+  const dependencyLines = useGanttDependencies(
+    flattenedItems,
+    taskBarRefs,
+    containerRef,
+    nameOffset,
+    timelineMetrics,
+    dragState
+  );
+
+  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
 
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     if (range) {
@@ -94,75 +116,6 @@ export const GanttChart = ({
     }
     setFocusedTaskId(id);
   };
-
-  const CELL_WIDTH = useMemo(() => {
-    switch (viewMode) {
-      case 'Week': return 100;
-      case 'Month': return 200;
-      case 'Year': return 400;
-      case 'Day':
-      default: return 40;
-    }
-  }, [viewMode]);
-
-  const timeRange = useMemo(() => {
-    const today = new Date();
-    switch (viewMode) {
-      case 'Week': {
-        const start = startOfWeek(addMonths(today, -6), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 12), { weekStartsOn: 1 });
-        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
-      }
-      case 'Month': {
-        const start = startOfMonth(addYears(today, -1));
-        const end = endOfMonth(addYears(today, 2));
-        return eachMonthOfInterval({ start, end });
-      }
-      case 'Year': {
-        const start = startOfYear(addYears(today, -5));
-        const end = endOfYear(addYears(today, 10));
-        return eachYearOfInterval({ start, end });
-      }
-      case 'Day':
-      default: {
-        const start = startOfWeek(addMonths(today, -1), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 3), { weekStartsOn: 1 });
-        return eachDayOfInterval({ start, end });
-      }
-    }
-  }, [viewMode]);
-
-  const timelineMetrics = useMemo(() => {
-    const timelineStart = timeRange[0];
-    if (!timelineStart) return { timelineStart: new Date(), timelineEnd: new Date(), totalDays: 0, totalWidth: 0, pixelsPerDay: 0 };
-    let timelineEnd: Date;
-
-    switch (viewMode) {
-      case 'Week':
-        timelineEnd = endOfWeek(timeRange[timeRange.length - 1], { weekStartsOn: 1 });
-        break;
-      case 'Month':
-        timelineEnd = endOfMonth(timeRange[timeRange.length - 1]);
-        break;
-      case 'Year':
-        timelineEnd = endOfYear(timeRange[timeRange.length - 1]);
-        break;
-      case 'Day':
-      default:
-        timelineEnd = timeRange[timeRange.length - 1];
-        break;
-    }
-
-    const totalDays = differenceInDays(timelineEnd, timelineStart) + 1;
-    const totalWidth = timeRange.length * CELL_WIDTH;
-    const pixelsPerDay = totalDays > 0 ? totalWidth / totalDays : 0;
-
-    return { timelineStart, timelineEnd, totalDays, totalWidth, pixelsPerDay };
-  }, [timeRange, viewMode, CELL_WIDTH]);
-
-  const internalContainerRef = useRef<HTMLDivElement>(null);
-  const containerRef = scrollRef || internalContainerRef;
-  const headerRef = useRef<HTMLDivElement>(null);
 
   // Sync header horizontal scroll
   useEffect(() => {
@@ -279,200 +232,6 @@ export const GanttChart = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
 
-  const updateTask = useTaskStore(state => state.updateTask);
-  const addDependency = useTaskStore(state => state.addDependency);
-  const removeDependency = useTaskStore(state => state.removeDependency);
-
-  // Drag & Drop State
-  const [dragState, setDragState] = useState<{
-    taskId: string;
-    mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
-    startX: number;
-    startY: number; // Added for dependency and draw-range
-    initialStartDate: Date;
-    initialEndDate: Date;
-    currentStartDate: Date;
-    currentEndDate: Date;
-    targetTaskId?: string; // For dependency drop target
-  } | null>(null);
-
-  const [mousePos, setMousePos] = useState<{ x: number, y: number } | null>(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragState) return;
-
-      if (dragState.mode === 'dependency') {
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          setMousePos({
-            x: e.clientX - rect.left + containerRef.current.scrollLeft - nameOffset,
-            y: e.clientY - rect.top + containerRef.current.scrollTop,
-          });
-        }
-        return;
-      }
-
-      const deltaX = e.clientX - dragState.startX;
-      const daysPerPixel = differenceInDays(timeRange[timeRange.length - 1], timeRange[0]) / (timeRange.length * CELL_WIDTH);
-      const deltaDays = Math.round(deltaX * daysPerPixel);
-
-      setDragState(prev => {
-        if (!prev) return null;
-        const newDragState = { ...prev };
-
-        if (prev.mode === 'move') {
-          newDragState.currentStartDate = addDays(prev.initialStartDate, deltaDays);
-          newDragState.currentEndDate = addDays(prev.initialEndDate, deltaDays);
-        } else if (prev.mode === 'resize-left') {
-          const newStart = addDays(prev.initialStartDate, deltaDays);
-          if (newStart <= prev.initialEndDate) {
-            newDragState.currentStartDate = newStart;
-          }
-        } else if (prev.mode === 'resize-right') {
-          const newEnd = addDays(prev.initialEndDate, deltaDays);
-          if (newEnd >= prev.initialStartDate) {
-            newDragState.currentEndDate = newEnd;
-          }
-        } else if (prev.mode === 'draw-range') {
-          newDragState.currentEndDate = addDays(prev.initialStartDate, deltaDays);
-        }
-        return newDragState;
-      });
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!dragState) return;
-
-      if (dragState.mode === 'dependency') {
-        let target = e.target as HTMLElement;
-        while (target && !target.getAttribute?.('data-task-id')) {
-          target = target.parentElement as HTMLElement;
-        }
-        if (target) {
-          const targetId = target.getAttribute('data-task-id');
-          if (targetId && targetId !== dragState.taskId) {
-            const targetTask = tasks[targetId];
-            if (targetTask && targetTask.children.length === 0) {
-              addDependency(dragState.taskId, targetId);
-            }
-          }
-        }
-      } else if (dragState.mode === 'draw-range') {
-        const { taskId, currentStartDate, currentEndDate } = dragState;
-        let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
-        let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
-
-        switch (viewMode) {
-          case 'Month':
-            start = startOfMonth(start);
-            end = endOfMonth(end);
-            break;
-          case 'Year':
-            start = startOfYear(start);
-            end = endOfYear(end);
-            break;
-        }
-
-        const newDuration = getWorkDaysCount(start, end, calendar);
-        if (baselineLocked) {
-          updateTask(taskId, {
-            startDate: format(start, 'yyyy-MM-dd'),
-            endDate: format(end, 'yyyy-MM-dd'),
-            duration: newDuration,
-          });
-        } else {
-          updateTask(taskId, {
-            planStartDate: format(start, 'yyyy-MM-dd'),
-            planEndDate: format(end, 'yyyy-MM-dd'),
-            planDuration: newDuration,
-          });
-        }
-      } else {
-        const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
-        if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
-          const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
-          if (baselineLocked) {
-            updateTask(taskId, {
-              startDate: format(currentStartDate, 'yyyy-MM-dd'),
-              endDate: format(currentEndDate, 'yyyy-MM-dd'),
-              duration: newDuration,
-            });
-          } else {
-            updateTask(taskId, {
-              planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-              planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-              planDuration: newDuration,
-            });
-          }
-        }
-      }
-
-      setDragState(null);
-      setMousePos(null);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode]);
-
-  useLayoutEffect(() => {
-    const lines = [];
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect || !timelineMetrics.pixelsPerDay) return;
-
-    for (const { id, task } of flattenedItems) {
-      if (task.dependencies) {
-        for (const depId of task.dependencies) {
-          const sourceTask = tasks[depId];
-          const targetTask = tasks[id];
-
-          if (sourceTask && targetTask && (sourceTask.planEndDate || sourceTask.endDate) && (targetTask.planStartDate || targetTask.startDate)) {
-            const sourceEl = taskBarRefs.current.get(depId);
-            const targetEl = taskBarRefs.current.get(id);
-            if (!sourceEl || !targetEl) continue;
-
-            const sourceRect = sourceEl.getBoundingClientRect();
-            const targetRect = targetEl.getBoundingClientRect();
-
-            const scrollLeft = containerRef.current?.scrollLeft || 0;
-            const scrollTop = containerRef.current?.scrollTop || 0;
-
-            const startX = sourceRect.right - containerRect.left + scrollLeft - nameOffset;
-            const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-            const endX = targetRect.left - containerRect.left + scrollLeft - nameOffset;
-            const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
-
-            let path = '';
-            const boxPadding = 20;
-
-            if (endX > startX + boxPadding * 2) {
-              const midX = startX + (endX - startX) / 2;
-              path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-            } else {
-              const rowHeight = 32;
-              const verticalLaneY = endY > startY ? startY + (rowHeight / 2) : startY - (rowHeight / 2);
-              path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
-            }
-
-            lines.push({
-              key: `${depId}::${id}`,
-              d: path,
-              fromId: depId,
-              toId: id
-            });
-          }
-        }
-      }
-    }
-    setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar, timelineMetrics, baselineLocked, dragState]);
-
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
       {/* Timeline Header */}
@@ -574,7 +333,6 @@ export const GanttChart = ({
         ref={containerRef}
         onScroll={(e) => {
           if (onScroll) onScroll(e);
-          // Internal logic for header sync is already handled by the scroll listener in useEffect
         }}
       >
         {/* SVG Layer for Dependencies - Z-10 */}
@@ -604,7 +362,6 @@ export const GanttChart = ({
                 className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
                 style={{ pointerEvents: 'stroke' }}
                 onMouseDown={(e) => {
-                  // Prevent starting a draw-range when clicking or dragging from a dependency line
                   e.stopPropagation();
                 }}
                 onClick={(e) => {
@@ -739,13 +496,13 @@ export const GanttChart = ({
                 {/* Grid Background */}
                 <div className="absolute inset-0 flex pointer-events-none">
                   {timeRange.map(date => {
-                    const isWknd = viewMode === 'Day' && !isWorkDay(date, calendar);
+                    const isWeekend = viewMode === 'Day' && !isWorkDay(date, calendar);
                     return (
                       <div
                         key={date.toISOString()}
                         className={clsx(
                           "flex-shrink-0 border-r border-gray-100 h-full",
-                          isWknd && "bg-gray-100/50"
+                          isWeekend && "bg-gray-100/50"
                         )}
                         style={{ width: CELL_WIDTH }}
                       />
