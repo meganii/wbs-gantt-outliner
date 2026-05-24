@@ -298,11 +298,7 @@ export const IntegratedView = ({
                     <div
                       ref={setContainerRef}
                       style={{ ...containerStyle, width: outlinerWidth + timelineWidth }}
-                      className={clsx(
-                        'flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150',
-                        currentBgClass,
-                        !isSelected && !isHovered && 'hover:bg-gray-50'
-                      )}
+                      className="flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150 bg-transparent"
                       onMouseEnter={() => onHoverTaskChange?.(id)}
                       onMouseLeave={() => onHoverTaskChange?.(null)}
                     >
@@ -316,7 +312,6 @@ export const IntegratedView = ({
                       <GanttTimelineRow
                         taskId={id}
                         task={task}
-                        cellWidth={cellWidth}
                         timelineMetrics={timelineMetrics}
                         dragState={dragState}
                         setDragState={setDragState}

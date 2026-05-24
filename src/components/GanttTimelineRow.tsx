@@ -6,7 +6,6 @@ import type { Task } from '../types';
 export interface GanttTimelineRowProps {
   taskId: string;
   task: Task;
-  cellWidth: number;
   timelineMetrics: {
     timelineStart: Date;
     pixelsPerDay: number;
@@ -22,7 +21,6 @@ export interface GanttTimelineRowProps {
 export const GanttTimelineRow = memo(({
   taskId,
   task,
-  cellWidth,
   timelineMetrics,
   dragState,
   setDragState,
@@ -38,11 +36,7 @@ export const GanttTimelineRow = memo(({
         "relative flex pointer-events-auto h-full",
         isParent ? "cursor-default" : "cursor-crosshair"
       )}
-      style={{
-        width: timelineWidth,
-        backgroundImage: 'linear-gradient(to right, #f3f4f6 1px, transparent 1px)',
-        backgroundSize: `${cellWidth}px 100%`,
-      }}
+      style={{ width: timelineWidth }}
       onMouseDown={(e) => {
         if (e.button !== 0 || isParent) {
           return;

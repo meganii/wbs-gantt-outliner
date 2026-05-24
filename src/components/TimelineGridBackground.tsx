@@ -32,7 +32,7 @@ export const TimelineGridBackground = ({
           <div
             key={date.toISOString()}
             className={clsx(
-              'flex-shrink-0 h-full',
+              'flex-shrink-0 border-r border-gray-100 h-full',
               isWeekend && 'bg-gray-100/50'
             )}
             style={{ width: cellWidth }}

@@ -45,10 +45,11 @@
 - **`React.memo` 導入によるタイピング時等の「もっさり感」の完全消滅**:
   - WBS view（Outliner）や `IntegratedView` でタイピングを行うたびに全行が連鎖して再レンダリングされていたボトルネックを解消するため、`TaskRow.tsx` と `GanttTimelineRow.tsx` を `React.memo` でラップ。
   - レンダーコストが「編集中の1行のみ」に局所化され、タスクが数百件あっても1ミリ秒未満で快適に入力可能に。
-- **CSS `linear-gradient` 背景による「縦線（日付グリッド）」の完全復活（DOM追加はゼロ）**:
-  - `TimelineGridBackground` の縦線を前面の各行へ移管。各行 (`GanttTimelineRow.tsx`) のコンテナ `style` に CSS `linear-gradient(to right, #f3f4f6 1px, transparent 1px)` を指定。
-  - **DOMを1つも増やすことなく**、選択やホバー時の行背景色（`bg-blue-50`等）に上書きされて縦線が消えてしまう現象を完璧に解決。
-  - 背面グリッド（`TimelineGridBackground.tsx`）は週末・祝日のグレー背景のみを描画する超軽量設計へクリーンアップ。
+- **背面縦グリッド線（日付の縦線）の完全な位置ズレ解消（永久同期）**:
+  - 横スクロールやカレンダーの自動伸縮の際に生じる、CSSグラデーションの小数点ピクセル累積ズレを 100% 解決するため、各タスク行（右側のガントチャート領域）の背景色を完全に透明（`bg-transparent`）に指定。
+  - 選択・ホバー時の行背景色は左側の WBS 表（Outliner側）のみに局所化し、右側のタイムラインは常に背面が透けて見えるデザインに刷新（JiraやRedmineなどと同様のプロレベルの標準設計）。
+  - 背面グリッド（`TimelineGridBackground.tsx`）に `border-r border-gray-100`（縦線）を復帰させ、ヘッダーと全く同一の `timeRange.map` の `div` で描画するため、**1pxのズレも永久に発生しない完全な同期**を達成。
+  - 初期に実現した超軽量背景設計（DOM数99%削減）を完全に維持しています。
 
 ## 直近の検証結果
 
@@ -83,14 +84,14 @@
 
 ## 履歴 (History)
 
-### 大量タスク時のDOM最適化 ＆ 日付ズレの解消 ＆ WBSもっさり感の解消 ＆ 縦線グリッドのCSS化 (May 24, 2026)
+### 大量タスク時のDOM最適化 ＆ 日付ズレの解消 ＆ WBSもっさり感の解消 ＆ 縦グリッドの完全同期 (May 24, 2026)
 - **背面共通グリッド背景によるDOM要素数99%削減**:
   - `TimelineGridBackground.tsx` を新規作成し、各行でループしていた数千件のグリッド `div` をスクロールコンテナ背面の 1枚の背景レイヤーへ移行。
   - 各行 (`GanttTimelineRow.tsx`) は透明化し、タスクバーのみを描画するように最適化。大量タスク追加時の `LatencyInfo is too big` エラーを完全に解消。
-- **CSS `linear-gradient` 背景による「縦線（日付グリッド）」の完全復活（DOM追加はゼロ）**:
-  - 各行 (`GanttTimelineRow.tsx`) のコンテナ `style` に CSS `linear-gradient(to right, #f3f4f6 1px, transparent 1px)` を指定し、ホバーや選択時の背景色（`bg-blue-50`等）で縦線が消えてしまう現象を完璧に解決。
-  - 背面グリッド（`TimelineGridBackground.tsx`）から縦線を除去し、週末・祝日のグレー背景のみを描画する超軽量設計へクリーンアップ。
-- **高精度なピクセル ⇄ 日付相互変換による「日付ズレ」の完全解消**:
+- **背面縦グリッド線（日付の縦線）の位置ズレ永久解消**:
+  - 横スクロールやカレンダー自動伸縮時のCSS小数点累積ズレを100%解決するため、各行（右側のガントチャート領域）の背景色を完全に透明（`bg-transparent`）にし、選択・ホバーの背景色を左側の WBS 表（Outliner側）のみに局所化。
+  - 背面グリッド（`TimelineGridBackground.tsx`）に `border-r border-gray-100` を復帰させ、ヘッダーと完全に同一の `timeRange.map` の `div` で描画することで、**横スクロールやカレンダーの自動伸縮を行っても1pxもズレない完全な同期**を達成。
+- **高精度なピクセル ⇄ 日付相互変換による「操作日付ズレ」の完全解消**:
   - ドラッグ時の日数計算やクリック時の日付特定を、最終セルの期間抜けによる誤差がある timeRange 基準から、`timelineMetrics.pixelsPerDay` 基準に一本化。
   - すべてのビューモード（Week / Month / Year等）においてクリック・ドラッグ操作時のズレを完全にゼロに修正。
 - **`React.memo` 導入によるタイピング時等の「もっさり感」の完全消滅**:

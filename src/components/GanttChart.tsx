@@ -395,13 +395,7 @@ export const GanttChart = ({
           return (
             <div
               key={id}
-              className={clsx(
-                "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
-                isSelected && isHovered && "bg-blue-100",
-                isSelected && !isHovered && "bg-blue-50",
-                !isSelected && isHovered && "bg-gray-50",
-                !isSelected && !isHovered && "hover:bg-gray-50"
-              )}
+              className="flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150 bg-transparent"
               style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
               onMouseEnter={() => onHoverTaskChange?.(id)}
               onMouseLeave={() => onHoverTaskChange?.(null)}
@@ -458,7 +452,6 @@ export const GanttChart = ({
               <GanttTimelineRow
                 taskId={id}
                 task={task}
-                cellWidth={CELL_WIDTH}
                 timelineMetrics={timelineMetrics}
                 dragState={dragState}
                 setDragState={setDragState}
