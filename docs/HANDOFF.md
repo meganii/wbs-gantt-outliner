@@ -5,6 +5,7 @@
 ## 現在の状態
 
 - WBS 編集、ガント表示、依存関係、JSON 保存/読込、Excel エクスポートまで動作する
+- キーボードショートカットの制御ロジックを `App.tsx` からカスタムフック `useKeyboardShortcuts` (`src/hooks/useKeyboardShortcuts.ts`) として外出しし、コンポーネント構成を軽量化
 - ヘッダーの `Project` メニューからプロジェクト祝日を登録・削除でき、Day view のカレンダー背景に反映される
 - Excel エクスポートの左端列に WBS 番号（1, 1.1, 1.2 等）を付与済み。旧 WBS 列は Task Name にリネーム
 - エクスポート時は `flattenTreeAll` を使い、折りたたみ状態に関係なく全タスクを出力する
@@ -244,5 +245,17 @@ pnpm run make
   - Replaced them with standard component declarations by specifying the props type inline on the arguments: e.g., `const MyComponent = ({ prop1 }: MyComponentProps) => { ... }`.
   - Cleaned up unused `React` imports (specifically fixed a `TS6133` error in `ProjectSettingsDialog.tsx`) to pass strict static code analysis checks (`tsc -b`).
   - Verified all 72 automated Vitest tests pass and that the production build completes successfully.
+
+## Keyboard Shortcuts Refactoring (May 23, 2026)
+
+- Refactored `App.tsx` by isolating the keydown listener logic:
+  - Created a new directory `src/hooks/` and implemented `useKeyboardShortcuts.ts`.
+  - The custom hook handles `Undo` / `Redo` (Zustand temporal), `Expand All` / `Collapse All` (Zustand store), and `View Switches` (App component's internal state via `setView` callback).
+  - Streamlined `App.tsx` imports (removed unused `getTemporalState`) and reduced its visual noise by approximately 60 lines.
+  - Verified that all 72 Vitest unit tests pass and `pnpm run build` completes successfully.
+- Further Keyboard Shortcut Clean-up (May 24, 2026):
+  - Refactored `useKeyboardShortcuts.ts` to extract common keyboard modifier variables (`isCmdOrCtrl`, `altKey`, `shiftKey`) and the IME composition check (`isComposing`).
+  - Removed heavily duplicated checks from individual shortcut boolean expressions (e.g. redundant `e.ctrlKey || e.metaKey` and alt/shift checks), resulting in exceptionally clean, readable, and highly maintainable logic.
+  - Fixed a date-fragility issue in `useTaskStore.test.ts` where dynamic module-level initial task instantiation dates would mismatch with hardcoded mock dates on different calendar run-days. Resolved by explicitly overriding the root task's plan dates to `'2026-05-23'` directly within the `beforeEach` reset hook before clearing history.
 
 
