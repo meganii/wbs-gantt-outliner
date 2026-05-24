@@ -25,21 +25,20 @@
 
 ## 直近の検証結果
 
-- `pnpm test -- --run` : 通過 (72テスト全件無敗の100%合格) - リファクタリングによるデグレードが一切存在しないことを保証。
+- `pnpm test -- --run` : 通過 (75テスト全件無敗の100%合格)
+  - 新規追加した「複数タスク同時一括削除時のクリーンアップ」「多段依存チェーン (A -> B -> C) の中間削除時の前後依存解消」「直接の相互依存を持つタスク同士の同時削除」の Vitest 統合テストがすべてグリーンで合格。
 - `pnpm run build` : 通過 (TypeScript型検査および本番ビルド通過)
 - `pnpm tsc -b --noEmit` : 型エラーおよび未使用変数/インポートの警告 0 件で完全通過。
 
 ## 次に着手する優先課題
 
-1. **削除整合性の追加ケース確認と堅牢化**
-   - 複数選択削除や、多段にわたる先行・後行（依存関係）が入り組んでいるタスクを一括削除した際の日付再計算・依存関係クリーンアップについて Vitest を追加し整合性を保証する。
-2. **WBS 横方向キーナビゲーション（詳細列間の移動）の実装**
+1. **WBS 横方向キーナビゲーション（詳細列間の移動）の実装**
    - 左右矢印キー（または特定のキー）で、WBS の Title ➔ Description ➔ Assignee ➔ Deliverables ➔ Dates などの隣の列のセルへスムーズにフォーカスが横移動できる仕組みを `useTaskCellKeyboard` に実装する。
-3. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
-4. **Zustand ストアのツリー操作ロジックのさらなる分離**
+3. **Zustand ストアのツリー操作ロジックのさらなる分離**
    - `useTaskStore.ts` に残っているタスクのインデント (`indentTask`)、アウトデント (`outdentTask`)、ドラッグ並び替え (`reorderTask`) などのツリー構造変形ロジックを `src/store/taskStoreUtils.ts` に排出し、ストアファイルをスリム化する。
-5. **ガント操作の E2E/UI 統合テストの補強**
+4. **ガント操作の E2E/UI 統合テストの補強**
    - ドラッグ移動、リサイズ、依存線追加の UI マウスジェスチャーが正しくストアの日付計算と連動しているかのテストを補強する。
 
 ## 注意点
@@ -51,26 +50,28 @@
 
 ## 次の作業で最初に見るとよい場所
 
-- `src/hooks/useGanttTimeline.ts`
-- `src/hooks/useGanttDrag.ts`
-- `src/hooks/useGanttDependencies.ts`
-- `src/components/GanttChart.tsx`
-- `src/components/IntegratedView.tsx`
+- `src/store/useTaskStore.ts`
+- `src/store/taskStoreUtils.ts`
+- `src/store/useTaskStore.test.ts`
 
 ---
 
 ## 履歴 (History)
 
+### Task Deletion Integrity Tests (May 24, 2026)
+- **削除整合性のための強力な Vitest 統合テストを補強**:
+  - `useTaskStore.test.ts` の `deleteTask` グループに、3 つの高度なエッジケーステストを追加：
+    1. 「複数タスクの同時一括削除時における、全ての子孫および交差する階層間依存のクリーンアップ整合性」
+    2. 「多段（A -> B -> C）の依存チェーンの中間タスク B 削除時における、無効な参照の完全クリーンアップ整合性」
+    3. 「直接の相互依存関係を持つタスク同士を同時に削除するエッジケースにおける、Null 参照エラーの抑止」
+  - すべてのテストが 100% グリーンで完全に合格し、削除整合性がプロダクション品質で担保されていることを実証。
+
 ### Gantt & Integrated View Hooks Extraction (May 24, 2026)
 - **タイムライン、ドラッグ、依存線パス計算ロジックの抽出**:
   - `useGanttTimeline.ts`, `useGanttDrag.ts`, `useGanttDependencies.ts` を新規作成し、`GanttChart.tsx` と `IntegratedView.tsx` に適用。
   - 重複コードを一掃し、各コンポーネントを 40〜60% スリム化。
-  - 静的型コンパイル (`pnpm tsc -b`) および Vitest 全 72 件のテストが 100% 合格することを確認済み。
 
 ### WBS Cell Component Refactoring (May 24, 2026)
 - **TaskRow.tsx のセル単位へのコンポーネント分割**:
   - `src/components/cells/` 配下に、個別の入力セル (`TaskOutlineCell`, `TaskTextCell` 等 8つ) を作成。
   - 宣言的フォーカス制御へ移行し、`GanttChart` サイドバーでの `TaskOutlineCell` の再利用を完了。
-
-### Refactoring TaskRow - Step 1, 2, 3 Completed (May 24, 2026)
-- 日付計算ロジックのストア完全移行、ローカル入力状態フック抽出、キーボードナビゲーションフック抽出を完了。

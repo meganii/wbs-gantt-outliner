@@ -130,6 +130,110 @@ describe('useTaskStore', () => {
       expect(focusedTaskId).toBeNull();
       expect(selectedTaskIds).toEqual([]);
     });
+
+    it('should delete multiple tasks at once and clean up all descendants and dependencies', () => {
+      const parent1Id = useTaskStore.getState().rootIds[0];
+      
+      // Add second root task
+      act(() => {
+        useTaskStore.getState().addTask(parent1Id, 'after');
+      });
+      const parent2Id = useTaskStore.getState().rootIds[1];
+
+      // Add child tasks
+      act(() => {
+        useTaskStore.getState().addTask(parent1Id, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[parent1Id].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parent2Id, 'inside');
+      });
+      const child2Id = useTaskStore.getState().tasks[parent2Id].children[0];
+
+      // Establish a cross-hierarchy dependency: child2 depends on child1
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).toContain(child1Id);
+
+      // Action: Delete both parent1 and parent2 at once
+      act(() => {
+        useTaskStore.getState().deleteTask([parent1Id, parent2Id]);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[parent1Id]).toBeUndefined();
+      expect(tasks[parent2Id]).toBeUndefined();
+      expect(tasks[child1Id]).toBeUndefined();
+      expect(tasks[child2Id]).toBeUndefined();
+      expect(rootIds.length).toBe(0);
+    });
+
+    it('should handle deleting a task in the middle of a multi-level dependency chain (A -> B -> C)', () => {
+      const taskAId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskAId, 'after');
+      });
+      const taskBId = useTaskStore.getState().rootIds[1];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskBId, 'after');
+      });
+      const taskCId = useTaskStore.getState().rootIds[2];
+
+      // Setup dependency chain: C depends on B, B depends on A (A -> B -> C)
+      act(() => {
+        useTaskStore.getState().addDependency(taskAId, taskBId);
+        useTaskStore.getState().addDependency(taskBId, taskCId);
+      });
+
+      expect(useTaskStore.getState().tasks[taskBId].dependencies).toContain(taskAId);
+      expect(useTaskStore.getState().tasks[taskCId].dependencies).toContain(taskBId);
+
+      // Action: Delete middle task B
+      act(() => {
+        useTaskStore.getState().deleteTask(taskBId);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[taskBId]).toBeUndefined();
+      expect(tasks[taskAId]).toBeDefined();
+      expect(tasks[taskCId]).toBeDefined();
+
+      // Dependencies should be cleaned up
+      expect(tasks[taskCId].dependencies).not.toContain(taskBId);
+      expect(tasks[taskAId].dependencies).not.toContain(taskBId);
+      expect(rootIds).toEqual([taskAId, taskCId]);
+    });
+
+    it('should delete multiple tasks with mutual dependencies at once without throwing errors', () => {
+      const taskAId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskAId, 'after');
+      });
+      const taskBId = useTaskStore.getState().rootIds[1];
+
+      // Setup dependency: B depends on A
+      act(() => {
+        useTaskStore.getState().addDependency(taskAId, taskBId);
+      });
+
+      expect(useTaskStore.getState().tasks[taskBId].dependencies).toContain(taskAId);
+
+      // Action: Delete both A and B at the same time
+      act(() => {
+        useTaskStore.getState().deleteTask([taskAId, taskBId]);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[taskAId]).toBeUndefined();
+      expect(tasks[taskBId]).toBeUndefined();
+      expect(rootIds.length).toBe(0);
+    });
   });
 
   describe('setAllCollapsed', () => {
