@@ -32,4 +32,8 @@ body {
   .no-drag {
     -webkit-app-region: no-drag;
   }
+  .gantt-row-optimized {
+    content-visibility: auto;
+    contain-intrinsic-size: 32px;
+  }
 }

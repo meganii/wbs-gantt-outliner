@@ -2,6 +2,7 @@ import { useState, useLayoutEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import type { FlattenedItem } from '../utils/tree';
 import type { TimelineMetrics } from './useGanttTimeline';
+import { differenceInDays } from 'date-fns';
 
 export interface DependencyLine {
   key: string;
@@ -12,9 +13,9 @@ export interface DependencyLine {
 
 export const useGanttDependencies = (
   flattenedItems: FlattenedItem[],
-  taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>,
-  containerRef: React.RefObject<HTMLDivElement | null>,
-  leftOffset: number,
+  _taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>, // kept for signature compatibility
+  _containerRef: React.RefObject<HTMLDivElement | null>,     // kept for signature compatibility
+  _leftOffset: number,                                       // kept for signature compatibility
   timelineMetrics: TimelineMetrics,
   dragState: any
 ) => {
@@ -24,69 +25,106 @@ export const useGanttDependencies = (
 
   useLayoutEffect(() => {
     const lines: DependencyLine[] = [];
-    const container = containerRef.current;
-    if (!container || !timelineMetrics.pixelsPerDay) {
+    const pixelsPerDay = timelineMetrics.pixelsPerDay;
+    const timelineStart = timelineMetrics.timelineStart;
+
+    if (!pixelsPerDay || !timelineStart) {
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
+    const rowHeight = 32;
+
+    // Helper to get active dates for a task, considering dragging
+    const getTaskDates = (id: string, task: any) => {
+      const isDraggingTask =
+        dragState &&
+        dragState.taskId === id &&
+        dragState.mode !== 'dependency' &&
+        dragState.mode !== 'draw-range';
+
+      if (baselineLocked) {
+        const start = isDraggingTask
+          ? dragState.currentStartDate
+          : (task.startDate ? new Date(task.startDate) : null);
+        const end = isDraggingTask
+          ? dragState.currentEndDate
+          : (task.endDate ? new Date(task.endDate) : null);
+        return { start, end };
+      } else {
+        const start = isDraggingTask
+          ? dragState.currentStartDate
+          : (task.planStartDate
+              ? new Date(task.planStartDate)
+              : (task.startDate ? new Date(task.startDate) : null));
+        const end = isDraggingTask
+          ? dragState.currentEndDate
+          : (task.planEndDate
+              ? new Date(task.planEndDate)
+              : (task.endDate ? new Date(task.endDate) : null));
+        return { start, end };
+      }
+    };
+
+    // Pre-create index maps for fast O(1) lookup of vertical positions
+    const indexMap = new Map<string, number>();
+    flattenedItems.forEach((item, index) => {
+      indexMap.set(item.id, index);
+    });
 
     for (const { id, task } of flattenedItems) {
-      if (task.dependencies) {
+      if (task.dependencies && task.dependencies.length > 0) {
+        const targetIndex = indexMap.get(id);
+        if (targetIndex === undefined) continue;
+
+        const targetDates = getTaskDates(id, task);
+        if (!targetDates.start) continue;
+
         for (const depId of task.dependencies) {
           const sourceTask = tasks[depId];
-          const targetTask = tasks[id];
+          if (!sourceTask) continue;
 
-          if (
-            sourceTask &&
-            targetTask &&
-            (sourceTask.planEndDate || sourceTask.endDate) &&
-            (targetTask.planStartDate || targetTask.startDate)
-          ) {
-            const sourceEl = taskBarRefs.current.get(depId);
-            const targetEl = taskBarRefs.current.get(id);
-            if (!sourceEl || !targetEl) continue;
+          const sourceIndex = indexMap.get(depId);
+          if (sourceIndex === undefined) continue; // Source is collapsed / folded, don't draw
 
-            const sourceRect = sourceEl.getBoundingClientRect();
-            const targetRect = targetEl.getBoundingClientRect();
+          const sourceDates = getTaskDates(depId, sourceTask);
+          if (!sourceDates.end) continue;
 
-            const scrollLeft = container.scrollLeft || 0;
-            const scrollTop = container.scrollTop || 0;
+          const diffDaysStart = differenceInDays(sourceDates.end, timelineStart) + 1;
+          const startX = diffDaysStart * pixelsPerDay;
+          const startY = sourceIndex * rowHeight + rowHeight / 2;
 
-            const startX = sourceRect.right - containerRect.left + scrollLeft - leftOffset;
-            const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-            const endX = targetRect.left - containerRect.left + scrollLeft - leftOffset;
-            const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
+          const diffDaysEnd = differenceInDays(targetDates.start, timelineStart);
+          const endX = diffDaysEnd * pixelsPerDay;
+          const endY = targetIndex * rowHeight + rowHeight / 2;
 
-            let path = '';
-            const boxPadding = 20;
+          let path = '';
+          const boxPadding = 20;
 
-            if (endX > startX + boxPadding * 2) {
-              const midX = startX + (endX - startX) / 2;
-              path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-            } else {
-              const rowHeight = 32;
-              const verticalLaneY =
-                endY > startY ? startY + rowHeight / 2 : startY - rowHeight / 2;
-              path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${
-                startX + boxPadding
-              } ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${
-                endX - boxPadding
-              } ${endY} L ${endX} ${endY}`;
-            }
-
-            lines.push({
-              key: `${depId}::${id}`,
-              d: path,
-              fromId: depId,
-              toId: id,
-            });
+          if (endX > startX + boxPadding * 2) {
+            const midX = startX + (endX - startX) / 2;
+            path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+          } else {
+            const verticalLaneY =
+              endY > startY ? startY + rowHeight / 2 : startY - rowHeight / 2;
+            path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${
+              startX + boxPadding
+            } ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${
+              endX - boxPadding
+            } ${endY} L ${endX} ${endY}`;
           }
+
+          lines.push({
+            key: `${depId}::${id}`,
+            d: path,
+            fromId: depId,
+            toId: id,
+          });
         }
       }
     }
     setDependencyLines(lines);
-  }, [flattenedItems, tasks, timelineMetrics, baselineLocked, dragState, leftOffset, containerRef, taskBarRefs]);
+  }, [flattenedItems, tasks, timelineMetrics, baselineLocked, dragState]);
 
   return dependencyLines;
 };
+

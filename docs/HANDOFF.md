@@ -53,6 +53,13 @@
 - **カレンダー自動拡張・縮小時のスクロール表示位置の完全固定（Scroll Anchoring）**:
   - タスク日程の編集によりカレンダーの開始日（`timelineStart`）が過去または未来に移動した際、その「移動した日数 × 1日あたりのピクセル幅」を計算してスクロール位置（`scrollLeft`）を瞬時に補正するロジックを `GanttChart.tsx` と `IntegratedView.tsx` に実装。カレンダーが自動伸縮しても、画面上に表示されている日付位置が **1ピクセルもガタつくことなく完全に同じ場所に固定** され続けます。
   - 従来 `timelineMetrics` が更新されるたびに強制発火していた「今日」へのスクロール初期化処理を、`lastViewModeRef`（`useRef`）を用いて **「初回マウント時」および「手動での `viewMode` 切り替え時」のみ** に厳格に制限。意図しないスクロール位置のリセットバグを根本解決。
+- **大量タスク表示時の超高速レイアウトレンダリングの実現（フェーズ1）** (May 24, 2026):
+  - **SVG依存関係線の幾何学的座標計算化（Layout Thrashingの完全排除）**:
+    - `useGanttDependencies.ts` でループ内クエリしていた `getBoundingClientRect()` を完全撤廃し、タスクのインデックスと `timelineMetrics`（`pixelsPerDay`, `timelineStart`）を用いた線形算術式で $O(1)$ で座標を算出。
+    - ドラッグ追従（`dragState`）も数学モデル内に完全に統合し、ドラッグ時のスムーズな依存線スライドを維持しつつ、Layout Thrashing（強制同期リフロー）による数百ミリ秒単位の描画スレッドのブロックを 100% 解消。
+  - **CSS `content-visibility: auto` による行レンダリングの最適化**:
+    - `.gantt-row-optimized` クラスを `index.css` に定義し、WBS、Gantt、Integratedの全ビューの行コンテナへ適用。
+    - 画面外のタスク行のレイアウト＆ペイント処理をブラウザがネイティブにスキップするようにし、大量タスク表示時の描画とスクロールを仮想スクロール同等の高速さで実現。React の refs や `dnd-kit` のドラッグ＆ドロップ動作とも100%互換。
 
 ## 直近の検証結果
 

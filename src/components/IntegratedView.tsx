@@ -322,7 +322,7 @@ export const IntegratedView = ({
                     <div
                       ref={setContainerRef}
                       style={{ ...containerStyle, width: outlinerWidth + timelineWidth }}
-                      className="flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150 bg-transparent"
+                      className="flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150 bg-transparent gantt-row-optimized"
                       onMouseEnter={() => onHoverTaskChange?.(id)}
                       onMouseLeave={() => onHoverTaskChange?.(null)}
                     >

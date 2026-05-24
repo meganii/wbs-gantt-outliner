@@ -418,7 +418,7 @@ export const GanttChart = ({
           return (
             <div
               key={id}
-              className="flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150 bg-transparent"
+              className="flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150 bg-transparent gantt-row-optimized"
               style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
               onMouseEnter={() => onHoverTaskChange?.(id)}
               onMouseLeave={() => onHoverTaskChange?.(null)}

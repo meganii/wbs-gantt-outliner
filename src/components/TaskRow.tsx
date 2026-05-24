@@ -239,7 +239,7 @@ export const TaskRow = memo(({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex flex-col select-none">
+    <div ref={setNodeRef} style={style} className="flex flex-col select-none gantt-row-optimized">
       {content}
     </div>
   );
