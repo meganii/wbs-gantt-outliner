@@ -18,6 +18,7 @@ import { useGanttDrag } from '../hooks/useGanttDrag';
 import { useGanttDependencies } from '../hooks/useGanttDependencies';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
+import { TimelineGridBackground } from './TimelineGridBackground';
 
 interface IntegratedViewProps {
   outlinerWidth: number;
@@ -81,7 +82,7 @@ export const IntegratedView = ({
     dragState,
     mousePos,
     setDragState,
-  } = useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange);
+  } = useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange, timelineMetrics);
 
   // Use custom dependency line hook
   const dependencyLines = useGanttDependencies(
@@ -194,6 +195,17 @@ export const IntegratedView = ({
       </div>
 
       <div ref={containerRef} className="flex-1 relative overflow-auto min-h-0 min-w-0">
+        {/* Shared Background Grid Layer */}
+        <TimelineGridBackground
+          timeRange={timeRange}
+          cellWidth={cellWidth}
+          calendar={calendar}
+          viewMode={viewMode}
+          totalHeight={flattenedItems.length * ROW_HEIGHT}
+          timelineWidth={timelineWidth}
+          leftOffset={outlinerWidth}
+        />
+
         <svg
           className="absolute inset-0 pointer-events-none z-10"
           style={{
@@ -304,10 +316,7 @@ export const IntegratedView = ({
                       <GanttTimelineRow
                         taskId={id}
                         task={task}
-                        timeRange={timeRange}
-                        calendar={calendar}
                         cellWidth={cellWidth}
-                        viewMode={viewMode}
                         timelineMetrics={timelineMetrics}
                         dragState={dragState}
                         setDragState={setDragState}

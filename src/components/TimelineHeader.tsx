@@ -89,7 +89,7 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
       {/* ── 上段: グループ行 ── */}
       {showGroupRow && (
         <div className="flex border-b border-gray-200" style={{ height: 20 }}>
-          {groupSegments.map((seg, i) => (
+          {groupSegments.map((seg) => (
             <div
               key={`${seg.label}-${seg.startIndex}`}
               className={clsx(
@@ -109,7 +109,7 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
         className="flex"
         style={{ height: showGroupRow ? 36 : 56 }}
       >
-        {timeRange.map((date, i) => {
+        {timeRange.map((date) => {
           const isWknd = !isWorkDay(date, calendar);
 
           let label = '';

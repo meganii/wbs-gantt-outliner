@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
@@ -37,7 +37,7 @@ interface TaskRowProps {
   }) => React.ReactNode;
 }
 
-export const TaskRow = ({
+export const TaskRow = memo(({
   taskId,
   depth = 0,
   prevId,
@@ -243,4 +243,6 @@ export const TaskRow = ({
       {content}
     </div>
   );
-};
+});
+
+TaskRow.displayName = 'TaskRow';

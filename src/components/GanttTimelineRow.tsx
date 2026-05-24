@@ -1,16 +1,12 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { addDays, differenceInDays, format } from 'date-fns';
 import clsx from 'clsx';
-import type { Task, WorkCalendar } from '../types';
-import { isWorkDay } from '../utils/date';
+import type { Task } from '../types';
 
 export interface GanttTimelineRowProps {
   taskId: string;
   task: Task;
-  timeRange: Date[];
-  calendar: WorkCalendar;
   cellWidth: number;
-  viewMode: 'Day' | 'Week' | 'Month' | 'Year';
   timelineMetrics: {
     timelineStart: Date;
     pixelsPerDay: number;
@@ -23,13 +19,10 @@ export interface GanttTimelineRowProps {
   timelineWidth: number;
 }
 
-export const GanttTimelineRow = ({
+export const GanttTimelineRow = memo(({
   taskId,
   task,
-  timeRange,
-  calendar,
   cellWidth,
-  viewMode,
   timelineMetrics,
   dragState,
   setDragState,
@@ -45,7 +38,11 @@ export const GanttTimelineRow = ({
         "relative flex pointer-events-auto h-full",
         isParent ? "cursor-default" : "cursor-crosshair"
       )}
-      style={{ width: timelineWidth }}
+      style={{
+        width: timelineWidth,
+        backgroundImage: 'linear-gradient(to right, #f3f4f6 1px, transparent 1px)',
+        backgroundSize: `${cellWidth}px 100%`,
+      }}
       onMouseDown={(e) => {
         if (e.button !== 0 || isParent) {
           return;
@@ -53,7 +50,7 @@ export const GanttTimelineRow = ({
 
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const daysOffset = Math.floor((x / timelineWidth) * timelineMetrics.totalDays);
+        const daysOffset = Math.floor(x / timelineMetrics.pixelsPerDay);
         const clickedDate = addDays(timelineMetrics.timelineStart, daysOffset);
 
         setDragState({
@@ -68,21 +65,7 @@ export const GanttTimelineRow = ({
         });
       }}
     >
-      {/* Grid Background */}
-      <div className="absolute inset-0 flex pointer-events-none">
-        {timeRange.map((date) => {
-          const isWeekend = viewMode === 'Day' && !isWorkDay(date, calendar);
-          return (
-            <div
-              key={date.toISOString()}
-              className={clsx('flex-shrink-0 border-r border-gray-100 h-full', isWeekend && 'bg-gray-100/50')}
-              style={{ width: cellWidth }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Drawing Preview Box */}
+      {/* Task Bar */}
       {dragState?.taskId === taskId && dragState.mode === 'draw-range' && (() => {
         const start = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
         const end = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
@@ -364,4 +347,6 @@ export const GanttTimelineRow = ({
       })()}
     </div>
   );
-};
+});
+
+GanttTimelineRow.displayName = 'GanttTimelineRow';

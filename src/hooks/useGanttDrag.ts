@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addDays,
-  differenceInDays,
   format,
   startOfMonth,
   endOfMonth,
@@ -10,6 +9,7 @@ import {
   endOfYear,
 } from 'date-fns';
 import { getWorkDaysCount } from '../utils/date';
+import type { TimelineMetrics } from './useGanttTimeline';
 
 export interface GanttDragState {
   taskId: string;
@@ -27,7 +27,8 @@ export const useGanttDrag = (
   leftOffset: number,
   containerRef: React.RefObject<HTMLDivElement | null>,
   cellWidth: number,
-  timeRange: Date[]
+  timeRange: Date[],
+  timelineMetrics: TimelineMetrics
 ) => {
   const tasks = useTaskStore((state) => state.tasks);
   const calendar = useTaskStore((state) => state.projectConfig.calendar);
@@ -55,10 +56,8 @@ export const useGanttDrag = (
       }
 
       const deltaX = e.clientX - dragState.startX;
-      const daysPerPixel =
-        differenceInDays(timeRange[timeRange.length - 1], timeRange[0]) /
-        (timeRange.length * cellWidth);
-      const deltaDays = Math.round(deltaX * daysPerPixel);
+      const pixelsPerDay = timelineMetrics.pixelsPerDay;
+      const deltaDays = pixelsPerDay > 0 ? Math.round(deltaX / pixelsPerDay) : 0;
 
       setDragState((prev) => {
         if (!prev) return null;

@@ -9,6 +9,7 @@ import { TaskRow } from './TaskRow';
 import type { ColumnId } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
+import { TimelineGridBackground } from './TimelineGridBackground';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
@@ -78,7 +79,7 @@ export const GanttChart = ({
     dragState,
     mousePos,
     setDragState,
-  } = useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange);
+  } = useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
 
   // Use custom dependency line layout hook
   const dependencyLines = useGanttDependencies(
@@ -306,6 +307,17 @@ export const GanttChart = ({
           if (onScroll) onScroll(e);
         }}
       >
+        {/* Shared Background Grid Layer */}
+        <TimelineGridBackground
+          timeRange={timeRange}
+          cellWidth={CELL_WIDTH}
+          calendar={calendar}
+          viewMode={viewMode}
+          totalHeight={flattenedItems.length * 32}
+          timelineWidth={timeRange.length * CELL_WIDTH}
+          leftOffset={nameOffset}
+        />
+
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
           className="absolute inset-0 pointer-events-none z-10"
@@ -446,10 +458,7 @@ export const GanttChart = ({
               <GanttTimelineRow
                 taskId={id}
                 task={task}
-                timeRange={timeRange}
-                calendar={calendar}
                 cellWidth={CELL_WIDTH}
-                viewMode={viewMode}
                 timelineMetrics={timelineMetrics}
                 dragState={dragState}
                 setDragState={setDragState}
