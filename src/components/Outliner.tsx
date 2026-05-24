@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { TaskRow } from './TaskRow';
 import { DndContext, closestCenter } from '@dnd-kit/core';
@@ -6,6 +6,8 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import { TaskTableHeader } from './TaskTableHeader';
+import { useOutlinerKeyboard } from '../hooks/useOutlinerKeyboard';
+import { useTaskSelection } from '../hooks/useTaskSelection';
 
 interface OutlinerProps {
   showDetails?: boolean;
@@ -22,7 +24,8 @@ export const Outliner = ({
 }: OutlinerProps) => {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
-  const reorderTask = useTaskStore((state) => state.reorderTask); // Need to implement this in store
+  const reorderTask = useTaskStore((state) => state.reorderTask);
+  const addTask = useTaskStore((state) => state.addTask);
 
   const flattenedItems = useMemo(() =>
     flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -31,74 +34,12 @@ export const Outliner = ({
 
   const flattenedIds = useMemo(() => flattenedItems.map(i => i.id), [flattenedItems]);
 
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-
-  const [anchorId, setAnchorId] = React.useState<string | null>(null);
-
-  const addTask = useTaskStore((state) => state.addTask);
-
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (e.isComposing || e.keyCode === 229) {
-          return;
-        }
-        setSelectedTaskIds([]);
-      }
-
-      // Create first task when empty and Enter is pressed
-      if (rootIds.length === 0 && e.key === 'Enter') {
-        e.preventDefault();
-        addTask(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rootIds.length, addTask, setSelectedTaskIds]);
-
-  // Selection Logic
-  const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
-    if (range) {
-      // Range select from anchor (or focused) to id
-      const targetAnchor = anchorId || focusedTaskId || (selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id);
-
-      const startIdx = flattenedIds.indexOf(targetAnchor);
-      const endIdx = flattenedIds.indexOf(id);
-
-      if (startIdx !== -1 && endIdx !== -1) {
-        const min = Math.min(startIdx, endIdx);
-        const max = Math.max(startIdx, endIdx);
-        const rangeIds = flattenedIds.slice(min, max + 1);
-        setSelectedTaskIds(rangeIds);
-        // Don't update anchor on range extend? Usually anchor stays same.
-        return;
-      }
-    }
-
-    // Non-range selection updates the anchor
-    setAnchorId(id);
-
-    if (multi) {
-      // Toggle
-      if (selectedTaskIds.includes(id)) {
-        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
-      } else {
-        setSelectedTaskIds([...selectedTaskIds, id]);
-      }
-    } else {
-      setSelectedTaskIds([id]);
-    }
-  };
+  useOutlinerKeyboard();
+  const { selectedTaskIds, handleSelectionChange } = useTaskSelection(flattenedIds);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active.id !== over?.id) {
-      // Implementation of reorderTask (simple swap vs tree move)
-      // For tree, it's specific. We probably need `reorderTask` to handle "move active to after over".
-      // For now, let's just log or call a store action.
       reorderTask(active.id as string, over?.id as string);
     }
   };

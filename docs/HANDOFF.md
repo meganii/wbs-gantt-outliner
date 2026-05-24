@@ -284,3 +284,17 @@ pnpm run make
 - `pnpm test -- --run` : 72テスト全件通過
 - `pnpm run build` : 通過
 
+## Outliner Hook Extraction (May 24, 2026)
+
+- `src/components/Outliner.tsx` の `useEffect` と選択ロジックをカスタムフックへ分離:
+  - **`src/hooks/useOutlinerKeyboard.ts`** を新規作成
+    - `Escape` で選択解除、空リスト時に `Enter` で最初のタスクを作成する `keydown` リスナーをカプセル化
+    - `rootIds` / `addTask` / `setSelectedTaskIds` を Zustand ストアから直接取得
+  - **`src/hooks/useTaskSelection.ts`** を新規作成
+    - 単一選択・Ctrl/Cmd マルチ選択・Shift 範囲選択のロジックと `anchorId` state を管理
+    - `flattenedIds` を引数として受け取り、`selectedTaskIds` と `handleSelectionChange` を返す
+  - `Outliner.tsx` から `React` 名前空間の直接利用（`React.useState`, `React.useEffect`）を排除し `import { useMemo }` のみに整理
+  - 古いコメント（`// Need to implement this in store`・drag reorder の TODO コメント）を削除してコードをクリーン化
+- `pnpm tsc -b --noEmit` : 通過
+- `pnpm test -- --run` : 72テスト全件通過
+
