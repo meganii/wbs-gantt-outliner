@@ -476,7 +476,10 @@ export const GanttChart = ({
                 taskId={id}
                 task={task}
                 timelineMetrics={timelineMetrics}
-                dragState={dragState}
+                isDragging={dragState?.taskId === id}
+                dragMode={dragState?.taskId === id ? dragState.mode : null}
+                dragCurrentStartDate={dragState?.taskId === id ? dragState.currentStartDate : null}
+                dragCurrentEndDate={dragState?.taskId === id ? dragState.currentEndDate : null}
                 setDragState={setDragState}
                 baselineLocked={baselineLocked}
                 taskBarRefs={taskBarRefs}

@@ -11,7 +11,10 @@ export interface GanttTimelineRowProps {
     pixelsPerDay: number;
     totalDays: number;
   };
-  dragState: any;
+  isDragging: boolean;
+  dragMode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range' | null;
+  dragCurrentStartDate: Date | null;
+  dragCurrentEndDate: Date | null;
   setDragState: (state: any) => void;
   baselineLocked: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
@@ -22,7 +25,10 @@ export const GanttTimelineRow = memo(({
   taskId,
   task,
   timelineMetrics,
-  dragState,
+  isDragging,
+  dragMode,
+  dragCurrentStartDate,
+  dragCurrentEndDate,
   setDragState,
   baselineLocked,
   taskBarRefs,
@@ -60,9 +66,9 @@ export const GanttTimelineRow = memo(({
       }}
     >
       {/* Task Bar */}
-      {dragState?.taskId === taskId && dragState.mode === 'draw-range' && (() => {
-        const start = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
-        const end = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
+      {isDragging && dragMode === 'draw-range' && (() => {
+        const start = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentStartDate! : dragCurrentEndDate!;
+        const end = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentEndDate! : dragCurrentStartDate!;
         const diffDays = differenceInDays(start, timelineMetrics.timelineStart);
         const offset = diffDays * timelineMetrics.pixelsPerDay;
         const daySpan = differenceInDays(end, start) + 1;
@@ -85,18 +91,18 @@ export const GanttTimelineRow = memo(({
         const { timelineStart, pixelsPerDay } = timelineMetrics;
         
         // 1. Plan Bar Metrics
-        const isDraggingPlan = dragState?.taskId === taskId && !baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-        const planStart = isDraggingPlan ? dragState.currentStartDate : (task.planStartDate ? new Date(task.planStartDate) : null);
-        const planEnd = isDraggingPlan ? (dragState.currentEndDate === null ? null : dragState.currentEndDate) : (task.planEndDate ? new Date(task.planEndDate) : null);
+        const isDraggingPlan = isDragging && !baselineLocked && dragMode !== 'dependency' && dragMode !== 'draw-range';
+        const planStart = isDraggingPlan ? dragCurrentStartDate : (task.planStartDate ? new Date(task.planStartDate) : null);
+        const planEnd = isDraggingPlan ? dragCurrentEndDate : (task.planEndDate ? new Date(task.planEndDate) : null);
         const planDiffDays = planStart ? differenceInDays(planStart, timelineStart) : 0;
         const planOffset = planDiffDays * pixelsPerDay;
         const planDaySpan = (planStart && planEnd) ? differenceInDays(planEnd, planStart) + 1 : 0;
         const planWidth = planDaySpan * pixelsPerDay;
 
         // 2. Actual Bar Metrics
-        const isDraggingActual = dragState?.taskId === taskId && baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-        const taskStart = isDraggingActual ? dragState.currentStartDate : (task.startDate ? new Date(task.startDate) : null);
-        const taskEnd = isDraggingActual ? dragState.currentEndDate : (task.endDate ? new Date(task.endDate) : null);
+        const isDraggingActual = isDragging && baselineLocked && dragMode !== 'dependency' && dragMode !== 'draw-range';
+        const taskStart = isDraggingActual ? dragCurrentStartDate : (task.startDate ? new Date(task.startDate) : null);
+        const taskEnd = isDraggingActual ? dragCurrentEndDate : (task.endDate ? new Date(task.endDate) : null);
         const diffDays = taskStart ? differenceInDays(taskStart, timelineMetrics.timelineStart) : 0;
         const offset = diffDays * pixelsPerDay;
         const daySpan = (taskStart && taskEnd) ? differenceInDays(taskEnd, taskStart) + 1 : 0;
