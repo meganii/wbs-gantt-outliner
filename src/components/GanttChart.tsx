@@ -136,16 +136,39 @@ export const GanttChart = ({
   }, []);
 
   // Scroll to today on mount or viewMode change
+  const lastViewModeRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     if (containerRef.current && timelineMetrics.pixelsPerDay) {
-      const today = new Date();
-      const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
-      const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
-      const containerWidth = containerRef.current.clientWidth;
-      const timelineViewportWidth = Math.max(0, containerWidth - nameOffset);
-      containerRef.current.scrollLeft = Math.max(0, scrollPos - timelineViewportWidth / 3);
+      if (lastViewModeRef.current !== viewMode) {
+        const today = new Date();
+        const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
+        const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
+        const containerWidth = containerRef.current.clientWidth;
+        const timelineViewportWidth = Math.max(0, containerWidth - nameOffset);
+        containerRef.current.scrollLeft = Math.max(0, scrollPos - timelineViewportWidth / 3);
+        lastViewModeRef.current = viewMode;
+      }
     }
-  }, [viewMode, timelineMetrics, nameOffset]);
+  }, [viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
+
+  // Scroll Anchoring: カレンダー自動拡張・縮小時に表示日付位置を維持する
+  const lastTimelineStartRef = useRef<Date | null>(null);
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container || !timelineMetrics.pixelsPerDay) return;
+
+    const oldStart = lastTimelineStartRef.current;
+    const newStart = timelineMetrics.timelineStart;
+
+    if (oldStart && oldStart.getTime() !== newStart.getTime()) {
+      const diffDays = differenceInDays(newStart, oldStart);
+      if (diffDays !== 0) {
+        const shiftPixels = -diffDays * timelineMetrics.pixelsPerDay;
+        container.scrollLeft += shiftPixels;
+      }
+    }
+    lastTimelineStartRef.current = newStart;
+  }, [timelineMetrics.timelineStart, timelineMetrics.pixelsPerDay]);
 
   // Keyboard Shortcut: Alt + ArrowUp / ArrowDown to Collapse/Expand, and Up/Down to Navigate Rows
   useEffect(() => {
