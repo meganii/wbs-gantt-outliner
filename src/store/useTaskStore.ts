@@ -11,6 +11,7 @@ import {
   propagateDependencyDates,
   recalculateParentDatesRecursive,
   cleanupHierarchicalDependencies,
+  applyDateCalculations,
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
 
@@ -179,6 +180,9 @@ const taskStore = create<TaskStoreState>()(
           delete finalUpdates.planEndDate;
           delete finalUpdates.planDuration;
         }
+
+        // Apply automatic date & duration calculations
+        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
 
         let tasks = {
           ...state.tasks,

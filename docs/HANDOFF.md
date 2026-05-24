@@ -298,3 +298,11 @@ pnpm run make
 - `pnpm tsc -b --noEmit` : 通過
 - `pnpm test -- --run` : 72テスト全件通過
 
+## Refactoring TaskRow - Step 1 Completed (May 24, 2026)
+
+- `TaskRow.tsx` のリファクタリング計画の Step 1 (日付・期間計算ロジックのストア移行) を実装完了:
+  - `TaskRow.tsx` の中の日付/期間 (`planDuration`, `planStartDate`, `planEndDate`, `duration`, `startDate`, `endDate`) の変更に伴う追従計算処理を Zustand ストアの `updateTask` に完全移行。
+  - ストア内の `applyDateCalculations` ユーティリティで、日付の自動計算が走り、UIコンポーネントからは単純に更新アクションを投げるだけで完了する構成に改善。
+  - `TaskRow.tsx` の日付入力の `onChange` ハンドラが極めてシンプルに。
+  - 手動指定やドラッグ時等で競合が起きないよう、整合データが一度に updates に渡された場合は自動計算をスキップする洗練されたクランプ処理をストア側に実装。
+  - 既存の 72 個のテストすべてが完全に通過することを確認済み。

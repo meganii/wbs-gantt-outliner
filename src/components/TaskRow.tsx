@@ -564,15 +564,7 @@ export const TaskRow = ({
               onChange={(e) => {
                 if (baselineLocked || task.children.length > 0) return;
                 const newDuration = parseInt(e.target.value) || 0;
-                const currentStart = task.planStartDate || task.startDate;
-                if (!currentStart) return;
-                const newEndDate = calculateEndDate(
-                  new Date(currentStart),
-                  newDuration,
-                  useTaskStore.getState().projectConfig.calendar
-                );
-                const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
-                updateTask(taskId, { planDuration: newDuration, planEndDate: newEndDateStr });
+                updateTask(taskId, { planDuration: newDuration });
               }}
               onKeyDown={(e) => handleDetailKeyDown(e, 'planDuration')}
               data-task-id={taskId}
@@ -606,14 +598,7 @@ export const TaskRow = ({
                 if (baselineLocked || task.children.length > 0) return;
                 const newStartDate = e.target.value;
                 if (!newStartDate) return;
-                const currentDuration = task.planDuration !== undefined ? task.planDuration : task.duration;
-                const newEndDate = calculateEndDate(
-                  new Date(newStartDate),
-                  currentDuration,
-                  useTaskStore.getState().projectConfig.calendar
-                );
-                const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
-                updateTask(taskId, { planStartDate: newStartDate, planEndDate: newEndDateStr });
+                updateTask(taskId, { planStartDate: newStartDate });
               }}
               onKeyDown={(e) => handleDetailKeyDown(e, 'planStartDate')}
               data-task-id={taskId}
@@ -648,13 +633,7 @@ export const TaskRow = ({
                 const start = new Date(currentStart);
                 const end = new Date(newEndDate);
                 if (end < start) return;
-
-                const newDuration = getWorkDaysCount(
-                  start,
-                  end,
-                  useTaskStore.getState().projectConfig.calendar
-                );
-                updateTask(taskId, { planEndDate: newEndDate, planDuration: newDuration });
+                updateTask(taskId, { planEndDate: newEndDate });
               }}
               onKeyDown={(e) => handleDetailKeyDown(e, 'planEndDate')}
               data-task-id={taskId}
@@ -686,14 +665,7 @@ export const TaskRow = ({
             onChange={(e) => {
               if (task.children.length > 0) return;
               const newDuration = parseInt(e.target.value) || 0;
-              if (!task.startDate) return;
-              const newEndDate = calculateEndDate(
-                new Date(task.startDate),
-                newDuration,
-                useTaskStore.getState().projectConfig.calendar
-              );
-              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
-              updateTask(taskId, { duration: newDuration, endDate: newEndDateStr });
+              updateTask(taskId, { duration: newDuration });
             }}
             onKeyDown={(e) => handleDetailKeyDown(e, 'duration')}
             data-task-id={taskId}
@@ -725,13 +697,7 @@ export const TaskRow = ({
               if (task.children.length > 0) return;
               const newStartDate = e.target.value;
               if (!newStartDate) return;
-              const newEndDate = calculateEndDate(
-                new Date(newStartDate),
-                task.duration,
-                useTaskStore.getState().projectConfig.calendar
-              );
-              const newEndDateStr = format(newEndDate, 'yyyy-MM-dd');
-              updateTask(taskId, { startDate: newStartDate, endDate: newEndDateStr });
+              updateTask(taskId, { startDate: newStartDate });
             }}
             onKeyDown={(e) => handleDetailKeyDown(e, 'startDate')}
             data-task-id={taskId}
@@ -765,13 +731,7 @@ export const TaskRow = ({
               const start = new Date(task.startDate);
               const end = new Date(newEndDate);
               if (end < start) return;
-
-              const newDuration = getWorkDaysCount(
-                start,
-                end,
-                useTaskStore.getState().projectConfig.calendar
-              );
-              updateTask(taskId, { endDate: newEndDate, duration: newDuration });
+              updateTask(taskId, { endDate: newEndDate });
             }}
             onKeyDown={(e) => handleDetailKeyDown(e, 'endDate')}
             data-task-id={taskId}

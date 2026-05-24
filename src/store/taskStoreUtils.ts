@@ -511,3 +511,79 @@ export function cleanupHierarchicalDependencies(tasks: Record<string, Task>): Re
 
   return nextTasks;
 }
+
+export function applyDateCalculations(
+  oldTask: Task,
+  updates: Partial<Task>,
+  calendar: ProjectConfig['calendar']
+): Partial<Task> {
+  // Do not perform automatic calculation on parent tasks (dates are rolled up from children)
+  if (oldTask.children.length > 0) {
+    return updates;
+  }
+
+  const nextUpdates = { ...updates };
+
+  // 1. Plan Duration Update
+  if (nextUpdates.planDuration !== undefined && nextUpdates.planEndDate === undefined) {
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.planDuration, calendar);
+      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 2. Plan Start Date Update
+  else if (nextUpdates.planStartDate !== undefined && nextUpdates.planEndDate === undefined) {
+    const duration = nextUpdates.planDuration !== undefined ? nextUpdates.planDuration : (oldTask.planDuration !== undefined ? oldTask.planDuration : oldTask.duration);
+    const startStr = nextUpdates.planStartDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
+      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 3. Plan End Date Update
+  else if (nextUpdates.planEndDate !== undefined && nextUpdates.planDuration === undefined) {
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    const endStr = nextUpdates.planEndDate;
+    if (startStr && endStr) {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (end >= start) {
+        nextUpdates.planDuration = getWorkDaysCount(start, end, calendar);
+      }
+    }
+  }
+
+  // 4. Actual Duration Update
+  if (nextUpdates.duration !== undefined && nextUpdates.endDate === undefined) {
+    const startStr = nextUpdates.startDate || oldTask.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.duration, calendar);
+      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 5. Actual Start Date Update
+  else if (nextUpdates.startDate !== undefined && nextUpdates.endDate === undefined) {
+    const duration = nextUpdates.duration !== undefined ? nextUpdates.duration : oldTask.duration;
+    const startStr = nextUpdates.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
+      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 6. Actual End Date Update
+  else if (nextUpdates.endDate !== undefined && nextUpdates.duration === undefined) {
+    const startStr = nextUpdates.startDate || oldTask.startDate;
+    const endStr = nextUpdates.endDate;
+    if (startStr && endStr) {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (end >= start) {
+        nextUpdates.duration = getWorkDaysCount(start, end, calendar);
+      }
+    }
+  }
+
+  return nextUpdates;
+}
+
