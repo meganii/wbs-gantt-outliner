@@ -402,6 +402,7 @@ export const GanttChart = ({
                 >
                   <TaskRow
                     taskId={id}
+                    task={task}
                     depth={depth}
                     wbsNumber={wbsNumber}
                     prevId={flattenedItems[index - 1]?.id}

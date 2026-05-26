@@ -256,6 +256,7 @@ export const IntegratedView = ({
                 <TaskRow
                   key={id}
                   taskId={id}
+                  task={task}
                   depth={depth}
                   wbsNumber={wbsNumber}
                   prevId={flattenedItems[index - 1]?.id}

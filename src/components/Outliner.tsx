@@ -65,10 +65,11 @@ export const Outliner = ({
       <div className="pb-4 w-max">
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
-            {flattenedItems.map(({ id, depth, wbsNumber }, index) => (
+            {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => (
               <TaskRow
                 key={id}
                 taskId={id}
+                task={task}
                 depth={depth}
                 wbsNumber={wbsNumber}
                 prevId={flattenedItems[index - 1]?.id}

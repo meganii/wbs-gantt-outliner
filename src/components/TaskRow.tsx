@@ -1,5 +1,4 @@
 import React, { memo } from 'react';
-import { useTaskStore } from '../store/useTaskStore';
 import clsx from 'clsx';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -14,10 +13,11 @@ import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
 import { TaskDurationCell } from './cells/TaskDurationCell';
 import { TaskDateCell } from './cells/TaskDateCell';
 
-import type { ColumnId } from '../types';
+import type { ColumnId, Task } from '../types';
 
 interface TaskRowProps {
   taskId: string;
+  task: Task;
   depth?: number;
   prevId?: string;
   nextId?: string;
@@ -39,6 +39,7 @@ interface TaskRowProps {
 
 export const TaskRow = memo(({
   taskId,
+  task,
   depth = 0,
   prevId,
   nextId,
@@ -52,7 +53,6 @@ export const TaskRow = memo(({
   disableHoverHandlers = false,
   renderContainer,
 }: TaskRowProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
 
   const {
     attributes,
