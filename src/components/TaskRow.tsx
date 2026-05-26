@@ -243,6 +243,24 @@ export const TaskRow = memo(({
       {content}
     </div>
   );
+}, (prevProps, nextProps) => {
+  const keys = Object.keys(prevProps) as Array<keyof TaskRowProps>;
+  for (const key of keys) {
+    if (typeof prevProps[key] === 'function') {
+      continue;
+    }
+    if (key === 'visibleColumns') {
+      const prevCols = prevProps.visibleColumns;
+      const nextCols = nextProps.visibleColumns;
+      if (prevCols.length !== nextCols.length) return false;
+      if (!prevCols.every((col, i) => col === nextCols[i])) return false;
+      continue;
+    }
+    if (prevProps[key] !== nextProps[key]) {
+      return false;
+    }
+  }
+  return true;
 });
 
 TaskRow.displayName = 'TaskRow';

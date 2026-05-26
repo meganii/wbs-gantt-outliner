@@ -71,6 +71,18 @@ export type TaskFocusableField =
   | 'startDate'
   | 'endDate';
 
+export interface GanttDragState {
+  taskId: string;
+  mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
+  startX: number;
+  startY: number;
+  initialStartDate: Date;
+  initialEndDate: Date;
+  currentStartDate: Date;
+  currentEndDate: Date;
+  targetTaskId?: string;
+}
+
 export interface TaskStoreState {
   tasks: Record<string, Task>;
   rootIds: string[];
@@ -78,6 +90,8 @@ export interface TaskStoreState {
   focusedTaskId: string | null;
   focusedTaskField: TaskFocusableField;
   selectedTaskIds: string[];
+  dragState: GanttDragState | null;
+  mousePos: { x: number; y: number } | null;
 
   setFocusedTaskId: (id: string | null) => void;
   setFocusedTaskCell: (id: string | null, field: TaskFocusableField) => void;
@@ -98,4 +112,6 @@ export interface TaskStoreState {
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
   setBaselineLocked: (baselineLocked: boolean) => void;
+  setDragState: (dragState: GanttDragState | null) => void;
+  setMousePos: (mousePos: { x: number; y: number } | null) => void;
 }

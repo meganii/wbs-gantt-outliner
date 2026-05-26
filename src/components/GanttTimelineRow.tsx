@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { addDays, differenceInDays, format } from 'date-fns';
 import clsx from 'clsx';
 import type { Task } from '../types';
+import { useTaskStore } from '../store/useTaskStore';
 
 export interface GanttTimelineRowProps {
   taskId: string;
@@ -11,11 +12,6 @@ export interface GanttTimelineRowProps {
     pixelsPerDay: number;
     totalDays: number;
   };
-  isDragging: boolean;
-  dragMode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range' | null;
-  dragCurrentStartDate: Date | null;
-  dragCurrentEndDate: Date | null;
-  setDragState: (state: any) => void;
   baselineLocked: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   timelineWidth: number;
@@ -25,16 +21,18 @@ export const GanttTimelineRow = memo(({
   taskId,
   task,
   timelineMetrics,
-  isDragging,
-  dragMode,
-  dragCurrentStartDate,
-  dragCurrentEndDate,
-  setDragState,
   baselineLocked,
   taskBarRefs,
   timelineWidth,
 }: GanttTimelineRowProps) => {
   const isParent = task.children.length > 0;
+
+  // Selective, fine-grained Zustand subscriptions
+  const isDragging = useTaskStore((state) => state.dragState?.taskId === taskId);
+  const dragMode = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.mode : null);
+  const dragCurrentStartDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentStartDate : null);
+  const dragCurrentEndDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentEndDate : null);
+  const setDragState = useTaskStore((state) => state.setDragState);
 
   return (
     <div
@@ -347,6 +345,29 @@ export const GanttTimelineRow = memo(({
       })()}
     </div>
   );
+}, (prevProps, nextProps) => {
+  const keys = Object.keys(prevProps) as Array<keyof GanttTimelineRowProps>;
+  for (const key of keys) {
+    if (typeof prevProps[key] === 'function') {
+      continue;
+    }
+    if (key === 'timelineMetrics') {
+      const prevMetrics = prevProps.timelineMetrics;
+      const nextMetrics = nextProps.timelineMetrics;
+      if (
+        prevMetrics.timelineStart.getTime() !== nextMetrics.timelineStart.getTime() ||
+        prevMetrics.pixelsPerDay !== nextMetrics.pixelsPerDay ||
+        prevMetrics.totalDays !== nextMetrics.totalDays
+      ) {
+        return false;
+      }
+      continue;
+    }
+    if (prevProps[key] !== nextProps[key]) {
+      return false;
+    }
+  }
+  return true;
 });
 
 GanttTimelineRow.displayName = 'GanttTimelineRow';

@@ -11,14 +11,15 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
 import type { ColumnId } from '../types';
+import { GanttTimelineRow } from './GanttTimelineRow';
+import { TimelineHeader } from './TimelineHeader';
+import { TimelineGridBackground } from './TimelineGridBackground';
+import { GanttDependencyLines } from './GanttDependencyLines';
+import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
-import { useGanttDependencies } from '../hooks/useGanttDependencies';
-import { GanttTimelineRow } from './GanttTimelineRow';
-import { TimelineHeader } from './TimelineHeader';
-import { TimelineGridBackground } from './TimelineGridBackground';
 
 interface IntegratedViewProps {
   outlinerWidth: number;
@@ -44,7 +45,6 @@ export const IntegratedView = ({
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const removeDependency = useTaskStore((state) => state.removeDependency);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -78,21 +78,7 @@ export const IntegratedView = ({
   }, [baselineLocked]);
 
   // Use custom drag interaction hook
-  const {
-    dragState,
-    mousePos,
-    setDragState,
-  } = useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange, timelineMetrics);
-
-  // Use custom dependency line hook
-  const dependencyLines = useGanttDependencies(
-    flattenedItems,
-    taskBarRefs,
-    containerRef,
-    outlinerWidth,
-    timelineMetrics,
-    dragState
-  );
+  useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange, timelineMetrics);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -243,52 +229,15 @@ export const IntegratedView = ({
               <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
             </marker>
           </defs>
-          {dependencyLines.map(({ key, d, fromId, toId }) => (
-            <path
-              key={key}
-              d={d}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              fill="none"
-              markerEnd="url(#integrated-arrowhead)"
-              className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
-              style={{ pointerEvents: 'stroke' }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm('Delete this dependency?')) {
-                  removeDependency(fromId, toId);
-                }
-              }}
-            />
-          ))}
-          {dragState?.mode === 'dependency' && mousePos && (() => {
-            const startIdx = flattenedItems.findIndex((item) => item.id === dragState.taskId);
-            if (startIdx === -1) {
-              return null;
-            }
-            const task = tasks[dragState.taskId];
-            const endDateStr = task.planEndDate || task.endDate;
-            if (!endDateStr) {
-              return null;
-            }
-            const taskEnd = new Date(endDateStr);
-            const diffDays = differenceInDays(taskEnd, timelineMetrics.timelineStart);
-            const startX = (diffDays + 1) * timelineMetrics.pixelsPerDay;
-            const startY = startIdx * ROW_HEIGHT + 5;
-
-            return (
-              <line
-                x1={startX}
-                y1={startY}
-                x2={mousePos.x}
-                y2={mousePos.y}
-                stroke="#3b82f6"
-                strokeWidth="2"
-                strokeDasharray="4"
-              />
-            );
-          })()}
+          <GanttDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="integrated-arrowhead"
+          />
+          <DraggingDependencyLine
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+          />
         </svg>
 
         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -337,11 +286,6 @@ export const IntegratedView = ({
                         taskId={id}
                         task={task}
                         timelineMetrics={timelineMetrics}
-                        isDragging={dragState?.taskId === id}
-                        dragMode={dragState?.taskId === id ? dragState.mode : null}
-                        dragCurrentStartDate={dragState?.taskId === id ? dragState.currentStartDate : null}
-                        dragCurrentEndDate={dragState?.taskId === id ? dragState.currentEndDate : null}
-                        setDragState={setDragState}
                         baselineLocked={baselineLocked}
                         taskBarRefs={taskBarRefs}
                         timelineWidth={timelineWidth}

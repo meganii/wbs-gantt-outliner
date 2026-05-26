@@ -59,6 +59,8 @@ const taskStore = create<TaskStoreState>()(
       focusedTaskId: null,
       focusedTaskField: 'title',
       selectedTaskIds: [],
+      dragState: null,
+      mousePos: null,
 
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
       setFocusedTaskCell: (id, field) => set({ focusedTaskId: id, focusedTaskField: field }),
@@ -438,6 +440,9 @@ const taskStore = create<TaskStoreState>()(
           baselineLocked,
         },
       })),
+
+      setDragState: (dragState) => set({ dragState }),
+      setMousePos: (mousePos) => set({ mousePos }),
     }),
     {
       partialize: (state) => ({

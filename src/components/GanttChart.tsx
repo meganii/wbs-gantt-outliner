@@ -10,11 +10,12 @@ import type { ColumnId } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
+import { GanttDependencyLines } from './GanttDependencyLines';
+import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
 import { useGanttTimeline } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
-import { useGanttDependencies } from '../hooks/useGanttDependencies';
 
 const HEADER_HEIGHT = 56;
 
@@ -48,7 +49,6 @@ export const GanttChart = ({
   const setCollapsed = useTaskStore(state => state.setCollapsed);
   const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
-  const removeDependency = useTaskStore(state => state.removeDependency);
 
   const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
 
@@ -75,21 +75,7 @@ export const GanttChart = ({
   const headerRef = useRef<HTMLDivElement>(null);
 
   // Use custom drag interaction hook
-  const {
-    dragState,
-    mousePos,
-    setDragState,
-  } = useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
-
-  // Use custom dependency line layout hook
-  const dependencyLines = useGanttDependencies(
-    flattenedItems,
-    taskBarRefs,
-    containerRef,
-    nameOffset,
-    timelineMetrics,
-    dragState
-  );
+  useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
 
   const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
 
@@ -356,59 +342,17 @@ export const GanttChart = ({
             </marker>
           </defs>
           {/* Existing Dependencies */}
-          {dependencyLines.map(({ key, d, fromId, toId }) => {
-            return (
-              <path
-                key={key}
-                d={d}
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
-                style={{ pointerEvents: 'stroke' }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm('Delete this dependency?')) {
-                    removeDependency(fromId, toId);
-                  }
-                }}
-              />
-            );
-          })}
+          <GanttDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="arrowhead"
+          />
 
           {/* Dragging Line */}
-          {dragState?.mode === 'dependency' && mousePos && (
-            (() => {
-              const startIdx = flattenedItems.findIndex(i => i.id === dragState.taskId);
-              if (startIdx === -1) return null;
-
-              const task = tasks[dragState.taskId];
-              const endDateStr = task.planEndDate || task.endDate;
-              if (!endDateStr) return null;
-              const taskEnd = new Date(endDateStr);
-              const { timelineStart, pixelsPerDay } = timelineMetrics;
-
-              const diffDays = differenceInDays(taskEnd, timelineStart);
-              const startX = (diffDays + 1) * pixelsPerDay;
-              const startY = startIdx * 32 + 5;
-
-              return (
-                <line
-                  x1={startX}
-                  y1={startY}
-                  x2={mousePos.x}
-                  y2={mousePos.y}
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                  strokeDasharray="4"
-                />
-              );
-            })()
-          )}
+          <DraggingDependencyLine
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+          />
         </svg>
 
         {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
@@ -476,11 +420,6 @@ export const GanttChart = ({
                 taskId={id}
                 task={task}
                 timelineMetrics={timelineMetrics}
-                isDragging={dragState?.taskId === id}
-                dragMode={dragState?.taskId === id ? dragState.mode : null}
-                dragCurrentStartDate={dragState?.taskId === id ? dragState.currentStartDate : null}
-                dragCurrentEndDate={dragState?.taskId === id ? dragState.currentEndDate : null}
-                setDragState={setDragState}
                 baselineLocked={baselineLocked}
                 taskBarRefs={taskBarRefs}
                 timelineWidth={timeRange.length * CELL_WIDTH}

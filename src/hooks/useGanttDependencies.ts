@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react';
+import { useMemo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import type { FlattenedItem } from '../utils/tree';
 import type { TimelineMetrics } from './useGanttTimeline';
@@ -16,20 +16,19 @@ export const useGanttDependencies = (
   _taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>, // kept for signature compatibility
   _containerRef: React.RefObject<HTMLDivElement | null>,     // kept for signature compatibility
   _leftOffset: number,                                       // kept for signature compatibility
-  timelineMetrics: TimelineMetrics,
-  dragState: any
+  timelineMetrics: TimelineMetrics
 ) => {
   const tasks = useTaskStore((state) => state.tasks);
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
-  const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
+  const dragState = useTaskStore((state) => state.dragState);
 
-  useLayoutEffect(() => {
+  return useMemo(() => {
     const lines: DependencyLine[] = [];
     const pixelsPerDay = timelineMetrics.pixelsPerDay;
     const timelineStart = timelineMetrics.timelineStart;
 
     if (!pixelsPerDay || !timelineStart) {
-      return;
+      return lines;
     }
 
     const rowHeight = 32;
@@ -122,9 +121,6 @@ export const useGanttDependencies = (
         }
       }
     }
-    setDependencyLines(lines);
+    return lines;
   }, [flattenedItems, tasks, timelineMetrics, baselineLocked, dragState]);
-
-  return dependencyLines;
 };
-

@@ -81,12 +81,14 @@ export const TaskOutlineCell = ({
 
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (e.repeat) return;
       commitValue();
       addTask(taskId, 'after');
     }
 
     if (e.key === 'Backspace' && localTitle === '') {
       e.preventDefault();
+      if (e.repeat) return;
       if (effectiveIds.length <= 1) {
         const targetPrev = prevId;
         deleteTask(taskId);
@@ -98,6 +100,7 @@ export const TaskOutlineCell = ({
 
     if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
       e.preventDefault();
+      if (e.repeat) return;
       const targetFocus = prevId || nextId;
       deleteTask(effectiveIds);
       if (targetFocus && !effectiveIds.includes(targetFocus)) {
