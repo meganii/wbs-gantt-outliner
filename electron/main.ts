@@ -44,6 +44,15 @@ function createWindow() {
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown') {
       const isControlOrMeta = process.platform === 'darwin' ? input.meta : input.control;
+
+      // Prevent reload in production to avoid accidental data loss
+      if (app.isPackaged) {
+        const isR = input.key.toLowerCase() === 'r';
+        if ((isControlOrMeta && isR) || input.key === 'F5') {
+          event.preventDefault();
+        }
+      }
+
       if (isControlOrMeta && !input.alt && !input.shift) {
         if (input.key === '1') {
           event.preventDefault();

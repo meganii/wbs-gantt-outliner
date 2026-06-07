@@ -4,6 +4,10 @@
 
 ## 現在の状態
 
+- **本番環境における誤リフレッシュ防止対策（Cmd+R / Ctrl+R / F5 の無効化）** (June 7, 2026):
+  - ユーザーが本格的にアプリを利用する際、誤って `Ctrl+R`（または Mac の `Cmd+R`）や `F5` キーを押してしまい画面がリフレッシュされ、保存前のタスクデータが消失してしまうのを防止するため、本番ビルド（`app.isPackaged === true`）時にこれらのキー入力をキャンセルする処理を [electron/main.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/electron/main.ts) に追加。
+  - 開発環境（`isPackaged === false`）ではリロードができる利便性を維持。
+
 - **ガントバー移動時の無関係なタスク（パターンC）の位置ズレバグの解消および再描画・ちらつき防止の極限最適化** (June 7, 2026):
   - タイムライン自動拡張が発生した際に、親子関係・依存関係のない無関係なタスクのガントバー表示位置がドロップ直後にズレてしまうバグを解決。
   - 原因：アウトライナーの編集パフォーマンス向上のため `TaskRow` が `React.memo` 化されていたが、`IntegratedView` の `renderContainer` プロパティ（クロージャ）内に配置されていた `GanttTimelineRow` が、タイムライン自動拡張に伴う `timelineMetrics` の変更を感知できず、再描画がスキップされていたため。
