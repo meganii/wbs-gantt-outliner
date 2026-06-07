@@ -86,6 +86,8 @@ export const useGanttDrag = (
             }
           }
         }
+        state.setDragState(null);
+        state.setMousePos(null);
       } else if (currentDragState.mode === 'draw-range') {
         const { taskId, currentStartDate, currentEndDate } = currentDragState;
         let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
@@ -104,13 +106,13 @@ export const useGanttDrag = (
 
         const newDuration = getWorkDaysCount(start, end, calendar);
         if (baselineLocked) {
-          state.updateTask(taskId, {
+          state.endDragUpdate(taskId, {
             startDate: format(start, 'yyyy-MM-dd'),
             endDate: format(end, 'yyyy-MM-dd'),
             duration: newDuration,
           });
         } else {
-          state.updateTask(taskId, {
+          state.endDragUpdate(taskId, {
             planStartDate: format(start, 'yyyy-MM-dd'),
             planEndDate: format(end, 'yyyy-MM-dd'),
             planDuration: newDuration,
@@ -130,23 +132,23 @@ export const useGanttDrag = (
         ) {
           const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
           if (baselineLocked) {
-            state.updateTask(taskId, {
+            state.endDragUpdate(taskId, {
               startDate: format(currentStartDate, 'yyyy-MM-dd'),
               endDate: format(currentEndDate, 'yyyy-MM-dd'),
               duration: newDuration,
             });
           } else {
-            state.updateTask(taskId, {
+            state.endDragUpdate(taskId, {
               planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
               planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
               planDuration: newDuration,
             });
           }
+        } else {
+          state.setDragState(null);
+          state.setMousePos(null);
         }
       }
-
-      state.setDragState(null);
-      state.setMousePos(null);
     };
 
     window.addEventListener('mousemove', handleMouseMove);

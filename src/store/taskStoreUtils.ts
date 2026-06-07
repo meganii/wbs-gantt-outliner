@@ -82,7 +82,8 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  baselineLocked?: boolean
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
@@ -125,6 +126,10 @@ export function shiftDescendants(
       ...descTask,
       planStartDate: format(newDescStart, 'yyyy-MM-dd'),
       planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
+      ...(!baselineLocked && {
+        startDate: format(newDescStart, 'yyyy-MM-dd'),
+        endDate: format(newDescEnd, 'yyyy-MM-dd'),
+      }),
     };
   });
 
@@ -194,7 +199,7 @@ export function propagateDependencyDates(
         const descIds = getDescendantIds(currentId);
 
         // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, baselineLocked);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -217,6 +222,11 @@ export function propagateDependencyDates(
         planStartDate: format(newStartDate, 'yyyy-MM-dd'),
         planEndDate: format(newEndDate, 'yyyy-MM-dd'),
         planDuration: duration,
+        ...(!baselineLocked && {
+          startDate: format(newStartDate, 'yyyy-MM-dd'),
+          endDate: format(newEndDate, 'yyyy-MM-dd'),
+          duration: duration,
+        }),
       };
 
       if (nextTasks[currentId].parentId) {

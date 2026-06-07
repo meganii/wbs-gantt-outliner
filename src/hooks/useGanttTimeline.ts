@@ -16,7 +16,7 @@ import {
   startOfWeek,
   startOfYear,
 } from 'date-fns';
-import type { Task } from '../types';
+import type { FlattenedItem } from '../utils/tree';
 
 export interface TimelineMetrics {
   timelineStart: Date;
@@ -27,10 +27,11 @@ export interface TimelineMetrics {
 }
 
 /** タスク群から最小開始日・最大終了日を取得する */
-function getTaskDateRange(tasks: Record<string, Task>): { minDate: Date | null; maxDate: Date | null } {
+function getTaskDateRange(items: FlattenedItem[]): { minDate: Date | null; maxDate: Date | null } {
   let minDate: Date | null = null;
   let maxDate: Date | null = null;
-  for (const task of Object.values(tasks)) {
+  for (const item of items) {
+    const task = item.task;
     const dates = [task.startDate, task.endDate, task.planStartDate, task.planEndDate];
     for (const d of dates) {
       if (!d) continue;
@@ -42,10 +43,9 @@ function getTaskDateRange(tasks: Record<string, Task>): { minDate: Date | null; 
   return { minDate, maxDate };
 }
 
-export const useGanttTimeline = () => {
+export const useGanttTimeline = (flattenedItems: FlattenedItem[]) => {
   const viewMode = useTaskStore((state) => state.projectConfig.viewMode);
   const calendar = useTaskStore((state) => state.projectConfig.calendar);
-  const tasks = useTaskStore((state) => state.tasks);
   const timelineRangeConfig = useTaskStore((state) => state.projectConfig.timelineRange);
 
   const cellWidth = useMemo(() => {
@@ -83,7 +83,7 @@ export const useGanttTimeline = () => {
     }
 
     // タスクデータから日付範囲を計算
-    const { minDate, maxDate } = getTaskDateRange(tasks);
+    const { minDate, maxDate } = getTaskDateRange(flattenedItems);
 
     switch (viewMode) {
       case 'Week': {
@@ -112,7 +112,7 @@ export const useGanttTimeline = () => {
         return eachDayOfInterval({ start, end });
       }
     }
-  }, [viewMode, tasks, timelineRangeConfig]);
+  }, [viewMode, flattenedItems, timelineRangeConfig]);
 
   const timelineMetrics = useMemo((): TimelineMetrics => {
     const timelineStart = timeRange[0];

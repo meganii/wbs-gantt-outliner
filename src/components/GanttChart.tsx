@@ -38,8 +38,6 @@ export const GanttChart = ({
   scrollRef,
   onScroll
 }: GanttChartProps) => {
-  const tasks = useTaskStore(state => state.tasks);
-  const rootIds = useTaskStore(state => state.rootIds);
   const setViewMode = useTaskStore(state => state.setViewMode);
   
   const selectedTaskIds = useTaskStore(state => state.selectedTaskIds);
@@ -53,8 +51,8 @@ export const GanttChart = ({
   const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
 
   const flattenedItems = useMemo(
-    () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
-    [flattenedItemsProp, tasks, rootIds]
+    () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
+    [flattenedItemsProp]
   );
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -68,7 +66,7 @@ export const GanttChart = ({
     timelineMetrics,
     viewMode,
     calendar,
-  } = useGanttTimeline();
+  } = useGanttTimeline(flattenedItems);
 
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollRef || internalContainerRef;

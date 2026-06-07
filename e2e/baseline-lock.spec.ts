@@ -37,20 +37,20 @@ test.describe('Baseline Lock E2E Tests', () => {
 
     await page.waitForTimeout(200);
 
-    // Assert that actual dates remain empty (decoupled) when baselineLock is OFF
-    await expect(actualStartDateInputs.nth(1)).toHaveValue('');
-    await expect(actualEndDateInputs.nth(1)).toHaveValue('');
+    // Assert that actual dates are synchronized when baselineLock is OFF
+    await expect(actualStartDateInputs.nth(1)).toHaveValue('2026-06-01');
+    await expect(actualEndDateInputs.nth(1)).toHaveValue('2026-06-02');
 
-    // Now set actual start date
+    // Now set actual start date (they should sync back to plan dates as well)
     await actualStartDateInputs.nth(1).fill('2026-06-05');
     await actualEndDateInputs.nth(1).fill('2026-06-08');
     await actualEndDateInputs.nth(1).press('Enter');
 
     await page.waitForTimeout(200);
 
-    // Assert actual dates are set, plan dates remain separate
+    // Assert actual dates and plan dates are both updated
     await expect(actualStartDateInputs.nth(1)).toHaveValue('2026-06-05');
-    await expect(planStartDateInputs.nth(1)).toHaveValue('2026-06-01');
+    await expect(planStartDateInputs.nth(1)).toHaveValue('2026-06-05');
 
     // 5. Turn ON baseline lock
     const lockCheckbox = page.locator('label:has-text("Lock Baseline") input[type="checkbox"]');

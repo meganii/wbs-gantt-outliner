@@ -35,6 +35,13 @@ interface TaskRowProps {
     containerStyle: React.CSSProperties;
     isDragging: boolean;
   }) => React.ReactNode;
+  timelineMetrics?: {
+    timelineStart: Date;
+    pixelsPerDay: number;
+    totalDays: number;
+  };
+  timelineWidth?: number;
+  outlinerWidth?: number;
 }
 
 export const TaskRow = memo(({
@@ -254,6 +261,20 @@ export const TaskRow = memo(({
       const nextCols = nextProps.visibleColumns;
       if (prevCols.length !== nextCols.length) return false;
       if (!prevCols.every((col, i) => col === nextCols[i])) return false;
+      continue;
+    }
+    if (key === 'timelineMetrics') {
+      const prevMetrics = prevProps.timelineMetrics;
+      const nextMetrics = nextProps.timelineMetrics;
+      if (!prevMetrics && !nextMetrics) continue;
+      if (!prevMetrics || !nextMetrics) return false;
+      if (
+        prevMetrics.timelineStart.getTime() !== nextMetrics.timelineStart.getTime() ||
+        prevMetrics.pixelsPerDay !== nextMetrics.pixelsPerDay ||
+        prevMetrics.totalDays !== nextMetrics.totalDays
+      ) {
+        return false;
+      }
       continue;
     }
     if (prevProps[key] !== nextProps[key]) {

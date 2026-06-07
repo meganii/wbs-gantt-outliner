@@ -4,6 +4,21 @@
 
 ## 現在の状態
 
+- **ガントバー移動時の無関係なタスク（パターンC）の位置ズレバグの解消** (June 7, 2026):
+  - タイムライン自動拡張が発生した際に、親子関係・依存関係のない無関係なタスクのガントバー表示位置がドロップ直後にズレてしまうバグを解決。
+  - 原因：アウトライナーの編集パフォーマンス向上のため `TaskRow` が `React.memo` 化されていたが、`IntegratedView` の `renderContainer` プロパティ（クロージャ）内に配置されていた `GanttTimelineRow` が、タイムライン自動拡張に伴う `timelineMetrics` の変更を感知できず、再描画がスキップされていたため。
+  - 対策：`timelineMetrics`、`timelineWidth`、`outlinerWidth` を `TaskRow` の Props として明示的に流し、`TaskRow` のカスタム比較関数において `timelineMetrics` の値変更（`timelineStart`、`pixelsPerDay`、`totalDays`）を比較・検知できるように改修。これにより、文字入力時の高速描画パフォーマンスを完全に維持しつつ、タイムライン伸縮時に全ガントバーが瞬時に同期して正しい位置に再描画されるようになった。
+  - その他：
+    - Zundo（Temporal）の `equality` 設定を復活させ、UI上だけのフォーカス・選択変更によって Undo 履歴が余分に生成されるのを防止（Vitest の `restore focusedTaskId and selectedTaskIds` テストをパス）。
+    - `e2e/undo-redo.spec.ts` でタイトル変更の確定を Enter キー押下（新タスク生成を伴う）から blur（bodyクリック）による確定に変更し、Undo 履歴上の状態ミスマッチによるテストのフレーキー挙動を解消。
+    - Vitest で Playwright の `.spec.ts` ファイルを誤って読み込んで実行しようとする競合を避けるため、`vite.config.ts` の Vitest 構成に `exclude: [...configDefaults.exclude, 'e2e/**']` を追加。
+    - 全ての本番ビルド（TSC型チェック含む）および Vitest 81件、Playwright E2E 6件のテストが100%成功することを確認。
+- **ガントバー移動時の挙動安定化および予定・実績同期の実装** (June 7, 2026):
+  - ガントバーのドラッグ開始時にバー幅が一瞬1日分に縮退するUIバグを解消（`GanttTimelineRow` の `currentEndDate` 初期化タイポを修正）。
+  - ベースライン固定がOFFのとき、予定日付/期間と実績日付/期間が自動的に同期される双方向同期ロジックを `useTaskStore.ts` に実装。
+  - 依存関係日程伝播 (`propagateDependencyDates`) および子タスク日程再帰シフト (`shiftDescendants`) において、ベースライン固定がOFFの場合は予定と同時に実績日程も自動シフトするように改善。
+  - WBSセル側と一貫性を持たせるため、予定日付が未設定の場合に実績日付を代替表示して予定バー（青）を描画するフォールバック処理を `GanttTimelineRow` に追加。
+  - 既存の78件のテスト、5件のE2Eテストが全件合格し、本番ビルドが正常に通過することを確認。
 - **ガント操作時のドラッグ確定・即時再描画ラグの解消** (May 26, 2026):
   - 依存関係を設定したガントバーの移動・リサイズ操作において、クリックを離してもマウスを行から外すまで変更が反映されない（再描画が遅延する）バグを解決。
   - 原因は、`<TaskRow>` が `React.memo` 化されていた一方、Prop として `task` データ自体を受け取っておらず、Zustand ストア更新時に `<TaskRow>` の Prop 比較関数 `areEqual` が re-render 不要と判定して描画をスキップしていたため（結果として、ガント表示のラッパー `renderContainer` のクロージャが古いタスクデータを参照し続けていた）。

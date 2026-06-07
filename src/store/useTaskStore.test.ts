@@ -516,8 +516,8 @@ describe('useTaskStore', () => {
       const { tasks: updatedTasks } = useTaskStore.getState();
       // task2's plan start date should be the next workday after task1's new plan end date
       expect(updatedTasks[task2Id].planStartDate).toBe('2024-01-04');
-      // Actual dates should remain null
-      expect(updatedTasks[task2Id].startDate).toBeNull();
+      // Actual dates should be synchronized when baseline is unlocked
+      expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
     });
   });
 
@@ -987,10 +987,10 @@ describe('useTaskStore', () => {
         useTaskStore.setState({ tasks });
       });
 
-      // Now trigger propagateDependencyDates manually to test the engine
+      // Now trigger propagateDependencyDates manually with baselineLocked=true to test decoupling
       act(() => {
         const state = useTaskStore.getState();
-        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar);
+        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar, true);
         useTaskStore.setState({ tasks: updatedTasks });
       });
 
@@ -1023,11 +1023,11 @@ describe('useTaskStore', () => {
   });
 
   describe('Baseline Plan and Actual Date Synchronization & Locking', () => {
-    it('should NOT synchronize plan and actual dates when baseline is not locked', () => {
+    it('should synchronize plan and actual dates when baseline is not locked', () => {
       const { rootIds } = useTaskStore.getState();
       const taskId = rootIds[0];
 
-      // 1. Update actual date, plan date should remain null/unchanged
+      // 1. Update actual date, plan date should be synchronized
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           startDate: '2026-05-25',
@@ -1038,10 +1038,10 @@ describe('useTaskStore', () => {
 
       let task = useTaskStore.getState().tasks[taskId];
       expect(task.startDate).toBe('2026-05-25');
-      expect(task.planStartDate).toBe('2026-05-23'); // Project root's default initial planStartDate
-      expect(task.planEndDate).toBe('2026-05-23');
+      expect(task.planStartDate).toBe('2026-05-25');
+      expect(task.planEndDate).toBe('2026-05-27');
 
-      // 2. Update plan date, actual date should remain unchanged
+      // 2. Update plan date, actual date should be synchronized
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           planStartDate: '2026-06-01',
@@ -1052,7 +1052,8 @@ describe('useTaskStore', () => {
 
       task = useTaskStore.getState().tasks[taskId];
       expect(task.planStartDate).toBe('2026-06-01');
-      expect(task.startDate).toBe('2026-05-25'); // Unchanged
+      expect(task.startDate).toBe('2026-06-01');
+      expect(task.endDate).toBe('2026-06-05');
     });
 
     it('should ignore plan updates and only modify actual dates when baseline is locked', () => {
@@ -1182,10 +1183,10 @@ describe('useTaskStore', () => {
         });
       });
 
-      // Sibling plan date should shift, but actual date must remain unchanged (2026-05-26)
+      // Sibling plan date should shift, and actual date must also shift because baseline is not locked
       const sibling = useTaskStore.getState().tasks[siblingId];
       expect(sibling.planStartDate).toBe('2026-06-02');
-      expect(sibling.startDate).toBe('2026-05-26'); // Unchanged
+      expect(sibling.startDate).toBe('2026-06-02');
     });
 
     it('should NOT propagate dependency changes to actual dates when baseline is locked', () => {

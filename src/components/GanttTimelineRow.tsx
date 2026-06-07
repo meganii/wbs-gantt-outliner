@@ -82,7 +82,9 @@ export const GanttTimelineRow = memo(({
 
       {/* Task Bar */}
       {(() => {
-        const hasPlan = !!(task.planStartDate && task.planEndDate);
+        const planStartStr = task.planStartDate || task.startDate;
+        const planEndStr = task.planEndDate || task.endDate;
+        const hasPlan = !!(planStartStr && planEndStr);
         const hasActual = !!(task.startDate && task.endDate);
         if (!hasPlan && !hasActual) return null;
 
@@ -90,8 +92,8 @@ export const GanttTimelineRow = memo(({
         
         // 1. Plan Bar Metrics
         const isDraggingPlan = isDragging && !baselineLocked && dragMode !== 'dependency' && dragMode !== 'draw-range';
-        const planStart = isDraggingPlan ? dragCurrentStartDate : (task.planStartDate ? new Date(task.planStartDate) : null);
-        const planEnd = isDraggingPlan ? dragCurrentEndDate : (task.planEndDate ? new Date(task.planEndDate) : null);
+        const planStart = isDraggingPlan ? dragCurrentStartDate : (planStartStr ? new Date(planStartStr) : null);
+        const planEnd = isDraggingPlan ? dragCurrentEndDate : (planEndStr ? new Date(planEndStr) : null);
         const planDiffDays = planStart ? differenceInDays(planStart, timelineStart) : 0;
         const planOffset = planDiffDays * pixelsPerDay;
         const planDaySpan = (planStart && planEnd) ? differenceInDays(planEnd, planStart) + 1 : 0;
@@ -136,17 +138,17 @@ export const GanttTimelineRow = memo(({
                 onMouseDown={(e) => {
                   if (baselineLocked || e.button !== 0 || isParent) return;
                   e.stopPropagation();
-                  const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                  const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
+                  const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                  const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                   setDragState({
                     taskId,
                     mode: 'move',
                     startX: e.clientX,
                     startY: e.clientY,
-                    initialStartDate: new Date(planStartStr),
-                    initialEndDate: new Date(planEndStr),
-                    currentStartDate: new Date(planStartStr),
-                    currentEndDate: new Date(planStartStr),
+                    initialStartDate: new Date(startStr),
+                    initialEndDate: new Date(endStr),
+                    currentStartDate: new Date(startStr),
+                    currentEndDate: new Date(endStr),
                   });
                 }}
               >
@@ -165,17 +167,17 @@ export const GanttTimelineRow = memo(({
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
+                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                       setDragState({
                         taskId,
                         mode: 'resize-left',
                         startX: e.clientX,
                         startY: e.clientY,
-                        initialStartDate: new Date(planStartStr),
-                        initialEndDate: new Date(planEndStr),
-                        currentStartDate: new Date(planStartStr),
-                        currentEndDate: new Date(planEndStr),
+                        initialStartDate: new Date(startStr),
+                        initialEndDate: new Date(endStr),
+                        currentStartDate: new Date(startStr),
+                        currentEndDate: new Date(endStr),
                       });
                     }}
                   />
@@ -188,17 +190,17 @@ export const GanttTimelineRow = memo(({
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
+                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                       setDragState({
                         taskId,
                         mode: 'resize-right',
                         startX: e.clientX,
                         startY: e.clientY,
-                        initialStartDate: new Date(planStartStr),
-                        initialEndDate: new Date(planEndStr),
-                        currentStartDate: new Date(planStartStr),
-                        currentEndDate: new Date(planEndStr),
+                        initialStartDate: new Date(startStr),
+                        initialEndDate: new Date(endStr),
+                        currentStartDate: new Date(startStr),
+                        currentEndDate: new Date(endStr),
                       });
                     }}
                   />
@@ -212,17 +214,17 @@ export const GanttTimelineRow = memo(({
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
+                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
+                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                       setDragState({
                         taskId,
                         mode: 'dependency',
                         startX: e.clientX,
                         startY: e.clientY,
-                        initialStartDate: new Date(planStartStr),
-                        initialEndDate: new Date(planEndStr),
-                        currentStartDate: new Date(planStartStr),
-                        currentEndDate: new Date(planEndStr),
+                        initialStartDate: new Date(startStr),
+                        initialEndDate: new Date(endStr),
+                        currentStartDate: new Date(startStr),
+                        currentEndDate: new Date(endStr),
                       });
                     }}
                   >

@@ -98,6 +98,7 @@ export interface TaskStoreState {
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
+  endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
   setCollapsed: (ids: string[], isCollapsed: boolean) => void;

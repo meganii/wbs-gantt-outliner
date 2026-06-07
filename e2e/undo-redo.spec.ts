@@ -26,13 +26,10 @@ test.describe('Undo/Redo E2E Tests', () => {
 
     // 4. Edit the title to 'Modified Title'
     await secondInput.click();
-    // Select all and type new title
-    await page.keyboard.press('Control+a');
-    await page.keyboard.type('Modified Title');
-    await page.keyboard.press('Enter'); // Commit
+    await secondInput.fill('Modified Title');
     await page.waitForTimeout(200);
 
-    // Focus out to ensure browser native input undo is not triggered instead of React Zundo
+    // Focus out to ensure browser native input undo is not triggered instead of React Zundo, committing the edit via blur
     await page.locator('body').click();
     await page.waitForTimeout(200);
     await expect(secondInput).toHaveValue('Modified Title');

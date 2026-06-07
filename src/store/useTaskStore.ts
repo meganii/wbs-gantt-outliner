@@ -183,10 +183,30 @@ const taskStore = create<TaskStoreState>()(
           delete finalUpdates.planStartDate;
           delete finalUpdates.planEndDate;
           delete finalUpdates.planDuration;
+        } else {
+          // Bidirectional sync before calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
         }
 
         // Apply automatic date & duration calculations
         finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
+
+        if (!baselineLocked) {
+          // Sync any calculated values after calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
 
         let tasks = {
           ...state.tasks,
@@ -208,6 +228,71 @@ const taskStore = create<TaskStoreState>()(
         }
 
         return { tasks };
+      }),
+
+      endDragUpdate: (id, updates) => set((state) => {
+        const oldTask = state.tasks[id];
+        if (!oldTask) {
+          return { dragState: null, mousePos: null };
+        }
+
+        const baselineLocked = state.projectConfig.baselineLocked ?? false;
+        let finalUpdates = { ...updates };
+
+        if (baselineLocked) {
+          // Ignore plan updates when baseline is locked
+          delete finalUpdates.planStartDate;
+          delete finalUpdates.planEndDate;
+          delete finalUpdates.planDuration;
+        } else {
+          // Bidirectional sync before calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
+
+        // Apply automatic date & duration calculations
+        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
+
+        if (!baselineLocked) {
+          // Sync any calculated values after calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
+
+        let tasks = {
+          ...state.tasks,
+          [id]: { ...oldTask, ...finalUpdates },
+        };
+
+        if (
+          finalUpdates.endDate !== undefined ||
+          finalUpdates.startDate !== undefined ||
+          finalUpdates.planEndDate !== undefined ||
+          finalUpdates.planStartDate !== undefined ||
+          finalUpdates.progress !== undefined ||
+          finalUpdates.status !== undefined
+        ) {
+          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
+          if (oldTask.parentId) {
+            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar, baselineLocked);
+          }
+        }
+
+        return {
+          tasks,
+          dragState: null,
+          mousePos: null,
+        };
       }),
 
       deleteTask: (ids) => set((state) => {
@@ -453,11 +538,10 @@ const taskStore = create<TaskStoreState>()(
         focusedTaskField: state.focusedTaskField,
         selectedTaskIds: state.selectedTaskIds,
       }),
-      equality: (a, b) => (
+      equality: (a, b) =>
         a.tasks === b.tasks &&
         a.rootIds === b.rootIds &&
-        a.projectConfig === b.projectConfig
-      ),
+        a.projectConfig === b.projectConfig,
     }
   )
 );

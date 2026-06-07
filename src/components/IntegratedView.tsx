@@ -38,8 +38,6 @@ export const IntegratedView = ({
   hoveredTaskId = null,
   onHoverTaskChange,
 }: IntegratedViewProps) => {
-  const tasks = useTaskStore((state) => state.tasks);
-  const rootIds = useTaskStore((state) => state.rootIds);
   const setViewMode = useTaskStore((state) => state.setViewMode);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
@@ -47,8 +45,8 @@ export const IntegratedView = ({
   const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
 
   const flattenedItems = useMemo(
-    () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
-    [flattenedItemsProp, tasks, rootIds]
+    () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
+    [flattenedItemsProp]
   );
   const flattenedIds = useMemo(() => flattenedItems.map((item) => item.id), [flattenedItems]);
 
@@ -66,7 +64,7 @@ export const IntegratedView = ({
     timelineMetrics,
     viewMode,
     calendar,
-  } = useGanttTimeline();
+  } = useGanttTimeline(flattenedItems);
 
   const visibleColumns = useMemo((): ColumnId[] => {
     const cols: ColumnId[] = ['taskName', 'status', 'progress'];
@@ -268,6 +266,9 @@ export const IntegratedView = ({
                   visibleColumns={visibleColumns}
                   disableHoverHandlers
                   suppressBorder
+                  timelineMetrics={timelineMetrics}
+                  timelineWidth={timelineWidth}
+                  outlinerWidth={outlinerWidth}
                   renderContainer={({ content, setContainerRef, containerStyle }) => (
                     <div
                       ref={setContainerRef}

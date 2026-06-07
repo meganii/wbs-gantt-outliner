@@ -236,7 +236,12 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
-      useTaskStore.getState().updateTask(rootId, { title: 'Test Task' });
+      useTaskStore.getState().updateTask(rootId, {
+        title: 'Test Task',
+        planStartDate: '2026-05-23',
+        planEndDate: '2026-05-23',
+        planDuration: 1,
+      });
     });
 
     const { container } = render(<GanttChart showNames />);
