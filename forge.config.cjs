@@ -3,7 +3,15 @@ module.exports = {
     asar: true,
     ignore: [
       /^\/src/,
-      /(.eslintrc.json)|(.gitignore)|(electron.vite.config.ts)|(forge.config.cjs)|(tsconfig.*\.json)/,
+      /^\/e2e/,
+      /^\/coverage/,
+      /^\/test-results/,
+      /^\/\.git/,
+      /^\/\.github/,
+      /^\/out/,
+      /^\/dist_electron/,
+      /^\/scratch/,
+      /(.eslintrc.json)|(.gitignore)|(electron.vite.config.ts)|(forge.config.cjs)|(tsconfig.*\.json)|(playwright.config.ts)|(pnpm-lock.yaml)|(pnpm-workspace.yaml)/,
     ]
   },
   rebuildConfig: {},
