@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, createContext, useContext } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   addMonths,
@@ -25,6 +25,21 @@ export interface TimelineMetrics {
   totalWidth: number;
   pixelsPerDay: number;
 }
+
+export interface TimelineContextType {
+  timelineMetrics: TimelineMetrics;
+  timelineWidth: number;
+}
+
+export const TimelineContext = createContext<TimelineContextType | null>(null);
+
+export const useTimelineContext = () => {
+  const context = useContext(TimelineContext);
+  if (!context) {
+    throw new Error('useTimelineContext must be used within a TimelineProvider');
+  }
+  return context;
+};
 
 /** タスク群から最小開始日・最大終了日を取得する */
 function getTaskDateRange(items: FlattenedItem[]): { minDate: Date | null; maxDate: Date | null } {

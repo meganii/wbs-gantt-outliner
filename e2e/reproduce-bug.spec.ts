@@ -4,7 +4,7 @@ test.describe('Reproduce Gantt Bar Drag Bug', () => {
   test('should verify if unrelated tasks move during/after drag and snap back on focus', async ({ page }) => {
     // 1. Load application
     page.on('console', (msg) => {
-      if (msg.text().includes('[Memo TaskB]') || msg.text().includes('[App Render]') || msg.text().includes('[useGanttTimeline]')) {
+      if (msg.text().includes('[Memo TaskB]') || msg.text().includes('[App Render]')) {
         console.log(`[Browser Console] ${msg.text()}`);
       }
     });

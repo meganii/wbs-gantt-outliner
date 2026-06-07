@@ -14,7 +14,7 @@ import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
-import { useGanttTimeline } from '../hooks/useGanttTimeline';
+import { useGanttTimeline, TimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
 
 const HEADER_HEIGHT = 56;
@@ -353,8 +353,9 @@ export const GanttChart = ({
           />
         </svg>
 
-        {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
-          const isHovered = hoveredTaskId === id;
+        <TimelineContext.Provider value={{ timelineMetrics, timelineWidth: timeRange.length * CELL_WIDTH }}>
+          {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
+            const isHovered = hoveredTaskId === id;
           const isSelected = selectedTaskIds.includes(id);
 
           return (
@@ -414,18 +415,19 @@ export const GanttChart = ({
                   />
                 </div>
               )}
-              {/* Bars Area */}
-              <GanttTimelineRow
-                taskId={id}
-                task={task}
-                timelineMetrics={timelineMetrics}
-                baselineLocked={baselineLocked}
-                taskBarRefs={taskBarRefs}
-                timelineWidth={timeRange.length * CELL_WIDTH}
-              />
-            </div>
-          );
-        })}
+                {/* Bars Area */}
+                <GanttTimelineRow
+                  taskId={id}
+                  task={task}
+                  timelineMetrics={timelineMetrics}
+                  baselineLocked={baselineLocked}
+                  taskBarRefs={taskBarRefs}
+                  timelineWidth={timeRange.length * CELL_WIDTH}
+                />
+              </div>
+            );
+          })}
+        </TimelineContext.Provider>
       </div>
     </div>
   );

@@ -18,8 +18,62 @@ import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
-import { useGanttTimeline } from '../hooks/useGanttTimeline';
+import { useGanttTimeline, TimelineContext, useTimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
+
+interface RowContainerProps {
+  id: string;
+  task: any;
+  content: React.ReactNode;
+  setContainerRef: (node: HTMLDivElement | null) => void;
+  containerStyle: React.CSSProperties;
+  outlinerWidth: number;
+  currentBgClass: string;
+  baselineLocked: boolean;
+  taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
+  onHoverTaskChange: ((taskId: string | null) => void) | undefined;
+}
+
+const RowContainer = ({
+  id,
+  task,
+  content,
+  setContainerRef,
+  containerStyle,
+  outlinerWidth,
+  currentBgClass,
+  baselineLocked,
+  taskBarRefs,
+  onHoverTaskChange,
+}: RowContainerProps) => {
+  const { timelineWidth, timelineMetrics } = useTimelineContext();
+
+  return (
+    <div
+      ref={setContainerRef}
+      style={{ ...containerStyle, width: outlinerWidth + timelineWidth }}
+      className="flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150 bg-transparent gantt-row-optimized"
+      onMouseEnter={() => onHoverTaskChange?.(id)}
+      onMouseLeave={() => onHoverTaskChange?.(null)}
+    >
+      <div
+        className={clsx('sticky left-0 z-40 overflow-hidden border-r border-gray-300', currentBgClass)}
+        style={{ width: outlinerWidth }}
+      >
+        {content}
+      </div>
+
+      <GanttTimelineRow
+        taskId={id}
+        task={task}
+        timelineMetrics={timelineMetrics}
+        baselineLocked={baselineLocked}
+        taskBarRefs={taskBarRefs}
+        timelineWidth={timelineWidth}
+      />
+    </div>
+  );
+};
 
 interface IntegratedViewProps {
   outlinerWidth: number;
@@ -238,67 +292,56 @@ export const IntegratedView = ({
           />
         </svg>
 
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
-            {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
-              const isHovered = hoveredTaskId === id;
-              const isSelected = selectedTaskIds.includes(id);
-              const currentBgClass = clsx(
-                isSelected && isHovered && 'bg-blue-100',
-                isSelected && !isHovered && 'bg-blue-50',
-                !isSelected && isHovered && 'bg-gray-50',
-                !isSelected && !isHovered && 'bg-white'
-              );
+        <TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
+              {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
+                const isHovered = hoveredTaskId === id;
+                const isSelected = selectedTaskIds.includes(id);
+                const currentBgClass = clsx(
+                  isSelected && isHovered && 'bg-blue-100',
+                  isSelected && !isHovered && 'bg-blue-50',
+                  !isSelected && isHovered && 'bg-gray-50',
+                  !isSelected && !isHovered && 'bg-white'
+                );
 
-              return (
-                <TaskRow
-                  key={id}
-                  taskId={id}
-                  task={task}
-                  depth={depth}
-                  wbsNumber={wbsNumber}
-                  prevId={flattenedItems[index - 1]?.id}
-                  nextId={flattenedItems[index + 1]?.id}
-                  isSelected={isSelected}
-                  isHovered={isHovered}
-                  onHoverChange={onHoverTaskChange}
-                  onSelectionChange={handleSelectionChange}
-                  visibleColumns={visibleColumns}
-                  disableHoverHandlers
-                  suppressBorder
-                  timelineMetrics={timelineMetrics}
-                  timelineWidth={timelineWidth}
-                  outlinerWidth={outlinerWidth}
-                  renderContainer={({ content, setContainerRef, containerStyle }) => (
-                    <div
-                      ref={setContainerRef}
-                      style={{ ...containerStyle, width: outlinerWidth + timelineWidth }}
-                      className="flex h-8 relative z-auto border-b border-gray-100 select-none transition-colors duration-150 bg-transparent gantt-row-optimized"
-                      onMouseEnter={() => onHoverTaskChange?.(id)}
-                      onMouseLeave={() => onHoverTaskChange?.(null)}
-                    >
-                      <div
-                        className={clsx('sticky left-0 z-40 overflow-hidden border-r border-gray-300', currentBgClass)}
-                        style={{ width: outlinerWidth }}
-                      >
-                        {content}
-                      </div>
-
-                      <GanttTimelineRow
-                        taskId={id}
+                return (
+                  <TaskRow
+                    key={id}
+                    taskId={id}
+                    task={task}
+                    depth={depth}
+                    wbsNumber={wbsNumber}
+                    prevId={flattenedItems[index - 1]?.id}
+                    nextId={flattenedItems[index + 1]?.id}
+                    isSelected={isSelected}
+                    isHovered={isHovered}
+                    onHoverChange={onHoverTaskChange}
+                    onSelectionChange={handleSelectionChange}
+                    visibleColumns={visibleColumns}
+                    disableHoverHandlers
+                    suppressBorder
+                    outlinerWidth={outlinerWidth}
+                    renderContainer={({ content, setContainerRef, containerStyle }) => (
+                      <RowContainer
+                        id={id}
                         task={task}
-                        timelineMetrics={timelineMetrics}
+                        content={content}
+                        setContainerRef={setContainerRef}
+                        containerStyle={containerStyle}
+                        outlinerWidth={outlinerWidth}
+                        currentBgClass={currentBgClass}
                         baselineLocked={baselineLocked}
                         taskBarRefs={taskBarRefs}
-                        timelineWidth={timelineWidth}
+                        onHoverTaskChange={onHoverTaskChange}
                       />
-                    </div>
-                  )}
-                />
-              );
-            })}
-          </SortableContext>
-        </DndContext>
+                    )}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
+        </TimelineContext.Provider>
       </div>
 
       <div

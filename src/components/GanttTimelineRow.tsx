@@ -122,7 +122,7 @@ export const GanttTimelineRow = memo(({
                 }}
                 data-task-id={taskId}
                 className={clsx(
-                  "absolute text-[9px] flex items-center shadow-sm group z-20 transition-all",
+                  "absolute text-[9px] flex items-center shadow-sm group z-20 transition-[background-color,color,height,opacity,box-shadow] duration-150",
                   isParent
                     ? "top-[3px] h-2.5 bg-slate-700/40 cursor-default rounded-sm"
                     : [
@@ -253,7 +253,7 @@ export const GanttTimelineRow = memo(({
                 }}
                 data-task-id={taskId}
                 className={clsx(
-                  "absolute text-[8px] flex items-center shadow-sm group z-30 transition-all",
+                  "absolute text-[8px] flex items-center shadow-sm group z-30 transition-[background-color,color,opacity,box-shadow] duration-150",
                   isParent
                     ? "top-[18px] h-2 cursor-default rounded-sm"
                     : [

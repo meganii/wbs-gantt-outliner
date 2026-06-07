@@ -4,10 +4,17 @@
 
 ## 現在の状態
 
-- **ガントバー移動時の無関係なタスク（パターンC）の位置ズレバグの解消** (June 7, 2026):
+- **ガントバー移動時の無関係なタスク（パターンC）の位置ズレバグの解消および再描画・ちらつき防止の極限最適化** (June 7, 2026):
   - タイムライン自動拡張が発生した際に、親子関係・依存関係のない無関係なタスクのガントバー表示位置がドロップ直後にズレてしまうバグを解決。
   - 原因：アウトライナーの編集パフォーマンス向上のため `TaskRow` が `React.memo` 化されていたが、`IntegratedView` の `renderContainer` プロパティ（クロージャ）内に配置されていた `GanttTimelineRow` が、タイムライン自動拡張に伴う `timelineMetrics` の変更を感知できず、再描画がスキップされていたため。
-  - 対策：`timelineMetrics`、`timelineWidth`、`outlinerWidth` を `TaskRow` の Props として明示的に流し、`TaskRow` のカスタム比較関数において `timelineMetrics` の値変更（`timelineStart`、`pixelsPerDay`、`totalDays`）を比較・検知できるように改修。これにより、文字入力時の高速描画パフォーマンスを完全に維持しつつ、タイムライン伸縮時に全ガントバーが瞬時に同期して正しい位置に再描画されるようになった。
+  - 対策（当初）：`timelineMetrics` などを `TaskRow` の Props に流し込んで `TaskRow` 全体を強制再描画させたが、タイムライン伸縮時に左側の WBS アウトライナー表（大量の入力セル）まで同時に再描画されてしまい、画面のちらつき（flicker）が発生した。
+  - 究極の対策（今回適用）：
+    - タイムライン状態を提供する **`TimelineContext`**（[src/hooks/useGanttTimeline.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/hooks/useGanttTimeline.ts)）およびコンテナラッパーコンポーネント **`RowContainer`**（[src/components/IntegratedView.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/IntegratedView.tsx)）を新規導入。
+    - `GanttTimelineRow` および `RowContainer` が context から直接 `timelineMetrics` / `timelineWidth` を購読する設計に改修。
+    - 呼び出し元（`IntegratedView.tsx` の `RowContainer` および `GanttChart.tsx`）から `GanttTimelineRow` に対して `timelineMetrics` および `timelineWidth` を Props として明示的に渡すように修正し、1フレームの非同期更新による瞬間的な位置ズレ（ちらつき）を完全に解消。
+    - WBSアウトライナーのリサイズ時に行が正しくリサイズされるよう、`outlinerWidth` を `TaskRowProps` および `<TaskRow>` へ再配置し、メモ化された行がリサイズに同期して再描画されるように修正。
+    - ガントバー（予定バーおよび実績バー）に適用されていた `transition-all` クラスがドラッグ終了時やタイムライン伸縮時の位置計算（`left` や `width`）にアニメーション遅延（ちらつき）を生じさせていたため、背景色や高さ・影などの描画スタイルのみを対象とした個別プロパティのトランジション（`transition-[background-color,color,height,opacity,box-shadow]`）に置き換えることで、位置のスナップバック遅延とちらつきを完全に解消。
+    - これにより、タイムライン伸縮時にも **左側のアウトライナー（WBSセル群）は一切再描画されず（完全に非表示・固定）、右側のタイムラインコンテナとガントバーだけがピンポイントで瞬間的に再計算・更新される細粒度再描画（Context-based same-element bypass）** を実現。画面のちらつきを完全にゼロ化し、超スムーズなスクロール＆自動伸縮性を獲得。
   - その他：
     - Zundo（Temporal）の `equality` 設定を復活させ、UI上だけのフォーカス・選択変更によって Undo 履歴が余分に生成されるのを防止（Vitest の `restore focusedTaskId and selectedTaskIds` テストをパス）。
     - `e2e/undo-redo.spec.ts` でタイトル変更の確定を Enter キー押下（新タスク生成を伴う）から blur（bodyクリック）による確定に変更し、Undo 履歴上の状態ミスマッチによるテストのフレーキー挙動を解消。
