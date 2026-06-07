@@ -55,6 +55,7 @@ export interface ProjectConfig {
     start: string; // ISO date YYYY-MM-DD
     end: string;   // ISO date YYYY-MM-DD
   };
+  visibleColumns?: ColumnId[];
 }
 
 export type TaskFocusableField =
@@ -113,6 +114,7 @@ export interface TaskStoreState {
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
   setBaselineLocked: (baselineLocked: boolean) => void;
+  setVisibleColumns: (columns: ColumnId[]) => void;
   setDragState: (dragState: GanttDragState | null) => void;
   setMousePos: (mousePos: { x: number; y: number } | null) => void;
 }

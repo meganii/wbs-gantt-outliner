@@ -155,7 +155,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     // Get the Task Name header cell (the first sticky left element)
     const headerCell = container.querySelector('.sticky.left-0');
     expect(headerCell).not.toBeNull();
-    expect(headerCell?.textContent).toContain('Task Name');
+    expect(headerCell?.textContent).toContain('タスク名');
 
     // Get the resizer div inside the header cell
     const resizer = headerCell!.querySelector('.cursor-col-resize');

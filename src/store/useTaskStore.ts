@@ -526,6 +526,13 @@ const taskStore = create<TaskStoreState>()(
         },
       })),
 
+      setVisibleColumns: (visibleColumns) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          visibleColumns,
+        },
+      })),
+
       setDragState: (dragState) => set({ dragState }),
       setMousePos: (mousePos) => set({ mousePos }),
     }),

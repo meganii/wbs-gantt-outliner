@@ -43,7 +43,7 @@ test.describe('Undo/Redo E2E Tests', () => {
     const valAfterUndo = await secondInput.inputValue();
     if (valAfterUndo !== 'Original Title') {
       console.log('Shortcut undo did not trigger due to focus/browser limitations, trying UI Undo button click...');
-      const undoBtn = page.locator('button[title*="Undo"]');
+      const undoBtn = page.locator('button[title*="元に戻す"]');
       await expect(undoBtn).toBeEnabled();
       await undoBtn.click();
       await page.waitForTimeout(400);
@@ -59,7 +59,7 @@ test.describe('Undo/Redo E2E Tests', () => {
     const valAfterRedo = await secondInput.inputValue();
     if (valAfterRedo !== 'Modified Title') {
       console.log('Shortcut redo did not trigger, trying UI Redo button click...');
-      const redoBtn = page.locator('button[title*="Redo"]');
+      const redoBtn = page.locator('button[title*="やり直す"]');
       await expect(redoBtn).toBeEnabled();
       await redoBtn.click();
       await page.waitForTimeout(400);

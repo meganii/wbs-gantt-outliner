@@ -4,6 +4,19 @@
 
 ## 現在の状態
 
+- **メニュー表示およびWBSテーブルヘッダー・セル・エクスポートファイルの日本語ローカライズ** (June 7, 2026):
+  - アプリケーション上部のヘッダーバー ([src/components/AppHeader.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/AppHeader.tsx)) に配置されているメニューや操作ボタン、およびWBSテーブルヘッダーのカラムラベル（タスク名、説明、担当者、成果物、ステータス、進捗率、予定期間、予定日付、実績期間、実績日付）をすべて日本語化。
+  - セル内のテキスト入力プレースホルダー（説明、担当者、成果物）および、子タスクから日付・期間が自動計算される親タスクセルのツールチップ（`title` 属性）も日本語にローカライズ。
+  - Excelエクスポート機能 ([src/utils/export.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/utils/export.ts)) において出力されるExcelファイルのヘッダーカラムラベル（WBS番号、タスク名、説明、担当者、成果物、ステータス、進捗率、予定開始日、予定終了日、予定期間、実績開始日、実績終了日、実績期間）もすべて日本語化。
+  - ローカライズに伴い、関連するテストコード（[src/App.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/App.test.tsx), [src/components/Outliner.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/Outliner.test.tsx), [src/components/GanttChart.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/GanttChart.test.tsx), `e2e/` テストファイル群）のクエリ期待値やセレクタを日本語表記に追従するように修正し、全テストの合格を確認。
+
+- **表示項目の表示・非表示切り替え機能（右クリックコンテキストメニュー）** (June 7, 2026):
+  - WBSアウトライナーのテーブルヘッダー領域を右クリックした際に、表示項目のオン・オフ切り替え（トグル）が可能なカスタムコンテキストメニューを表示する機能を実装。
+  - カラム表示状態（`visibleColumns`）は Zustandストアの `projectConfig` 内で管理され、ファイル保存/読込や再起動時にも設定が引き継がれる。
+  - `taskName` (タスク名) カラムは必須のため非表示不可に設定。
+  - ベースライン固定（`baselineLocked === true`）の時は、予定系カラム（`planDuration`、`planDate`）のトグルは変更できないように制限（チェックボックスを無効化）。
+  - 右クリックコンテキストメニューのバブリング処理や、メニュー外クリック時の自動非表示、スタイルを TailwindCSS を用いて高品質に実装。
+
 - **本番環境における誤リフレッシュ防止対策（Cmd+R / Ctrl+R / F5 の無効化）** (June 7, 2026):
   - ユーザーが本格的にアプリを利用する際、誤って `Ctrl+R`（または Mac の `Cmd+R`）や `F5` キーを押してしまい画面がリフレッシュされ、保存前のタスクデータが消失してしまうのを防止するため、本番ビルド（`app.isPackaged === true`）時にこれらのキー入力をキャンセルする処理を [electron/main.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/electron/main.ts) に追加。
   - 開発環境（`isPackaged === false`）ではリロードができる利便性を維持。

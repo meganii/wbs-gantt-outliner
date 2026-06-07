@@ -94,7 +94,7 @@ export const TaskDurationCell = ({
             ? "text-gray-400 cursor-not-allowed select-none font-semibold"
             : "focus:border-gray-300 focus:text-gray-900"
         )}
-        title={isParent ? "Duration is automatically calculated from children" : "Duration (days)"}
+        title={isParent ? "期間は子タスクから自動計算されます" : "実績期間（日）"}
       />
     </div>
   );

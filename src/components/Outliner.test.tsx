@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, within } from '@testing-library/react';
 import { Outliner } from './Outliner';
 import { getTemporalState, useTaskStore } from '../store/useTaskStore';
 
@@ -159,5 +159,60 @@ describe('Outliner keyboard navigation', () => {
     
     // Verify that first, second, and third tasks are all selected!
     expect(useTaskStore.getState().selectedTaskIds).toEqual([firstId, secondId, thirdId]);
+  });
+
+  it('toggles column visibility through header right-click context menu', () => {
+    const { container, getByText } = render(<Outliner showDetails />);
+    
+    // Check initially description column is visible (it has width or is present in DOM)
+    const descriptionCol = getByText('説明');
+    expect(descriptionCol).not.toBeNull();
+
+    // Right-click the header
+    const header = container.querySelector('.sticky'); // Header container is sticky top-0
+    expect(header).not.toBeNull();
+    fireEvent.contextMenu(header!);
+
+    // Context menu container should appear
+    const menuContainer = container.querySelector('.fixed.bg-white') as HTMLElement;
+    expect(menuContainer).not.toBeNull();
+
+    // Find "説明" checkbox/label inside the menu
+    const descriptionLabel = within(menuContainer).getByText('説明');
+    expect(descriptionLabel).not.toBeNull();
+
+    // Click to toggle "説明" (description) off
+    fireEvent.click(descriptionLabel);
+
+    // Verify it is removed from visibleColumns in store
+    expect(useTaskStore.getState().projectConfig.visibleColumns).not.toContain('description');
+
+    // Right click again to toggle it back on
+    fireEvent.contextMenu(header!);
+    const menuContainer2 = container.querySelector('.fixed.bg-white') as HTMLElement;
+    const descriptionLabel2 = within(menuContainer2).getByText('説明');
+    fireEvent.click(descriptionLabel2);
+
+    // Verify it is present in store again
+    expect(useTaskStore.getState().projectConfig.visibleColumns).toContain('description');
+  });
+
+  it('disables planning columns toggle when baseline is locked', () => {
+    act(() => {
+      useTaskStore.getState().setBaselineLocked(true);
+    });
+
+    const { container } = render(<Outliner showDetails />);
+    const header = container.querySelector('.sticky');
+    fireEvent.contextMenu(header!);
+
+    const menuContainer = container.querySelector('.fixed.bg-white') as HTMLElement;
+    expect(menuContainer).not.toBeNull();
+
+    // "予定期間" should be disabled in the menu (look for disabled checkbox)
+    const planDurationLabel = within(menuContainer).getByText('予定期間');
+    const checkbox = (planDurationLabel.querySelector('input[type="checkbox"]') || planDurationLabel.parentElement?.querySelector('input[type="checkbox"]')) as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.disabled).toBe(true);
   });
 });

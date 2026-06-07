@@ -41,10 +41,10 @@ describe('App collapse controls', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'すべて折りたたむ' }));
     expect(useTaskStore.getState().tasks[rootId].isCollapsed).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'すべて展開' }));
     expect(useTaskStore.getState().tasks[rootId].isCollapsed).toBe(false);
   });
 
@@ -68,8 +68,8 @@ describe('App collapse controls', () => {
     render(<App />);
 
     const wbsBtn = screen.getByRole('button', { name: 'WBS' });
-    const integratedBtn = screen.getByRole('button', { name: 'Integrated' });
-    const ganttBtn = screen.getByRole('button', { name: 'Gantt' });
+    const integratedBtn = screen.getByRole('button', { name: '統合表示' });
+    const ganttBtn = screen.getByRole('button', { name: 'ガントチャート' });
 
     expect(integratedBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');
@@ -98,8 +98,8 @@ describe('App collapse controls', () => {
     render(<App />);
 
     const wbsBtn = screen.getByRole('button', { name: 'WBS' });
-    const integratedBtn = screen.getByRole('button', { name: 'Integrated' });
-    const ganttBtn = screen.getByRole('button', { name: 'Gantt' });
+    const integratedBtn = screen.getByRole('button', { name: '統合表示' });
+    const ganttBtn = screen.getByRole('button', { name: 'ガントチャート' });
 
     expect(integratedBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');

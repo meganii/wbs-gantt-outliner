@@ -19,7 +19,7 @@ test.describe('Baseline Lock E2E Tests', () => {
     expect(taskIdA).not.toBeNull();
 
     // 3. Select 'Integrated' view to see both plan and actual date columns in Outliner
-    const integratedTab = page.locator('button:has-text("Integrated")');
+    const integratedTab = page.locator('button:has-text("統合表示")');
     await integratedTab.click();
     await page.waitForTimeout(200);
 
@@ -53,7 +53,7 @@ test.describe('Baseline Lock E2E Tests', () => {
     await expect(planStartDateInputs.nth(1)).toHaveValue('2026-06-05');
 
     // 5. Turn ON baseline lock
-    const lockCheckbox = page.locator('label:has-text("Lock Baseline") input[type="checkbox"]');
+    const lockCheckbox = page.locator('label:has-text("ベースライン固定") input[type="checkbox"]');
     await expect(lockCheckbox).not.toBeChecked();
     await lockCheckbox.click();
     await expect(lockCheckbox).toBeChecked();

@@ -256,7 +256,7 @@ export const GanttChart = ({
             className="flex-shrink-0 border-r border-gray-300 p-2 pl-4 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
-            Task Name
+            タスク名
             <div
               className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 z-50 group-hover:opacity-50"
               onMouseDown={(e) => {

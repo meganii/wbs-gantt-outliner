@@ -10,7 +10,7 @@ test.describe('Parent Task Roll-up E2E Tests', () => {
     await expect(titleInputs.first()).toBeVisible();
 
     // 3. Select 'Integrated' view to see both plan and actual date columns in Outliner
-    const integratedTab = page.locator('button:has-text("Integrated")');
+    const integratedTab = page.locator('button:has-text("統合表示")');
     await integratedTab.click();
     await page.waitForTimeout(200);
 

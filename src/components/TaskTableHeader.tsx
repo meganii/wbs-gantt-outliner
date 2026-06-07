@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import type { ColumnId } from '../types';
 
@@ -6,9 +6,67 @@ interface TaskTableHeaderProps {
   visibleColumns: ColumnId[];
 }
 
+const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
+  { id: 'taskName', label: 'タスク名' },
+  { id: 'description', label: '説明' },
+  { id: 'assignee', label: '担当者' },
+  { id: 'deliverables', label: '成果物' },
+  { id: 'status', label: 'ステータス' },
+  { id: 'progress', label: '進捗率' },
+  { id: 'planDuration', label: '予定期間' },
+  { id: 'planDate', label: '予定日付' },
+  { id: 'duration', label: '実績期間' },
+  { id: 'date', label: '実績日付' },
+];
+
+const COLUMN_ORDER: ColumnId[] = [
+  'taskName',
+  'description',
+  'assignee',
+  'deliverables',
+  'status',
+  'progress',
+  'planDuration',
+  'planDate',
+  'duration',
+  'date',
+];
+
 export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore((state) => state.setColumnWidth);
+  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns || COLUMN_ORDER);
+  const setVisibleColumns = useTaskStore((state) => state.setVisibleColumns);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
+
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const closeMenu = () => setMenu(null);
+    window.addEventListener('click', closeMenu);
+    window.addEventListener('contextmenu', closeMenu);
+    return () => {
+      window.removeEventListener('click', closeMenu);
+      window.removeEventListener('contextmenu', closeMenu);
+    };
+  }, []);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const toggleColumn = (columnId: ColumnId) => {
+    if (columnId === 'taskName') return;
+    let nextCols: ColumnId[];
+    if (storeVisibleColumns.includes(columnId)) {
+      nextCols = storeVisibleColumns.filter((col) => col !== columnId);
+    } else {
+      nextCols = COLUMN_ORDER.filter((col) => col === columnId || storeVisibleColumns.includes(col));
+    }
+    setVisibleColumns(nextCols);
+  };
 
   const handleResize = (columnId: keyof typeof columnWidths) => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -39,7 +97,10 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
   );
 
   return (
-    <div className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center font-bold text-xs z-10 w-max">
+    <div 
+      className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center font-bold text-xs z-10 w-max"
+      onContextMenu={handleContextMenu}
+    >
       {visibleColumns.map((colId) => {
         switch (colId) {
           case 'taskName':
@@ -53,7 +114,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.taskName,
                 }}
               >
-                Task Name
+                タスク名
                 <Resizer columnId="taskName" />
               </div>
             );
@@ -68,7 +129,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.description,
                 }}
               >
-                Description
+                説明
                 <Resizer columnId="description" />
               </div>
             );
@@ -83,7 +144,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.assignee,
                 }}
               >
-                Assignee
+                担当者
                 <Resizer columnId="assignee" />
               </div>
             );
@@ -98,7 +159,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.deliverables,
                 }}
               >
-                Deliverables
+                成果物
                 <Resizer columnId="deliverables" />
               </div>
             );
@@ -113,7 +174,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.status,
                 }}
               >
-                Status
+                ステータス
                 <Resizer columnId="status" />
               </div>
             );
@@ -128,7 +189,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.progress,
                 }}
               >
-                Progress
+                進捗率
                 <Resizer columnId="progress" />
               </div>
             );
@@ -143,7 +204,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.planDuration,
                 }}
               >
-                Plan Dur.
+                予定期間
                 <Resizer columnId="planDuration" />
               </div>
             );
@@ -158,7 +219,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.planDate,
                 }}
               >
-                Plan Date
+                予定日付
                 <Resizer columnId="planDate" />
               </div>
             );
@@ -173,7 +234,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.duration,
                 }}
               >
-                Act. Dur.
+                実績期間
                 <Resizer columnId="duration" />
               </div>
             );
@@ -188,7 +249,7 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
                   maxWidth: columnWidths.date,
                 }}
               >
-                Act. Date
+                実績日付
                 <Resizer columnId="date" />
               </div>
             );
@@ -196,6 +257,55 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
             return null;
         }
       })}
+
+      {menu && (
+        <div
+          className="fixed bg-white border border-gray-200 rounded-md shadow-lg py-1 z-50 text-gray-700 min-w-[160px] font-normal"
+          style={{ top: menu.y, left: menu.x }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-100 select-none">
+            表示項目の設定
+          </div>
+          {ALL_COLUMNS.map(({ id, label }) => {
+            const isChecked = storeVisibleColumns.includes(id);
+            const isTaskName = id === 'taskName';
+            const isPlanColumn = id === 'planDuration' || id === 'planDate';
+            const isDisabled = isTaskName || (isPlanColumn && baselineLocked);
+
+            return (
+              <label
+                key={id}
+                className={`flex items-center px-3 py-1.5 text-xs hover:bg-gray-50 cursor-pointer select-none ${
+                  isDisabled ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                onClick={(e) => {
+                  if (isDisabled) {
+                    e.preventDefault();
+                    return;
+                  }
+                  toggleColumn(id);
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  disabled={isDisabled}
+                  className="mr-2 h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+                  onChange={() => {}}
+                />
+                <span>{label}</span>
+                {isPlanColumn && baselineLocked && (
+                  <span className="ml-auto text-[10px] text-amber-600 font-normal">
+                    (固定中)
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

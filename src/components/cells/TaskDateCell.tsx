@@ -106,7 +106,7 @@ export const TaskDateCell = ({
             ? "text-gray-400 cursor-not-allowed select-none font-semibold"
             : "cursor-pointer hover:text-gray-900 text-gray-600"
         )}
-        title={isParent ? "Start date is automatically calculated from children" : undefined}
+        title={isParent ? "開始日は子タスクから自動計算されます" : undefined}
       />
 
       <span className="text-gray-400">-</span>
@@ -140,7 +140,7 @@ export const TaskDateCell = ({
             ? "text-gray-400 cursor-not-allowed select-none font-semibold"
             : "cursor-pointer hover:text-gray-900 text-gray-600"
         )}
-        title={isParent ? "End date is automatically calculated from children" : undefined}
+        title={isParent ? "終了日は子タスクから自動計算されます" : undefined}
       />
     </div>
   );

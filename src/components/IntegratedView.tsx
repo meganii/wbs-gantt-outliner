@@ -120,14 +120,23 @@ export const IntegratedView = ({
     calendar,
   } = useGanttTimeline(flattenedItems);
 
+  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns);
+
   const visibleColumns = useMemo((): ColumnId[] => {
-    const cols: ColumnId[] = ['taskName', 'status', 'progress'];
-    if (!baselineLocked) {
-      cols.push('planDuration', 'planDate');
+    const cols = storeVisibleColumns || [
+      'taskName',
+      'status',
+      'progress',
+      'planDuration',
+      'planDate',
+      'duration',
+      'date',
+    ];
+    if (baselineLocked) {
+      return cols.filter((col) => col !== 'planDuration' && col !== 'planDate');
     }
-    cols.push('duration', 'date');
     return cols;
-  }, [baselineLocked]);
+  }, [storeVisibleColumns, baselineLocked]);
 
   // Use custom drag interaction hook
   useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange, timelineMetrics);

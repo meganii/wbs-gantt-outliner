@@ -1,5 +1,5 @@
 import { format, isValid, parseISO } from 'date-fns';
-import type { ProjectConfig } from '../types';
+import type { ProjectConfig, ColumnId } from '../types';
 
 type ProjectConfigInput = Partial<Omit<ProjectConfig, 'calendar' | 'columnWidths'>> & {
   calendar?: Partial<ProjectConfig['calendar']>;
@@ -27,6 +27,18 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     date: 224,
   },
   baselineLocked: false,
+  visibleColumns: [
+    'taskName',
+    'description',
+    'assignee',
+    'deliverables',
+    'status',
+    'progress',
+    'planDuration',
+    'planDate',
+    'duration',
+    'date',
+  ],
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -74,6 +86,31 @@ export function mergeProjectConfig(projectConfig?: unknown): ProjectConfig {
     ? config.viewMode
     : DEFAULT_PROJECT_CONFIG.viewMode;
 
+  const inputVisibleCols = config?.visibleColumns;
+  let nextVisibleColumns = DEFAULT_PROJECT_CONFIG.visibleColumns!;
+
+  if (Array.isArray(inputVisibleCols)) {
+    const validCols = inputVisibleCols.filter((col): col is ColumnId =>
+      typeof col === 'string' &&
+      [
+        'taskName',
+        'description',
+        'assignee',
+        'deliverables',
+        'status',
+        'progress',
+        'planDuration',
+        'planDate',
+        'duration',
+        'date',
+      ].includes(col)
+    );
+    if (!validCols.includes('taskName')) {
+      validCols.unshift('taskName');
+    }
+    nextVisibleColumns = validCols;
+  }
+
   return {
     ...DEFAULT_PROJECT_CONFIG,
     ...(config ?? {}),
@@ -86,5 +123,6 @@ export function mergeProjectConfig(projectConfig?: unknown): ProjectConfig {
       ...DEFAULT_PROJECT_CONFIG.columnWidths,
       ...(columnWidths ?? {}),
     },
+    visibleColumns: nextVisibleColumns,
   };
 }

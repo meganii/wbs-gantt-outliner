@@ -36,17 +36,26 @@ export const Outliner = ({
 
   const flattenedIds = useMemo(() => flattenedItems.map(i => i.id), [flattenedItems]);
 
+  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns);
+
   const visibleColumns = useMemo((): ColumnId[] => {
-    const cols: ColumnId[] = ['taskName'];
-    if (showDetails) {
-      cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
+    let cols = storeVisibleColumns;
+    if (!cols) {
+      cols = ['taskName'];
+      if (showDetails) {
+        cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
+      }
+      if (!baselineLocked) {
+        cols.push('planDuration', 'planDate');
+      }
+      cols.push('duration', 'date');
     }
-    if (!baselineLocked) {
-      cols.push('planDuration', 'planDate');
+
+    if (baselineLocked) {
+      return cols.filter((col) => col !== 'planDuration' && col !== 'planDate');
     }
-    cols.push('duration', 'date');
     return cols;
-  }, [showDetails, baselineLocked]);
+  }, [storeVisibleColumns, showDetails, baselineLocked]);
 
   useOutlinerKeyboard();
   const { selectedTaskIds, handleSelectionChange } = useTaskSelection(flattenedIds);

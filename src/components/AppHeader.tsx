@@ -56,7 +56,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
                 : 'text-gray-600 hover:bg-gray-200'
             )}
           >
-            Project
+            プロジェクト
             <ChevronDown size={12} />
           </button>
 
@@ -70,7 +70,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
                 className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50"
               >
                 <CalendarDays size={14} className="text-blue-500" />
-                <span className="flex-1">Holiday Settings</span>
+                <span className="flex-1">祝日設定</span>
                 <span className="text-[10px] text-gray-400">
                   {projectConfig.calendar.holidays.length}
                 </span>
@@ -102,7 +102,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
               : 'text-gray-500 hover:bg-gray-200'
           )}
         >
-          Integrated
+          統合表示
         </button>
         <button
           onClick={() => setView('gantt')}
@@ -113,7 +113,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
               : 'text-gray-500 hover:bg-gray-200'
           )}
         >
-          Gantt
+          ガントチャート
         </button>
 
         <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
@@ -123,7 +123,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
           onClick={() => undo?.()}
           disabled={!canUndo}
           className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="Undo (Cmd+Z)"
+          title="元に戻す (Cmd+Z)"
         >
           <Undo size={14} />
         </button>
@@ -131,7 +131,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
           onClick={() => redo?.()}
           disabled={!canRedo}
           className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="Redo (Cmd+Y or Cmd+Shift+Z)"
+          title="やり直す (Cmd+Y または Cmd+Shift+Z)"
         >
           <Redo size={14} />
         </button>
@@ -143,17 +143,17 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
           onClick={() => setAllCollapsed(false)}
           disabled={!canExpandAll}
           className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="Expand All (Cmd/Ctrl+Alt+ArrowDown)"
+          title="すべて展開 (Cmd/Ctrl+Alt+ArrowDown)"
         >
-          Expand All
+          すべて展開
         </button>
         <button
           onClick={() => setAllCollapsed(true)}
           disabled={!canCollapseAll}
           className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="Collapse All (Cmd/Ctrl+Alt+ArrowUp)"
+          title="すべて折りたたむ (Cmd/Ctrl+Alt+ArrowUp)"
         >
-          Collapse All
+          すべて折りたたむ
         </button>
 
         <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
@@ -172,7 +172,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
               baselineLocked ? 'text-amber-600 font-semibold' : 'text-gray-600'
             )}
           >
-            Lock Baseline
+            基準計画固定
           </span>
         </label>
 
@@ -183,19 +183,19 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
           onClick={handleSave}
           className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
         >
-          Save
+          保存
         </button>
         <button
           onClick={handleLoad}
           className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
         >
-          Load
+          読み込み
         </button>
         <button
           onClick={handleExport}
           className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
         >
-          Export
+          エクスポート
         </button>
       </div>
     </header>

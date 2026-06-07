@@ -99,7 +99,7 @@ export const TaskPlanDurationCell = ({
             ? "text-gray-400 cursor-not-allowed select-none font-semibold"
             : "focus:border-blue-300 focus:text-blue-900"
         )}
-        title={isParent ? "Duration is automatically calculated from children" : "Plan Duration (days)"}
+        title={isParent ? "期間は子タスクから自動計算されます" : "予定期間（日）"}
       />
     </div>
   );
