@@ -89,13 +89,13 @@ export interface TaskStoreState {
   rootIds: string[];
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
-  focusedTaskField: TaskFocusableField;
+  focusedTaskField: TaskFocusableField | null;
   selectedTaskIds: string[];
   dragState: GanttDragState | null;
   mousePos: { x: number; y: number } | null;
 
   setFocusedTaskId: (id: string | null) => void;
-  setFocusedTaskCell: (id: string | null, field: TaskFocusableField) => void;
+  setFocusedTaskCell: (id: string | null, field: TaskFocusableField | null) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;

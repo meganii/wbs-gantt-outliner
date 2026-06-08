@@ -36,6 +36,7 @@ export const GanttTimelineRow = memo(({
 
   return (
     <div
+      data-task-id={taskId}
       className={clsx(
         "relative flex pointer-events-auto h-full",
         isParent ? "cursor-default" : "cursor-crosshair"

@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
   test('should add three tasks, establish dependency chain A -> B -> C, and auto-calculate dates', async ({ page }) => {
+    page.on('console', msg => console.log(`[Browser Console] ${msg.text()}`));
+    await page.setViewportSize({ width: 1600, height: 900 });
     // 1. Load application
     await page.goto('/');
 
@@ -72,16 +74,19 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await expect(connectorA).toBeVisible();
     await expect(barB).toBeVisible();
 
+    await barB.scrollIntoViewIfNeeded();
     // Hover A to trigger the dependency handle visibility
     await barA.hover();
     const boxA = await connectorA.boundingBox();
     const boxB = await barB.boundingBox();
+    console.log(`[E2E Test] boxA: ${JSON.stringify(boxA)}, boxB: ${JSON.stringify(boxB)}`);
 
     if (boxA && boxB) {
       await page.mouse.move(boxA.x + boxA.width / 2, boxA.y + boxA.height / 2);
       await page.mouse.down();
-      // Move in steps for a smoother/more realistic drag in browser E2E
-      await page.mouse.move(boxB.x + boxB.width / 2, boxB.y + boxB.height / 2, { steps: 5 });
+      await page.waitForTimeout(50);
+      await page.mouse.move(boxB.x + boxB.width / 2, boxB.y + boxB.height / 2, { steps: 10 });
+      await page.waitForTimeout(100);
       await page.mouse.up();
     }
 
@@ -94,14 +99,18 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await expect(connectorB).toBeVisible();
     await expect(barC).toBeVisible();
 
+    await barC.scrollIntoViewIfNeeded();
     await barB.hover();
     const boxB_conn = await connectorB.boundingBox();
     const boxC = await barC.boundingBox();
+    console.log(`[E2E Test] boxB_conn: ${JSON.stringify(boxB_conn)}, boxC: ${JSON.stringify(boxC)}`);
 
     if (boxB_conn && boxC) {
       await page.mouse.move(boxB_conn.x + boxB_conn.width / 2, boxB_conn.y + boxB_conn.height / 2);
       await page.mouse.down();
-      await page.mouse.move(boxC.x + boxC.width / 2, boxC.y + boxC.height / 2, { steps: 5 });
+      await page.waitForTimeout(50);
+      await page.mouse.move(boxC.x + boxC.width / 2, boxC.y + boxC.height / 2, { steps: 10 });
+      await page.waitForTimeout(100);
       await page.mouse.up();
     }
 
@@ -113,6 +122,8 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     // Task B (which depends on A) should shift to next workdays: 2026-06-12 (Fri) to 2026-06-15 (Mon) (2 workdays, skipping weekend)
     // Task C (which depends on B) should shift to next workdays: 2026-06-16 (Tue) to 2026-06-17 (Wed) (2 workdays)
     
+    await planStartDateInputs.nth(1).click();
+    await page.waitForTimeout(100);
     await planStartDateInputs.nth(1).fill('2026-06-10');
     await planStartDateInputs.nth(1).press('Enter');
 
@@ -120,14 +131,14 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await page.waitForTimeout(500);
 
     // 7. Verify Task B and C shifted automatically!
-    await expect(planStartDateInputs.nth(1)).toHaveValue('2026-06-10');
-    await expect(planEndDateInputs.nth(1)).toHaveValue('2026-06-11');
+    await expect(planStartDateInputs.nth(1)).toHaveValue('06/10');
+    await expect(planEndDateInputs.nth(1)).toHaveValue('06/11');
 
-    await expect(planStartDateInputs.nth(2)).toHaveValue('2026-06-12');
-    await expect(planEndDateInputs.nth(2)).toHaveValue('2026-06-15');
+    await expect(planStartDateInputs.nth(2)).toHaveValue('06/12');
+    await expect(planEndDateInputs.nth(2)).toHaveValue('06/15');
 
-    await expect(planStartDateInputs.nth(3)).toHaveValue('2026-06-16');
-    await expect(planEndDateInputs.nth(3)).toHaveValue('2026-06-17');
+    await expect(planStartDateInputs.nth(3)).toHaveValue('06/16');
+    await expect(planEndDateInputs.nth(3)).toHaveValue('06/17');
 
     console.log('Dependency chain auto-calculation E2E test passed perfectly!');
   });

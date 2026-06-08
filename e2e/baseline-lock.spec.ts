@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Baseline Lock E2E Tests', () => {
   test('should lock plan dates when baseline is locked and allow independent actual date editing', async ({ page }) => {
+    page.on('console', msg => console.log(`[Browser Console] ${msg.text()}`));
     // 1. Load application
     await page.goto('/');
 
@@ -38,22 +39,26 @@ test.describe('Baseline Lock E2E Tests', () => {
     await page.waitForTimeout(200);
 
     // Assert that actual dates are synchronized when baselineLock is OFF
-    await expect(actualStartDateInputs.nth(1)).toHaveValue('2026-06-01');
-    await expect(actualEndDateInputs.nth(1)).toHaveValue('2026-06-02');
+    await expect(actualStartDateInputs.nth(1)).toHaveValue('06/01');
+    await expect(actualEndDateInputs.nth(1)).toHaveValue('06/02');
 
     // Now set actual start date (they should sync back to plan dates as well)
+    await actualStartDateInputs.nth(1).click();
+    await page.waitForTimeout(100);
     await actualStartDateInputs.nth(1).fill('2026-06-05');
+    await actualEndDateInputs.nth(1).click();
+    await page.waitForTimeout(100);
     await actualEndDateInputs.nth(1).fill('2026-06-08');
     await actualEndDateInputs.nth(1).press('Enter');
 
     await page.waitForTimeout(200);
 
     // Assert actual dates and plan dates are both updated
-    await expect(actualStartDateInputs.nth(1)).toHaveValue('2026-06-05');
-    await expect(planStartDateInputs.nth(1)).toHaveValue('2026-06-05');
+    await expect(actualStartDateInputs.nth(1)).toHaveValue('06/05');
+    await expect(planStartDateInputs.nth(1)).toHaveValue('06/05');
 
     // 5. Turn ON baseline lock
-    const lockCheckbox = page.locator('label:has-text("ベースライン固定") input[type="checkbox"]');
+    const lockCheckbox = page.locator('label:has-text("基準計画固定") input[type="checkbox"]');
     await expect(lockCheckbox).not.toBeChecked();
     await lockCheckbox.click();
     await expect(lockCheckbox).toBeChecked();
@@ -65,6 +70,8 @@ test.describe('Baseline Lock E2E Tests', () => {
     await expect(planEndDateInputs).toHaveCount(0);
 
     // 7. Update actual start date
+    await actualStartDateInputs.nth(1).click();
+    await page.waitForTimeout(100);
     await actualStartDateInputs.nth(1).fill('2026-06-10');
     await actualStartDateInputs.nth(1).press('Enter');
 
@@ -73,8 +80,8 @@ test.describe('Baseline Lock E2E Tests', () => {
     // 8. Assertions:
     // - Actual start date has changed to 2026-06-10
     // - Actual end date has shifted accordingly to 2026-06-11 (retaining 2 workday duration, Fri to Mon)
-    await expect(actualStartDateInputs.nth(1)).toHaveValue('2026-06-10');
-    await expect(actualEndDateInputs.nth(1)).toHaveValue('2026-06-11');
+    await expect(actualStartDateInputs.nth(1)).toHaveValue('06/10');
+    await expect(actualEndDateInputs.nth(1)).toHaveValue('06/11');
 
     console.log('Baseline lock E2E test passed successfully!');
   });

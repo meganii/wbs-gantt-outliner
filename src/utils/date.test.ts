@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount } from './date';
+import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount, formatToShow, formatToEdit, parseInputDate } from './date';
+
 
 describe('date utils', () => {
   const calendar = {
@@ -106,6 +107,59 @@ describe('date utils', () => {
         const start = new Date('2023-12-29'); // Fri
         const end = new Date('2024-01-02'); // Tue
         expect(getWorkDaysCount(start, end, calendar)).toBe(2); // Fri, Tue (Mon is holiday)
+    });
+  });
+
+  describe('formatting and parsing', () => {
+    describe('formatToShow', () => {
+      it('should format YYYY-MM-DD to MM/DD', () => {
+        expect(formatToShow('2026-06-10')).toBe('06/10');
+        expect(formatToShow('')).toBe('');
+        expect(formatToShow(null)).toBe('');
+        expect(formatToShow(undefined)).toBe('');
+      });
+    });
+
+    describe('formatToEdit', () => {
+      it('should format YYYY-MM-DD to YYYY/MM/DD', () => {
+        expect(formatToEdit('2026-06-10')).toBe('2026/06/10');
+        expect(formatToEdit('')).toBe('');
+      });
+    });
+
+    describe('parseInputDate', () => {
+      it('should parse YYYY/MM/DD and YYYY-MM-DD correctly', () => {
+        expect(parseInputDate('2026/06/10')).toBe('2026-06-10');
+        expect(parseInputDate('2026-06-10')).toBe('2026-06-10');
+        expect(parseInputDate('2026/6/5')).toBe('2026-06-05');
+      });
+
+      it('should parse YYYYMMDD correctly', () => {
+        expect(parseInputDate('20260610')).toBe('2026-06-10');
+      });
+
+      it('should parse MM/DD and MM-DD using reference year', () => {
+        expect(parseInputDate('06/10', '2026-05-15')).toBe('2026-06-10');
+        expect(parseInputDate('06-10', '2025-01-01')).toBe('2025-06-10');
+        expect(parseInputDate('6/5', '2026-05-15')).toBe('2026-06-05');
+      });
+
+      it('should parse MMDD using reference year', () => {
+        expect(parseInputDate('0610', '2026-05-15')).toBe('2026-06-10');
+      });
+
+      it('should use current year if no reference year is provided', () => {
+        const currentYear = new Date().getFullYear();
+        expect(parseInputDate('06/10')).toBe(`${currentYear}-06-10`);
+      });
+
+      it('should return null for invalid dates', () => {
+        expect(parseInputDate('2026/02/30')).toBeNull();
+        expect(parseInputDate('02/30', '2026-01-01')).toBeNull();
+        expect(parseInputDate('13/10')).toBeNull();
+        expect(parseInputDate('invalid')).toBeNull();
+        expect(parseInputDate('')).toBeNull();
+      });
     });
   });
 });

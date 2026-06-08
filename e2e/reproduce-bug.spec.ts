@@ -107,6 +107,6 @@ test.describe('Reproduce Gantt Bar Drag Bug', () => {
     console.log(`Summary of x-coords: Initial=${initialLeftB}, Dragging=${draggingLeftB}, AfterDrop=${afterDropLeftB}, AfterHover=${afterHoverLeftB}`);
     
     // We expect Task B's text input to NOT change (which user confirmed)
-    await expect(planStartDateInputs.nth(2)).toHaveValue('2026-06-05');
+    await expect(planStartDateInputs.nth(2)).toHaveValue('06/05');
   });
 });

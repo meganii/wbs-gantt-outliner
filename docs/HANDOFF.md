@@ -4,11 +4,19 @@
 
 ## 現在の状態
 
+- **予定日付と実績日付のテキスト入力対応 ＆ 表示年省略 ＆ E2Eテスト安定化の完了** (June 8, 2026):
+  - 予定日付と実績日付のセル（`src/components/cells/TaskPlanDateCell.tsx`, `src/components/cells/TaskDateCell.tsx`）をテキスト入力（`type="text"`）に移行。
+  - フォーカス時は編集用の `YYYY/MM/DD`、非フォーカス時は表示用の `MM/DD` に切り替える Overlay Span 設計（Persistent Input + Overlay Span）を適用。
+  - Playwright E2Eテストでの並行実行時の高い負荷状況下における React state非同期同期タイミングとの競合を防ぐため、フォーカス時の値同期を `onFocus` ハンドラー内で同期的に行うよう改善。非フォーカス時のみ `useEffect` でストアの最新値を同期する設計にリファクタリング。
+  - `e2e/dependency-auto-calculation.spec.ts` でビューポートサイズ（`1600x900`）の拡張と、ドラッグ＆ドロップ前の明示的な `click()` ＆ 短いウェイトを追加。また、ドラッグ先の要素を `scrollIntoViewIfNeeded()` して、画面外の座標へのドラッグ失敗問題を完全に解消。
+  - `src/components/GanttTimelineRow.tsx` の最外殻ラッパーに `data-task-id` 属性を追加し、ドラッグ接続の当たり判定（mouseup時のtargetId取得）のロバスト性を飛躍的に向上。
+  - `src/types.ts` での `focusedTaskField` と `setFocusedTaskCell` の型定義に `null` を許可し、プロダクションビルドでの `tsc -b` のコンパイルエラーを解消。
+
 - **メニュー表示およびWBSテーブルヘッダー・セル・エクスポートファイルの日本語ローカライズ** (June 7, 2026):
-  - アプリケーション上部のヘッダーバー ([src/components/AppHeader.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/AppHeader.tsx)) に配置されているメニューや操作ボタン、およびWBSテーブルヘッダーのカラムラベル（タスク名、説明、担当者、成果物、ステータス、進捗率、予定期間、予定日付、実績期間、実績日付）をすべて日本語化。
+  - アプリケーション上部のヘッダーバー (`src/components/AppHeader.tsx`) に配置されているメニューや操作ボタン、およびWBSテーブルヘッダーのカラムラベル（タスク名、説明、担当者、成果物、ステータス、進捗率、予定期間、予定日付、実績期間、実績日付）をすべて日本語化。
   - セル内のテキスト入力プレースホルダー（説明、担当者、成果物）および、子タスクから日付・期間が自動計算される親タスクセルのツールチップ（`title` 属性）も日本語にローカライズ。
-  - Excelエクスポート機能 ([src/utils/export.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/utils/export.ts)) において出力されるExcelファイルのヘッダーカラムラベル（WBS番号、タスク名、説明、担当者、成果物、ステータス、進捗率、予定開始日、予定終了日、予定期間、実績開始日、実績終了日、実績期間）もすべて日本語化。
-  - ローカライズに伴い、関連するテストコード（[src/App.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/App.test.tsx), [src/components/Outliner.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/Outliner.test.tsx), [src/components/GanttChart.test.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/GanttChart.test.tsx), `e2e/` テストファイル群）のクエリ期待値やセレクタを日本語表記に追従するように修正し、全テストの合格を確認。
+  - Excelエクスポート機能 (`src/utils/export.ts`) において出力されるExcelファイルのヘッダーカラムラベル（WBS番号、タスク名、説明、担当者、成果物、ステータス、進捗率、予定開始日、予定終了日、予定期間、実績開始日、実績終了日、実績期間）もすべて日本語化。
+  - ローカライズに伴い、関連するテストコード（`src/App.test.tsx`, `src/components/Outliner.test.tsx`, `src/components/GanttChart.test.tsx`, `e2e/` テストファイル群）のクエリ期待値やセレクタを日本語表記に追従するように修正し、全テストの合格を確認。
 
 - **表示項目の表示・非表示切り替え機能（右クリックコンテキストメニュー）** (June 7, 2026):
   - WBSアウトライナーのテーブルヘッダー領域を右クリックした際に、表示項目のオン・オフ切り替え（トグル）が可能なカスタムコンテキストメニューを表示する機能を実装。
@@ -18,7 +26,7 @@
   - 右クリックコンテキストメニューのバブリング処理や、メニュー外クリック時の自動非表示、スタイルを TailwindCSS を用いて高品質に実装。
 
 - **本番環境における誤リフレッシュ防止対策（Cmd+R / Ctrl+R / F5 の無効化）** (June 7, 2026):
-  - ユーザーが本格的にアプリを利用する際、誤って `Ctrl+R`（または Mac の `Cmd+R`）や `F5` キーを押してしまい画面がリフレッシュされ、保存前のタスクデータが消失してしまうのを防止するため、本番ビルド（`app.isPackaged === true`）時にこれらのキー入力をキャンセルする処理を [electron/main.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/electron/main.ts) に追加。
+  - ユーザーが本格的にアプリを利用する際、誤って `Ctrl+R`（または Mac の `Cmd+R`）や `F5` キーを押してしまい画面がリフレッシュされ、保存前のタスクデータが消失してしまうのを防止するため、本番ビルド（`app.isPackaged === true`）時にこれらのキー入力をキャンセルする処理を `electron/main.ts` に追加。
   - 開発環境（`isPackaged === false`）ではリロードができる利便性を維持。
 
 - **ガントバー移動時の無関係なタスク（パターンC）の位置ズレバグの解消および再描画・ちらつき防止の極限最適化** (June 7, 2026):
@@ -26,7 +34,7 @@
   - 原因：アウトライナーの編集パフォーマンス向上のため `TaskRow` が `React.memo` 化されていたが、`IntegratedView` の `renderContainer` プロパティ（クロージャ）内に配置されていた `GanttTimelineRow` が、タイムライン自動拡張に伴う `timelineMetrics` の変更を感知できず、再描画がスキップされていたため。
   - 対策（当初）：`timelineMetrics` などを `TaskRow` の Props に流し込んで `TaskRow` 全体を強制再描画させたが、タイムライン伸縮時に左側の WBS アウトライナー表（大量の入力セル）まで同時に再描画されてしまい、画面のちらつき（flicker）が発生した。
   - 究極の対策（今回適用）：
-    - タイムライン状態を提供する **`TimelineContext`**（[src/hooks/useGanttTimeline.ts](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/hooks/useGanttTimeline.ts)）およびコンテナラッパーコンポーネント **`RowContainer`**（[src/components/IntegratedView.tsx](file:///Users/meganii/src/github.com/meganii/wbs-gantt-outliner/src/components/IntegratedView.tsx)）を新規導入。
+    - タイムライン状態を提供する **`TimelineContext`**（`src/hooks/useGanttTimeline.ts`）およびコンテナラッパーコンポーネント **`RowContainer`**（`src/components/IntegratedView.tsx`）を新規導入。
     - `GanttTimelineRow` および `RowContainer` が context から直接 `timelineMetrics` / `timelineWidth` を購読する設計に改修。
     - 呼び出し元（`IntegratedView.tsx` の `RowContainer` および `GanttChart.tsx`）から `GanttTimelineRow` に対して `timelineMetrics` および `timelineWidth` を Props として明示的に渡すように修正し、1フレームの非同期更新による瞬間的な位置ズレ（ちらつき）を完全に解消。
     - WBSアウトライナーのリサイズ時に行が正しくリサイズされるよう、`outlinerWidth` を `TaskRowProps` および `<TaskRow>` へ再配置し、メモ化された行がリサイズに同期して再描画されるように修正。
@@ -118,8 +126,8 @@
     - ループ比較は Props 項目に依存せず自動的に走るため、将来的なカラムやセルの追加時にも**比較関数の修正が一切不要（完全自動修復・メンテナンスフリー）**な堅牢設計を確立。
     - これにより、タスク追加時の描画行数が 1000行 ➔ 実質数行へと劇的に削減され、メインスレッドフリーズ時間を数百msから 15ms以下（約60〜100倍の高速化）に抑え込み、一瞬でタスクが追加される快適なキー操作感を実現。
   - **`e.repeat` キーリピートガードの実装による長押し時の描画停止（レンダリング飢餓）の完全回避** (May 26, 2026):
-    - Enter キーなどを長押しした際に、OS のキーリピート機能によって `keydown` イベントが毎秒 30〜50 回連続発火し、描画処理（Paint & Composite）が追いつかずに画面が完全にフリーズ（レンダリング飢餓）してしまう問題に対応。
-    - [TaskOutlineCell.tsx](file:///d:/src/ghq/github.com/meganii/wbs-gantt-outliner/src/components/cells/TaskOutlineCell.tsx) 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
+    - Enter キーなどを長押しした際に、OS のキーリピート機能によって `keydown`イベントが毎秒 30〜50 回連続発火し、描画処理（Paint & Composite）が追いつかずに画面が完全にフリーズ（レンダリング飢餓）してしまう問題に対応。
+    - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
 ## 直近の検証結果

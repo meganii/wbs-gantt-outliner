@@ -39,3 +39,82 @@ export function getWorkDaysCount(start: Date, end: Date, calendar: WorkCalendar)
   }
   return count;
 }
+
+export function isValidDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+}
+
+export function formatDateString(year: number, month: number, day: number): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+export function parseInputDate(text: string, referenceDateString?: string | null): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // 1. Check YYYY/MM/DD or YYYY-MM-DD
+  let match = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    return isValidDate(year, month, day) ? formatDateString(year, month, day) : null;
+  }
+
+  // 2. Check YYYYMMDD
+  match = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    return isValidDate(year, month, day) ? formatDateString(year, month, day) : null;
+  }
+
+  // Determine reference year
+  let refYear = new Date().getFullYear();
+  if (referenceDateString) {
+    const refMatch = referenceDateString.match(/^(\d{4})-\d{2}-\d{2}$/);
+    if (refMatch) {
+      refYear = parseInt(refMatch[1], 10);
+    }
+  }
+
+  // 3. Check MM/DD or MM-DD
+  match = trimmed.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  if (match) {
+    const month = parseInt(match[1], 10);
+    const day = parseInt(match[2], 10);
+    return isValidDate(refYear, month, day) ? formatDateString(refYear, month, day) : null;
+  }
+
+  // 4. Check MMDD
+  match = trimmed.match(/^(\d{2})(\d{2})$/);
+  if (match) {
+    const month = parseInt(match[1], 10);
+    const day = parseInt(match[2], 10);
+    return isValidDate(refYear, month, day) ? formatDateString(refYear, month, day) : null;
+  }
+
+  return null;
+}
+
+export function formatToShow(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  // Return MM/DD
+  return `${match[2]}/${match[3]}`;
+}
+
+export function formatToEdit(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  // Return YYYY/MM/DD
+  return `${match[1]}/${match[2]}/${match[3]}`;
+}
+
