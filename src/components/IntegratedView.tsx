@@ -10,7 +10,7 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
-import type { ColumnId } from '../types';
+import type { ColumnId, Task } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
@@ -23,7 +23,7 @@ import { useGanttDrag } from '../hooks/useGanttDrag';
 
 interface RowContainerProps {
   id: string;
-  task: any;
+  task: Task;
   content: React.ReactNode;
   setContainerRef: (node: HTMLDivElement | null) => void;
   containerStyle: React.CSSProperties;

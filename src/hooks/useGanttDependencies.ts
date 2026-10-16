@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import type { FlattenedItem } from '../utils/tree';
+import type { Task } from '../types';
 import type { TimelineMetrics } from './useGanttTimeline';
 import { differenceInDays } from 'date-fns';
 
@@ -13,9 +14,6 @@ export interface DependencyLine {
 
 export const useGanttDependencies = (
   flattenedItems: FlattenedItem[],
-  _taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>, // kept for signature compatibility
-  _containerRef: React.RefObject<HTMLDivElement | null>,     // kept for signature compatibility
-  _leftOffset: number,                                       // kept for signature compatibility
   timelineMetrics: TimelineMetrics
 ) => {
   const tasks = useTaskStore((state) => state.tasks);
@@ -34,7 +32,7 @@ export const useGanttDependencies = (
     const rowHeight = 32;
 
     // Helper to get active dates for a task, considering dragging
-    const getTaskDates = (id: string, task: any) => {
+    const getTaskDates = (id: string, task: Task) => {
       const isDraggingTask =
         dragState &&
         dragState.taskId === id &&

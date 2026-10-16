@@ -3,6 +3,7 @@ import { useTaskStore } from '../../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 
 interface TaskOutlineCellProps {
   taskId: string;
@@ -11,8 +12,8 @@ interface TaskOutlineCellProps {
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
-  attributes?: any;
-  listeners?: any;
+  attributes?: DraggableAttributes;
+  listeners?: DraggableSyntheticListeners;
 }
 
 export const TaskOutlineCell = ({
@@ -44,9 +45,13 @@ export const TaskOutlineCell = ({
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   // Sync with store updates (e.g. undo/redo)
-  useEffect(() => {
-    setLocalTitle(task?.title || '');
-  }, [task?.title]);
+  // (effect 内での setState を避け、レンダー中に state を調整する)
+  const storeTitle = task?.title ?? '';
+  const [syncedTitle, setSyncedTitle] = useState(storeTitle);
+  if (syncedTitle !== storeTitle) {
+    setSyncedTitle(storeTitle);
+    setLocalTitle(storeTitle);
+  }
 
   // Focus synchronization
   const isFocused = focusedTaskId === taskId && focusedTaskField === 'title';
@@ -123,7 +128,7 @@ export const TaskOutlineCell = ({
       {listeners && (
         <button
           className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab mr-1 text-gray-400 focus:outline-none flex-shrink-0"
-          {...attributes}
+          {...(attributes ?? {})}
           {...listeners}
           onPointerDown={(e) => {
             if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -132,7 +137,7 @@ export const TaskOutlineCell = ({
               onSelectionChange?.(taskId, e.metaKey || e.ctrlKey, e.shiftKey);
               return;
             }
-            listeners.onPointerDown(e);
+            listeners?.onPointerDown?.(e);
           }}
         >
           <GripVertical size={14} />

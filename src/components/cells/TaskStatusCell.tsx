@@ -32,10 +32,12 @@ export const TaskStatusCell = ({
   const [localStatus, setLocalStatus] = useState(status);
   const selectRef = useRef<HTMLSelectElement>(null);
 
-  // Sync with store
-  useEffect(() => {
+  // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
+  const [syncedStatus, setSyncedStatus] = useState(status);
+  if (syncedStatus !== status) {
+    setSyncedStatus(status);
     setLocalStatus(status);
-  }, [status]);
+  }
 
   // Focus synchronization
   const isFocused = focusedTaskId === taskId && focusedTaskField === 'status';

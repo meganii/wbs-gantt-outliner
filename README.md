@@ -39,6 +39,9 @@ npm test -- --run
 # E2E テスト（Playwright。初回は `npx playwright install chromium` が必要）
 npm run test:e2e
 
+# Lint（eslint）
+npm run lint
+
 # 本番ビルド
 npm run build
 

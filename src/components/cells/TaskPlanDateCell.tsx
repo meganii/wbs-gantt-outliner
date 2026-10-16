@@ -48,20 +48,30 @@ export const TaskPlanDateCell = ({
   const isFocusedEnd = focusedTaskId === taskId && focusedTaskField === 'planEndDate';
 
   // Sync state when focus changes or stored dates change
-  useEffect(() => {
+  // (effect 内での setState を避け、レンダー中に state を調整する)
+  const [syncedStart, setSyncedStart] = useState({ focused: isFocusedStart, value: planStart });
+  if (syncedStart.focused !== isFocusedStart || syncedStart.value !== planStart) {
+    setSyncedStart({ focused: isFocusedStart, value: planStart });
     if (!isFocusedStart) {
-      const showVal = formatToShow(planStart);
-      setLocalStart(showVal);
-      localStartRef.current = showVal;
+      setLocalStart(formatToShow(planStart));
     }
+  }
+
+  const [syncedEnd, setSyncedEnd] = useState({ focused: isFocusedEnd, value: planEnd });
+  if (syncedEnd.focused !== isFocusedEnd || syncedEnd.value !== planEnd) {
+    setSyncedEnd({ focused: isFocusedEnd, value: planEnd });
+    if (!isFocusedEnd) {
+      setLocalEnd(formatToShow(planEnd));
+    }
+  }
+
+  // commit ハンドラが参照するミラー用 ref を最新化する
+  useEffect(() => {
+    if (!isFocusedStart) localStartRef.current = formatToShow(planStart);
   }, [isFocusedStart, planStart]);
 
   useEffect(() => {
-    if (!isFocusedEnd) {
-      const showVal = formatToShow(planEnd);
-      setLocalEnd(showVal);
-      localEndRef.current = showVal;
-    }
+    if (!isFocusedEnd) localEndRef.current = formatToShow(planEnd);
   }, [isFocusedEnd, planEnd]);
 
   // Focus synchronization

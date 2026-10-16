@@ -1,8 +1,7 @@
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 import path from 'node:path'
 import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
-import { configDefaults } from 'vitest/config'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -33,4 +32,4 @@ export default defineConfig({
     // since parsing CSS is slow
     css: true,
   },
-} as any)
+})

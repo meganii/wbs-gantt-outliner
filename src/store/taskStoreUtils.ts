@@ -85,7 +85,7 @@ export function shiftDescendants(
   calendar: ProjectConfig['calendar'],
   baselineLocked?: boolean
 ): Record<string, Task> {
-  let nextTasks = { ...tasks };
+  const nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
   if (!parent || !parent.planStartDate) return nextTasks;
 
@@ -96,7 +96,7 @@ export function shiftDescendants(
   const getDescendantIds = (id: string): string[] => {
     const task = nextTasks[id];
     if (!task) return [];
-    let list: string[] = [];
+    const list: string[] = [];
     task.children.forEach((childId) => {
       list.push(childId);
       list.push(...getDescendantIds(childId));
@@ -189,7 +189,7 @@ export function propagateDependencyDates(
         const getDescendantIds = (id: string): string[] => {
           const t = nextTasks[id];
           if (!t) return [];
-          let list: string[] = [];
+          const list: string[] = [];
           t.children.forEach((childId) => {
             list.push(childId);
             list.push(...getDescendantIds(childId));

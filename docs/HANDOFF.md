@@ -4,6 +4,13 @@
 
 ## 現在の状態
 
+- **ESLint 違反の全件解消（49件 → 0件）** (October 17, 2026):
+  - 生成物が lint 対象に混入していた問題を `eslint.config.js` の `globalIgnores` 拡張で解消（`dist` のみだったのを `dist-electron` / `out` / `coverage` / `playwright-report` / `test-results` / `blob-report` まで追加）。これで 12 件が消えた。
+  - `react-hooks/set-state-in-effect` (10件) は、`useEffect` 内で store の値をローカル state に同期していた箇所を、**レンダー中に前回値と比較して state を調整する** React 公式パターンへ置換（`App.tsx`, `ProjectSettingsDialog.tsx`, `TaskOutlineCell`, `TaskTextCell`, `TaskStatusCell`, `TaskProgressCell`, `TaskDateCell`, `TaskPlanDateCell`）。`TaskDateCell` / `TaskPlanDateCell` の commit ハンドラが参照するミラー用 ref は、setState を伴わない effect 内でのみ更新するよう分離した。
+  - `@typescript-eslint/no-explicit-any` (20件) は実型へ置換。`renderer.d.ts` / `electron/preload.ts` の IPC 引数を `any[]` → `unknown[]`（`useProjectFileHandlers` 側で文字列ナローイングを追加）、`TaskOutlineCell` の dnd-kit props を `DraggableAttributes` / `DraggableSyntheticListeners` に、`IntegratedView` の `task` と `useGanttDependencies.getTaskDates` を `Task` 型に、`vite.config.ts` は `vitest/config` の `defineConfig` を使う形にして `as any` を削除。
+  - `useGanttDependencies` の「signature 互換のため」残っていた未使用引数3つ（`_taskBarRefs` / `_containerRef` / `_leftOffset`）と、その呼び出し側の `{ current: null } as any` を削除（デッドコードの根絶）。
+  - `react-hooks/exhaustive-deps` (5件) は `containerRef`（GanttChart 4箇所）と Zustand アクション（`useOutlinerKeyboard`）を依存配列に追加。`prefer-const` (3件) / `no-unused-vars` (1件) / `no-unsafe-function-type` (1件) も解消。
+  - 挙動が変わっていないことをユニットテスト 91 件・E2E 6 件・ビルド・lint 0 件で確認済み。
 - **パッケージマネージャを npm に復帰（pnpm 依存の解消）** (October 17, 2026):
   - 本リポジトリの pnpm は `node-linker=hoisted` で運用され、`pnpm-workspace.yaml` にもワークスペース定義が無かった。つまり pnpm の主な利点（隔離された node_modules / ワークスペース / ディスク共有）がほぼ活きておらず、実体は npm と同じフラット構成だった。加えて pnpm 11 では `.npmrc` の `node-linker` が読まれなくなり（`pnpm-workspace.yaml` へ移行が必要）、`packageManager` 未固定のためバージョン次第で Electron のパッケージングが壊れるリスクがあった。以上から npm に戻した。
   - `pnpm-lock.yaml` / `pnpm-workspace.yaml` / `.npmrc` を削除し、`package-lock.json` を再生成。`package.json` の `package` / `make` スクリプト（`pnpm run build` → `npm run build`）、`forge.config.cjs` の ignore 対象、README の開発コマンド（誤っていた `npx electron-builder` → `npm run package`）を修正。
@@ -143,27 +150,44 @@
 - `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
-- `npm run lint` : **失敗 (48件 = error 38 / warning 10)**。`coverage/` や `dist-electron/` の生成物まで検査対象になっている、`no-explicit-any` が多い等、**移行前からの既存課題**で今回のスコープ外。テスト・ビルドのゲートには含めていない。
+- `npm run lint` : **0件合格** (`eslint.config.js` に生成物の ignores を追加し、ソース側の違反も全件解消。内訳は下記「ESLint 違反の全件解消」参照)
 - テスト件数の内訳注意: `src/store/verify_bug.test.ts` (3件) と `e2e/reproduce-bug.spec.ts` はデバッグ用に追加された検証ファイルで、上記の件数に含まれている（恒久テストへ昇格するか削除するか未決）。
 
 ## 次に着手する優先課題
 
 1. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
-   - 設計の詳細は `implementation_plan.md` に記録済み（作業再開可能状態）。
+   - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
 2. **JSON インポートの互換性・異常値バリデーション強化**
    - インポート処理の入り口にスキーマバリデーションを導入し、破損データや不正なフォーマットの日付、循環依存が含まれている場合のガードを強化する。
+   - IPC 境界（`window.ipcRenderer.invoke`）は lint 対応で `unknown` 化済みなので、ここに入れるのは**型ではなく実行時の検証**になる。詳細は下記「IPC / Electron の申し送り」を参照。
 
 ## 注意点
 
 - パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
 - npm 11 は install script を既定で実行しない。install script を持つ依存を追加した場合は `npm install-scripts approve <pkg>` で承認する（`package.json` の `allowScripts` に記録される）。現在は `esbuild` と `electron-winstaller` のみ承認済み。
-- `npm run lint` は既存違反 48 件で赤い。lint をゲートに加える場合は、まず `coverage/` と `dist-electron/` を ignore に追加するところから着手すること（`eslint.config.js` に ignores が無く、生成物まで検査されている）。
+- `npm run lint` は **0件で通過する**。`eslint.config.js` の `globalIgnores` で `dist` / `dist-electron` / `out` / `coverage` / `test-results` 等の生成物を除外し、`_` 接頭辞の未使用引数・変数も許可済み。CI や検証フローに lint を組み込む場合は、この 0 件状態を維持すること。
+- **eslint-plugin-react-hooks v7 の recommended は error レベルで強力**（`set-state-in-effect` / `set-state-in-render` / `refs` / `purity` 等）。store の値をローカル state に同期する箇所は `useEffect` 内の `setState` ではなく、**レンダー中に前回値と比較して state を調整するパターン**（`if (prev !== current) { setPrev(current); setLocal(current); }`）で実装する。ref への書き込みは effect 内でのみ行うこと。
 - 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと。
 - `useGanttDrag` の中で `updateTask` や `addDependency` を直接叩いており、コンポーネントからの依存を最小限に抑えています。
 - 祝日変更時、既存タスク日付の自動再計算はまだ行わない。必要なら仕様を決めてから入れること。
 - Excel エクスポートは Electron main 側で生成・保存する構成を維持する。
 - `useGanttTimeline.ts` はタスクストア (`tasks`) を購読するため、タスク追加・編集のたびにタイムライン範囲が再計算される。パフォーマンス上の問題が出た場合は `useMemo` の依存配列を見直すこと。
+
+## IPC / Electron の申し送り（未対応メモ）
+
+lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `any[]` → `unknown[]` に置き換えた。その意図と、Electron 観点で**意図的に未対応のまま残した**事項を記録する（October 17, 2026）。
+
+### なぜ `unknown` なのか（このまま維持する判断）
+- `ipcRenderer` のペイロードは Electron main 由来の任意の値で、型保証が無い。`any` だと「何でもできてしまう」ため、誤った前提が型検査をすり抜けて伝播する。`unknown` は受け取りは自由だが利用前に絞り込みが必須で、実態に忠実（Electron 公式ドキュメントの `invoke` の例も `@ts-type={someArgument:unknown}` と註記している）。
+- 引数の位置では**呼び出し側の自由度は変わらない**ため、既存の呼び出し側は無修正で済む。今回の実質的な変更は `useProjectFileHandlers.handleLoad` の `typeof content === 'string'` ナローイングのみ（`electron/main.ts` の `load-file` は `string | null` を返すので実態に一致）。
+- **ただしこれは終着点ではない。** Electron の context isolation チュートリアルは `send: ipcRenderer.send` のような汎用露出を **❌ Bad code** と明記し、「IPC メッセージごとに 1 メソッドを用意する」形を推奨している。現在の汎用 `invoke` / `send` / `on` の露出はこの ❌ 例に近く、`unknown` 化は「設計を変えずに型を誠実にした」中間段階にあたる。
+
+### 将来やるなら（優先順）
+1. **`load-file` で読み込んだ JSON の実行時バリデーション**（＝上記「次に着手する優先課題」#2）。**型は実行時の安全性を一切保証しない**（Electron メンテナも "fake type safety" と明言）ので、ここが本命。`unknown` 化によって「検証すべき境界」がコード上で明示されたことが今回の最大の収穫。
+2. **preload が Electron の `event` オブジェクトを renderer に通している。** `on` の実装が `listener(event, ...args)` となっており、公式の「`event` を露出するな、`callback(...args)` に詰め替えろ」という警告から逸脱している（`useIpcSwitchView` 側は `_event` として未使用だが、renderer には到達する）。`(...args) => callback(...args)` に変えるだけで解消できる。
+3. **チャンネル型マップ化、または名前付きメソッド化。** 対象チャンネルは `save-file` / `load-file` / `export-excel` / `switch-view` の 4 つ。チャンネル 1〜5 個なら依存ゼロの「共有チャンネルマップ + 型付きラッパー」が適切とされる。名前付きメソッド化（`window.api.saveProject(data)` 等）まで行けば公式の推奨形になる。影響範囲は preload / main / renderer / テストに跨るため、**lint 対応とは別コミットで実施すること**。
+4. **`webPreferences` に `sandbox: true` を明示。** 現在は `contextIsolation: true` のみ指定（`nodeIntegration` は未指定＝既定 false、`sandbox` は未指定＝既定依存）。なお `dangerouslySetInnerHTML` / `eval` / `window.open` の類は不使用でリモートコンテンツも読み込まないため、**汎用 `invoke` 露出の実害は現状かなり小さい**（優先度は低め）。
 
 ## 次の作業で最初に見るとよい場所
 
@@ -172,6 +196,8 @@
 - `src/store/useTaskStore.test.ts`
 - `src/components/TimelineHeader.tsx` (新規 2段ヘッダーコンポーネント)
 - `src/hooks/useGanttTimeline.ts` (タスクデータ駆動の日付範囲ロジック)
+- `src/renderer.d.ts` / `electron/preload.ts` / `src/hooks/useProjectFileHandlers.ts` (IPC 境界。上記「IPC / Electron の申し送り」参照)
+- `eslint.config.js` (lint 0 件を維持するための ignores とルール設定)
 
 ---
 

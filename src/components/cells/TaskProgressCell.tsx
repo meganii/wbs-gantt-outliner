@@ -32,10 +32,12 @@ export const TaskProgressCell = ({
   const [localProgress, setLocalProgress] = useState(progress);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync with store
-  useEffect(() => {
+  // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
+  const [syncedProgress, setSyncedProgress] = useState(progress);
+  if (syncedProgress !== progress) {
+    setSyncedProgress(progress);
     setLocalProgress(progress);
-  }, [progress]);
+  }
 
   // Focus synchronization
   const isFocused = focusedTaskId === taskId && focusedTaskField === 'progress';

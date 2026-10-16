@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Outliner } from './components/Outliner';
 import { GanttChart } from './components/GanttChart';
 import { IntegratedView } from './components/IntegratedView';
@@ -30,9 +30,12 @@ function App() {
   useIpcSwitchView(setView);
 
   // View 切り替え時に hover 状態をリセット
-  useEffect(() => {
+  // (effect 内での setState を避け、レンダー中に state を調整する)
+  const [prevView, setPrevView] = useState(view);
+  if (prevView !== view) {
+    setPrevView(view);
     setHoveredTaskId(null);
-  }, [view]);
+  }
 
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900 w-screen overflow-hidden">

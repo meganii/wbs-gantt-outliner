@@ -17,7 +17,7 @@ export function useProjectFileHandlers() {
 
   const handleLoad = async () => {
     const content = await window.ipcRenderer.invoke('load-file');
-    if (content) {
+    if (typeof content === 'string' && content) {
       try {
         const data = JSON.parse(content);
         loadProjectState(data);

@@ -15,13 +15,7 @@ export const GanttDependencyLines = ({
   markerId,
 }: GanttDependencyLinesProps) => {
   const removeDependency = useTaskStore((state) => state.removeDependency);
-  const dependencyLines = useGanttDependencies(
-    flattenedItems,
-    { current: null } as any,
-    { current: null } as any,
-    0,
-    timelineMetrics
-  );
+  const dependencyLines = useGanttDependencies(flattenedItems, timelineMetrics);
 
   return (
     <>

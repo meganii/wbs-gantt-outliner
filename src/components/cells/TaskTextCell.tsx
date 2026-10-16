@@ -34,10 +34,13 @@ export const TaskTextCell = ({
   const isComposing = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync with store updates
-  useEffect(() => {
+  // Sync with store updates (adjusting state during render, see
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (syncedValue !== value) {
+    setSyncedValue(value);
     setLocalValue(value);
-  }, [value]);
+  }
 
   // Focus synchronization
   const isFocused = focusedTaskId === taskId && focusedTaskField === field;

@@ -117,7 +117,7 @@ export const GanttChart = ({
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [containerRef]);
 
   // Scroll to today on mount or viewMode change
   const lastViewModeRef = useRef<string | null>(null);
@@ -133,7 +133,7 @@ export const GanttChart = ({
         lastViewModeRef.current = viewMode;
       }
     }
-  }, [viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
+  }, [containerRef, viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
 
   // Scroll Anchoring: カレンダー自動拡張・縮小時に表示日付位置を維持する
   const lastTimelineStartRef = useRef<Date | null>(null);
@@ -152,7 +152,7 @@ export const GanttChart = ({
       }
     }
     lastTimelineStartRef.current = newStart;
-  }, [timelineMetrics.timelineStart, timelineMetrics.pixelsPerDay]);
+  }, [containerRef, timelineMetrics.timelineStart, timelineMetrics.pixelsPerDay]);
 
   // Keyboard Shortcut: Alt + ArrowUp / ArrowDown to Collapse/Expand, and Up/Down to Navigate Rows
   useEffect(() => {
@@ -241,7 +241,7 @@ export const GanttChart = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
+  }, [containerRef, selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">

@@ -2,8 +2,8 @@ import { ipcRenderer, contextBridge } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void) {
-    const subscription = (event: Electron.IpcRendererEvent, ...args: any[]) => listener(event, ...args)
+  on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void) {
+    const subscription = (event: Electron.IpcRendererEvent, ...args: unknown[]) => listener(event, ...args)
     ipcRenderer.on(channel, subscription)
     return () => {
       ipcRenderer.removeListener(channel, subscription)

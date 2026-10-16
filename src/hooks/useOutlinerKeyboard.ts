@@ -7,7 +7,7 @@ import { useTaskStore } from '../store/useTaskStore';
  * - Enter (空リスト時): 最初のタスクを作成
  *
  * rootIds.length は ref で追跡し、リスナーの再登録なしに常に最新値を参照する。
- * addTask / setSelectedTaskIds は Zustand の安定参照のため依存配列不要。
+ * addTask / setSelectedTaskIds は Zustand の安定参照で、依存配列に含めても再登録は実質発生しない。
  */
 export function useOutlinerKeyboard() {
   const rootIds = useTaskStore((state) => state.rootIds);
@@ -38,5 +38,5 @@ export function useOutlinerKeyboard() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // リスナーはマウント時に1度だけ登録し、以降は再登録しない
+  }, [addTask, setSelectedTaskIds]); // Zustand のアクションは安定参照のため実質1度だけ登録される
 }
