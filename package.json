@@ -10,8 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "package": "pnpm run build && electron-forge package",
-    "make": "pnpm run build && electron-forge make",
+    "package": "npm run build && electron-forge package",
+    "make": "npm run build && electron-forge make",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
@@ -65,5 +65,9 @@
     "vite-plugin-electron-renderer": "^0.14.7",
     "vitest": "^4.1.5",
     "wait-on": "^9.0.5"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.4": true
   }
 }

@@ -4,6 +4,13 @@
 
 ## 現在の状態
 
+- **パッケージマネージャを npm に復帰（pnpm 依存の解消）** (October 17, 2026):
+  - 本リポジトリの pnpm は `node-linker=hoisted` で運用され、`pnpm-workspace.yaml` にもワークスペース定義が無かった。つまり pnpm の主な利点（隔離された node_modules / ワークスペース / ディスク共有）がほぼ活きておらず、実体は npm と同じフラット構成だった。加えて pnpm 11 では `.npmrc` の `node-linker` が読まれなくなり（`pnpm-workspace.yaml` へ移行が必要）、`packageManager` 未固定のためバージョン次第で Electron のパッケージングが壊れるリスクがあった。以上から npm に戻した。
+  - `pnpm-lock.yaml` / `pnpm-workspace.yaml` / `.npmrc` を削除し、`package-lock.json` を再生成。`package.json` の `package` / `make` スクリプト（`pnpm run build` → `npm run build`）、`forge.config.cjs` の ignore 対象、README の開発コマンド（誤っていた `npx electron-builder` → `npm run package`）を修正。
+  - npm 11 の install script 承認制に対応。`package.json` に `allowScripts` を追加し、`esbuild` と `electron-winstaller` を承認済み（pnpm 10 の `allowBuilds` と同種の仕組みで、npm でも承認設定が必要）。
+  - ロックファイル再生成に伴い直接依存が semver 範囲内で新しい版に解決された（react 19.2.5→19.3.1、electron 42.0.0→42.11.15、@playwright/test 1.60.0→1.64.1、vite 7.3.2→7.3.7、typescript-eslint 8.59.2→8.71.2 等）。ユニットテスト・E2E・ビルド・パッケージングはすべて通過を確認済み。
+  - electron 42.11 では postinstall が廃止され、バイナリは初回実行時に遅延ダウンロードされる方式に変更されている（`node_modules/electron/dist` が無いのは正常）。
+  - Playwright のバージョンアップに伴いブラウザ実体の再取得が必要になった（`npx playwright install chromium`）。
 - **予定日付と実績日付のテキスト入力対応 ＆ 表示年省略 ＆ E2Eテスト安定化の完了** (June 8, 2026):
   - 予定日付と実績日付のセル（`src/components/cells/TaskPlanDateCell.tsx`, `src/components/cells/TaskDateCell.tsx`）をテキスト入力（`type="text"`）に移行。
   - フォーカス時は編集用の `YYYY/MM/DD`、非フォーカス時は表示用の `MM/DD` に切り替える Overlay Span 設計（Persistent Input + Overlay Span）を適用。
@@ -130,11 +137,14 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果
+## 直近の検証結果 (October 17, 2026 / npm 移行後に再検証)
 
-- `pnpm test -- --run` : **78テスト全件合格** (タイムライン範囲変更に伴うテスト期待値も更新済み、グリッド最適化および日付ズレ解消後も完全合格)
-- `pnpm test:e2e` : **E2Eテスト全5件合格** (ご要望の依存自動計算、ベースラインロック制御、親タスク自動ロールアップ、Undo/Redoを含む全結合テストが Playwright 上で 100% 成功)
-- `pnpm run build` : 通過 (TypeScriptの未使用変数・インポートクリーンアップ、および本番ビルド通過)
+- `npm test -- --run` : **91テスト全件合格** (8ファイル)
+- `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
+- `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
+- `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
+- `npm run lint` : **失敗 (48件 = error 38 / warning 10)**。`coverage/` や `dist-electron/` の生成物まで検査対象になっている、`no-explicit-any` が多い等、**移行前からの既存課題**で今回のスコープ外。テスト・ビルドのゲートには含めていない。
+- テスト件数の内訳注意: `src/store/verify_bug.test.ts` (3件) と `e2e/reproduce-bug.spec.ts` はデバッグ用に追加された検証ファイルで、上記の件数に含まれている（恒久テストへ昇格するか削除するか未決）。
 
 ## 次に着手する優先課題
 
@@ -146,6 +156,9 @@
 
 ## 注意点
 
+- パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
+- npm 11 は install script を既定で実行しない。install script を持つ依存を追加した場合は `npm install-scripts approve <pkg>` で承認する（`package.json` の `allowScripts` に記録される）。現在は `esbuild` と `electron-winstaller` のみ承認済み。
+- `npm run lint` は既存違反 48 件で赤い。lint をゲートに加える場合は、まず `coverage/` と `dist-electron/` を ignore に追加するところから着手すること（`eslint.config.js` に ignores が無く、生成物まで検査されている）。
 - 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと。
 - `useGanttDrag` の中で `updateTask` や `addDependency` を直接叩いており、コンポーネントからの依存を最小限に抑えています。
 - 祝日変更時、既存タスク日付の自動再計算はまだ行わない。必要なら仕様を決めてから入れること。

@@ -11,7 +11,7 @@ module.exports = {
       /^\/out/,
       /^\/dist_electron/,
       /^\/scratch/,
-      /(.eslintrc.json)|(.gitignore)|(electron.vite.config.ts)|(forge.config.cjs)|(tsconfig.*\.json)|(playwright.config.ts)|(pnpm-lock.yaml)|(pnpm-workspace.yaml)/,
+      /(.eslintrc.json)|(.gitignore)|(electron.vite.config.ts)|(forge.config.cjs)|(tsconfig.*\.json)|(playwright.config.ts)|(package-lock\.json)/,
     ]
   },
   rebuildConfig: {},
