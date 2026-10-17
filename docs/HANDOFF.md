@@ -4,6 +4,15 @@
 
 ## 現在の状態
 
+- **複数行選択時の「フォーカス列」ハイライト（全体選択 / 選択列 / ホバーの 3 段階区別）** (October 17, 2026, 未コミット):
+  - 背景/要望: 複数行ペースト対応で複数行選択が増えたが、「全体として複数行が選択」「特定の選択した列の複数行」「マウスオーバー中の行」の見分けが乏しい。この 3 段階を区別したい。
+  - 仕様（ユーザー確認済み）: 強調する列は **フォーカス中の列**（最後にクリック/キーボード移動したセルの列）。見た目は **背景を一段濃く＋左右に縦アクセント**。行全体の選択背景とフォーカス列を別レイヤーとして重ねる。
+  - `src/components/cells/cellHighlight.ts`（新規）: `useIsActiveColumn(taskId, fields)` は「複数行（2 行以上）選択中 × その行が選択に含まれる × フォーカス中の列が一致」で true を返す **boolean セレクタ**（値が変わらない限り再描画されない = 既存 `isFocused` と同じ省再描画方針）。`activeColumnClass` は `!bg-brand-200 !opacity-100` + 左右 2px の `brand-500` インセット縦アクセント。
+  - 8 セル（`TaskOutlineCell` / `TaskTextCell` / `TaskStatusCell` / `TaskProgressCell` / `TaskPlanDurationCell` / `TaskDurationCell` / `TaskPlanDateCell` / `TaskDateCell`）の外枠に `isActiveColumn && activeColumnClass` を付与。日付列は開始/終了のどちらのフォーカスでも列として強調（`PLAN_DATE_FIELDS` / `DATE_FIELDS`）。`!opacity-100` は日付・期間セルの非ホバー時 `opacity-50/60` を打ち消すため。
+  - 3 段階のパレット: 全体選択 = `bg-blue-50` / 選択行ホバー = `bg-blue-100` / **フォーカス列 = `bg-brand-200` + 縦アクセント** / 未選択行ホバー = `bg-gray-100`。従来の未選択ホバー `gray-50` はほぼ白で不明瞭だったため 1 段濃くした。`TaskRow` / `IntegratedView` / `GanttChart` の行背景クラスを揃えた。
+  - 操作メモ: クリックでセルをフォーカスすると行選択は 1 行に戻る（`handleRowMouseDown` が `setSelectedTaskIds([id])`）。複数行 + 列フォーカスの状態は「セルをフォーカス → Shift+クリック / Shift+矢印で拡張」で作る（Shift/Ctrl+クリックは input の `preventDefault` によりフォーカスを維持）。複数行ペースト（`handleTextCellPaste`）の対象列がそのまま帯として見える。
+  - テスト: `src/components/ActiveColumnHighlight.test.tsx`（新規 4 件）: 選択行だけに帯 / 選択外の行・他列には付かない / 単一選択では帯なし / 日付・期間列の `!opacity-100` / 統合表示でも同様。
+  - 検証: `npm run lint` 0 / `npm test -- --run` **246 件（29ファイル）** / `npm run build` 通過。`npm run shots` に active-column シナリオを追加（`scratch/screenshot.mjs`。web 用 dev は `npx vite --config scratch/vite.web.config.ts` で起動）。
 - **テキスト列の複数行ペースト / Excel ライクな一括入力** (October 17, 2026, 未コミット):
   - 背景/要望: タスク名だけでなく説明・担当者・成果物も複数行対応したい。さらに「列の特定行を複数選択して貼り付けると全行が同一値になる」など Excel ライクな操作を期待する。
   - 仕様（ユーザー確認済み）: 対象は **タスク名 / 説明 / 担当者 / 成果物** の 4 列。貼り付け先 = **フォーカス中の列 × 選択行（視覚順）**。選択が 1 行ならその行を起点に下へ伸ばす。真の矩形（行×列）選択とセル範囲コピーは今回スコープ外。

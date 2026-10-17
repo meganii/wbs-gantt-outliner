@@ -1,8 +1,10 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
+import clsx from 'clsx';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { handleTextCellPaste } from '../../utils/cellPaste';
 import { cellPropsEqual } from './cellPropsEqual';
+import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
 import type { ProjectConfig, Task } from '../../types';
 
 type ColumnWidths = ProjectConfig['columnWidths'];
@@ -34,6 +36,9 @@ export const TaskTextCell = memo(({
   const isFocused = useTaskStore(
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === field
   );
+
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
+  const isActiveColumn = useIsActiveColumn(taskId, field);
 
   // Local state for performance
   const [localValue, setLocalValue] = useState(value);
@@ -91,7 +96,10 @@ export const TaskTextCell = memo(({
 
   return (
     <div
-      className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0"
+      className={clsx(
+        'px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0',
+        isActiveColumn && activeColumnClass
+      )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
       <input

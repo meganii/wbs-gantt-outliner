@@ -2,6 +2,7 @@ import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { cellPropsEqual } from './cellPropsEqual';
+import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
 import clsx from 'clsx';
 import type { ProjectConfig, Task } from '../../types';
 
@@ -37,6 +38,9 @@ export const TaskPlanDurationCell = memo(({
   const isFocused = useTaskStore(
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'planDuration'
   );
+
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
+  const isActiveColumn = useIsActiveColumn(taskId, 'planDuration');
 
   // Local state for performant typing (1 文字ごとに updateTask を呼ばない)
   const [localValue, setLocalValue] = useState(storeValue);
@@ -126,7 +130,10 @@ export const TaskPlanDurationCell = memo(({
 
   return (
     <div
-      className="flex items-center justify-center text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10"
+      className={clsx(
+        'flex items-center justify-center text-xs text-blue-600 px-2 border-l border-gray-100 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0 bg-blue-50/10',
+        isActiveColumn && activeColumnClass
+      )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
       <input

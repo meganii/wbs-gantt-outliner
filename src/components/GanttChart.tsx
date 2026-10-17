@@ -472,7 +472,7 @@ export const GanttChart = ({
                     "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 flex items-center text-xs truncate transition-colors duration-150 select-none cursor-pointer",
                     isSelected && isHovered && "bg-blue-100",
                     isSelected && !isHovered && "bg-blue-50",
-                    !isSelected && isHovered && "bg-gray-50",
+                    !isSelected && isHovered && "bg-gray-100",
                     !isSelected && !isHovered && "bg-white"
                   )}
                   style={{ 

@@ -107,8 +107,8 @@ export const TaskRow = memo(({
     !suppressBorder && "border-b border-gray-100",
     isSelected && isHovered && "bg-blue-100",
     isSelected && !isHovered && "bg-blue-50",
-    !isSelected && isHovered && "bg-gray-50",
-    !isSelected && !isHovered && "hover:bg-gray-50"
+    !isSelected && isHovered && "bg-gray-100",
+    !isSelected && !isHovered && "hover:bg-gray-100"
   );
 
   const content = (

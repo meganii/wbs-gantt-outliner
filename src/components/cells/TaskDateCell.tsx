@@ -2,11 +2,15 @@ import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { cellPropsEqual } from './cellPropsEqual';
+import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
 import clsx from 'clsx';
 import { formatToShow, formatToEdit, parseInputDate } from '../../utils/date';
 import type { ProjectConfig, Task } from '../../types';
 
 type ColumnWidths = ProjectConfig['columnWidths'];
+
+/** 実績日付列のフォーカス対象フィールド（開始/終了のどちらでも列として強調する）。 */
+const DATE_FIELDS = ['startDate', 'endDate'] as const;
 
 interface TaskDateCellProps {
   taskId: string;
@@ -50,6 +54,10 @@ export const TaskDateCell = memo(({
   const isFocusedEnd = useTaskStore(
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'endDate'
   );
+
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する
+  // （開始/終了どちらのフィールドでも同じ列として扱う）。
+  const isActiveColumn = useIsActiveColumn(taskId, DATE_FIELDS);
 
   const isReadOnly = isParent;
 
@@ -221,7 +229,10 @@ export const TaskDateCell = memo(({
 
   return (
     <div
-      className="flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0"
+      className={clsx(
+        'flex items-center justify-center space-x-1 text-xs text-gray-500 px-2 border-l border-gray-100 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0',
+        isActiveColumn && activeColumnClass
+      )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
       <div className="relative w-20 h-full flex items-center justify-center">
