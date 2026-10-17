@@ -52,4 +52,19 @@ describe('mergeProjectConfig', () => {
     expect(warnings.join('\n')).toContain('visibleColumns');
     expect(result.visibleColumns).toEqual(DEFAULT_PROJECT_CONFIG.visibleColumns);
   });
+
+  it('defaults integratedColumns to the compact set and repairs invalid values', () => {
+    expect(mergeProjectConfig(undefined).integratedColumns).toEqual(
+      DEFAULT_PROJECT_CONFIG.integratedColumns
+    );
+
+    const warnings: string[] = [];
+    const repaired = mergeProjectConfig({ integratedColumns: ['description', 'unknown'] }, warnings);
+    // taskName は必須として先頭に補われる
+    expect(repaired.integratedColumns).toEqual(['taskName', 'description']);
+
+    const invalid = mergeProjectConfig({ integratedColumns: 'all' }, warnings);
+    expect(invalid.integratedColumns).toEqual(DEFAULT_PROJECT_CONFIG.integratedColumns);
+    expect(warnings.join('\n')).toContain('integratedColumns');
+  });
 });

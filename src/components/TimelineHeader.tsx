@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { format, getMonth, getYear, getISOWeek } from 'date-fns';
+import { format, getMonth, getYear, getISOWeek, isSameDay, startOfDay } from 'date-fns';
 import clsx from 'clsx';
-import { isWorkDay } from '../utils/date';
+import { isHoliday, isWorkDay } from '../utils/date';
 import type { WorkCalendar } from '../types';
 
 interface TimelineHeaderProps {
@@ -67,7 +67,8 @@ function buildGroupSegments(timeRange: Date[], viewMode: 'Day' | 'Week' | 'Month
  * タイムラインの2段ヘッダーコンポーネント。
  * - 上段 (グループ行): Day/Week → 年月、Month → 年、Year → なし
  * - 下段 (詳細行): Day → 日+曜日、Week → 週番号+開始日、Month → 月名、Year → 年
- * 月の境目（グループ切り替え）に太い区切り線を入れる。
+ * 月の境目に太い区切り線を入れる。グループラベルは横スクロール中も
+ * 見えるよう sticky（左端固定）で表示する。
  */
 export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
   timeRange,
@@ -77,28 +78,30 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
 }) => {
   const totalWidth = timeRange.length * cellWidth;
   const showGroupRow = viewMode !== 'Year';
+  const today = startOfDay(new Date());
 
   const groupSegments = useMemo(
     () => buildGroupSegments(timeRange, viewMode),
     [timeRange, viewMode]
   );
 
-
   return (
     <div className="flex flex-col select-none" style={{ width: totalWidth }}>
       {/* ── 上段: グループ行 ── */}
       {showGroupRow && (
-        <div className="flex border-b border-gray-200" style={{ height: 20 }}>
+        <div className="flex border-b border-line" style={{ height: 20 }}>
           {groupSegments.map((seg) => (
             <div
               key={`${seg.label}-${seg.startIndex}`}
-              className={clsx(
-                'flex-shrink-0 flex items-center px-2 border-r border-gray-300',
-                'text-[10px] font-semibold text-gray-500 tracking-wide',
-              )}
+              className="flex-shrink-0 flex items-center border-r border-line/80"
               style={{ width: seg.colSpan * cellWidth }}
             >
-              {seg.label}
+              <span
+                className="bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 tracking-wide whitespace-nowrap"
+                style={{ position: 'sticky', left: 0 }}
+              >
+                {seg.label}
+              </span>
             </div>
           ))}
         </div>
@@ -111,6 +114,8 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
       >
         {timeRange.map((date) => {
           const isWknd = !isWorkDay(date, calendar);
+          const holiday = viewMode === 'Day' && isHoliday(date, calendar);
+          const isToday = viewMode === 'Day' && isSameDay(date, today);
 
           let label = '';
           let subLabel = '';
@@ -139,17 +144,28 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
             <div
               key={date.toISOString()}
               className={clsx(
-                'flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center transition-colors',
-                // Day モード: 週末の背景
-                viewMode === 'Day' && isWknd
-                  ? 'bg-gray-100/80 text-gray-400'
-                  : 'text-gray-600'
+                'flex-shrink-0 border-r border-line text-[10px] flex flex-col items-center justify-center transition-colors',
+                holiday
+                  ? 'bg-amber-100/70 text-amber-700'
+                  : viewMode === 'Day' && isWknd
+                    ? 'bg-slate-100 text-slate-400'
+                    : 'text-slate-600'
               )}
               style={{ width: cellWidth }}
+              title={holiday ? `${format(date, 'yyyy-MM-dd')} (祝日)` : undefined}
             >
-              <span className="font-medium leading-none">{label}</span>
+              <span
+                className={clsx(
+                  'leading-none',
+                  isToday
+                    ? 'flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-600 px-1 font-semibold text-white'
+                    : 'font-medium'
+                )}
+              >
+                {label}
+              </span>
               {subLabel && (
-                <span className="text-[8px] text-gray-400 mt-0.5 leading-none">{subLabel}</span>
+                <span className="text-[8px] text-slate-400 mt-0.5 leading-none">{subLabel}</span>
               )}
             </div>
           );

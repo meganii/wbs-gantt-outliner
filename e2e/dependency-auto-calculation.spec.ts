@@ -42,6 +42,9 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     expect(taskIdC).not.toBeNull();
 
     // 3. Configure initial Dates on Task A, B, C via WBS input fields
+    //    （統合表示は既定でコンパクトな列のみのため、日付列を持つ WBS を使う）
+    await page.getByRole('button', { name: 'WBS', exact: true }).click();
+    await page.waitForTimeout(200);
     // Plan Start Dates
     const planStartDateInputs = page.locator('input[data-field="planStartDate"]');
     const planEndDateInputs = page.locator('input[data-field="planEndDate"]');
@@ -65,6 +68,10 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await page.waitForTimeout(200);
 
     // 4. Create dependency Task A -> Task B
+    //    依存ハンドルはガントバー上のため、タイムラインを持つ統合表示で操作する
+    await page.getByRole('button', { name: '統合表示', exact: true }).click();
+    await page.waitForTimeout(200);
+
     // Locate the dependency handle of Task A plan bar, drag to Task B's plan bar
     const barA = page.locator(`[data-task-id="${taskIdA}"].bg-blue-100`);
     const connectorA = page.locator(`[data-task-id="${taskIdA}"] [title="Drag to create dependency"]`);
@@ -121,7 +128,10 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     // Task A will now be 2026-06-10 to 2026-06-11 (2 workdays: Wed, Thu)
     // Task B (which depends on A) should shift to next workdays: 2026-06-12 (Fri) to 2026-06-15 (Mon) (2 workdays, skipping weekend)
     // Task C (which depends on B) should shift to next workdays: 2026-06-16 (Tue) to 2026-06-17 (Wed) (2 workdays)
-    
+
+    // 日付入力は WBS に戻って行う
+    await page.getByRole('button', { name: 'WBS', exact: true }).click();
+    await page.waitForTimeout(200);
     await planStartDateInputs.nth(1).click();
     await page.waitForTimeout(100);
     await planStartDateInputs.nth(1).fill('2026-06-10');

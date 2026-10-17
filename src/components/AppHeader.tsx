@@ -1,7 +1,20 @@
 import { useRef, useState, useMemo } from 'react';
 import { useStore } from 'zustand';
 import clsx from 'clsx';
-import { CalendarDays, ChevronDown, Undo, Redo } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronDown,
+  FileSpreadsheet,
+  FolderOpen,
+  Lock,
+  LockOpen,
+  Redo2,
+  Rows3,
+  Save,
+  SquareGanttChart,
+  Table2,
+  Undo2,
+} from 'lucide-react';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useProjectFileHandlers } from '../hooks/useProjectFileHandlers';
 import { useTaskStore } from '../store/useTaskStore';
@@ -14,188 +27,191 @@ interface AppHeaderProps {
   onOpenProjectSettings: () => void;
 }
 
+const VIEWS: { id: View; label: string; icon: typeof Table2 }[] = [
+  { id: 'wbs', label: 'WBS', icon: Table2 },
+  { id: 'integrated', label: '統合表示', icon: Rows3 },
+  { id: 'gantt', label: 'ガントチャート', icon: SquareGanttChart },
+];
+
 export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderProps) {
   // ── Project menu ──────────────────────────────────────────────────────────
-  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  // ヘッダーは overflow-hidden（狭い幅でのはみ出し防止）なので、absolute の
+  // ドロップダウンはヘッダーの高さで切り取られてしまう。fixed にして
+  // ヘッダーの外へ描画し、ボタンの位置から座標を決める。
+  // （z-[60] でメイン領域の行 z-40 / リサイズハンドル z-50 より前面に置く）
+  const [projectMenuPos, setProjectMenuPos] = useState<{ top: number; right: number } | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
-  useClickOutside(projectMenuRef, () => setIsProjectMenuOpen(false));
+  const projectButtonRef = useRef<HTMLButtonElement>(null);
+  useClickOutside(projectMenuRef, () => setProjectMenuPos(null));
+  const isProjectMenuOpen = projectMenuPos !== null;
+
+  const toggleProjectMenu = () => {
+    if (projectMenuPos) {
+      setProjectMenuPos(null);
+      return;
+    }
+    const rect = projectButtonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setProjectMenuPos({
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+    });
+  };
 
   // ── Zustand store ─────────────────────────────────────────────────────────
   const projectConfig = useTaskStore((state) => state.projectConfig);
-  const setAllCollapsed = useTaskStore((state) => state.setAllCollapsed);
   const setBaselineLocked = useTaskStore((state) => state.setBaselineLocked);
   const baselineLocked = projectConfig.baselineLocked ?? false;
-
-  const tasks = useTaskStore((state) => state.tasks);
-  const collapsibleTasks = useMemo(
-    () => Object.values(tasks).filter((task) => task.children.length > 0),
-    [tasks]
-  );
-  const canExpandAll = collapsibleTasks.some((task) => task.isCollapsed);
-  const canCollapseAll = collapsibleTasks.some((task) => !task.isCollapsed);
 
   const temporalState = useStore(useTaskStore.temporal, (state) => state);
   const { undo, redo, pastStates, futureStates } = temporalState;
   const canUndo = pastStates.length > 0;
   const canRedo = futureStates.length > 0;
 
+  const holidayCount = useMemo(
+    () => projectConfig.calendar.holidays.length,
+    [projectConfig.calendar.holidays]
+  );
+
   // ── File handlers ─────────────────────────────────────────────────────────
   const { handleSave, handleLoad, handleExport } = useProjectFileHandlers();
 
+  const iconButton =
+    'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-500 no-drag';
+  const textButton =
+    'flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-800 no-drag';
+
   return (
-    <header className="h-10 bg-gray-100 flex items-center px-4 border-b border-gray-300 select-none draggable">
-      <div className="flex space-x-1 no-drag items-center">
-        {/* Project Menu */}
-        <div className="relative" ref={projectMenuRef}>
+    <header className="h-11 shrink-0 flex items-center gap-1.5 px-2 bg-white border-b border-line select-none draggable overflow-hidden">
+      {/* Brand */}
+      <div className="flex items-center gap-2 pl-1 pr-2 no-drag shrink-0">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-white shadow-xs">
+          <SquareGanttChart size={14} />
+        </div>
+        <span className="hidden lg:inline text-[13px] font-semibold tracking-tight text-slate-800">
+          WBS Gantt Outliner
+        </span>
+      </div>
+
+      <div className="h-5 w-px bg-line shrink-0" />
+
+      {/* View switcher */}
+      <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5 no-drag shrink-0">
+        {VIEWS.map(({ id, label, icon: Icon }) => (
           <button
-            onClick={() => setIsProjectMenuOpen((open) => !open)}
+            key={id}
+            onClick={() => setView(id)}
             className={clsx(
-              'flex items-center gap-1 px-3 py-1 text-xs rounded-sm transition-colors no-drag',
-              isProjectMenuOpen
-                ? 'bg-white text-blue-600 shadow-sm font-medium'
-                : 'text-gray-600 hover:bg-gray-200'
+              'flex h-7 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-medium transition-colors',
+              view === id
+                ? 'bg-white text-brand-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-700'
             )}
           >
-            プロジェクト
-            <ChevronDown size={12} />
+            <Icon size={13} />
+            {label}
           </button>
+        ))}
+      </div>
 
-          {isProjectMenuOpen && (
-            <div className="absolute left-0 top-full mt-1 w-60 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg z-50">
-              <button
-                onClick={() => {
-                  onOpenProjectSettings();
-                  setIsProjectMenuOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <CalendarDays size={14} className="text-blue-500" />
-                <span className="flex-1">祝日設定</span>
-                <span className="text-[10px] text-gray-400">
-                  {projectConfig.calendar.holidays.length}
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
+      <div className="flex-1 min-w-0" />
 
-        <div className="w-px bg-gray-300 mx-1 h-4 my-auto" />
-
-        {/* View Tabs */}
-        <button
-          onClick={() => setView('wbs')}
-          className={clsx(
-            'px-3 py-1 text-xs rounded-sm transition-colors',
-            view === 'wbs'
-              ? 'bg-white text-blue-600 shadow-sm font-medium'
-              : 'text-gray-500 hover:bg-gray-200'
-          )}
-        >
-          WBS
-        </button>
-        <button
-          onClick={() => setView('integrated')}
-          className={clsx(
-            'px-3 py-1 text-xs rounded-sm transition-colors',
-            view === 'integrated'
-              ? 'bg-white text-blue-600 shadow-sm font-medium'
-              : 'text-gray-500 hover:bg-gray-200'
-          )}
-        >
-          統合表示
-        </button>
-        <button
-          onClick={() => setView('gantt')}
-          className={clsx(
-            'px-3 py-1 text-xs rounded-sm transition-colors',
-            view === 'gantt'
-              ? 'bg-white text-blue-600 shadow-sm font-medium'
-              : 'text-gray-500 hover:bg-gray-200'
-          )}
-        >
-          ガントチャート
-        </button>
-
-        <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
-
-        {/* Undo / Redo */}
+      {/* Undo / Redo */}
+      <div className="flex items-center gap-0.5 shrink-0">
         <button
           onClick={() => undo?.()}
           disabled={!canUndo}
-          className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+          className={iconButton}
           title="元に戻す (Cmd+Z)"
+          aria-label="元に戻す"
         >
-          <Undo size={14} />
+          <Undo2 size={15} />
         </button>
         <button
           onClick={() => redo?.()}
           disabled={!canRedo}
-          className="p-1 text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
+          className={iconButton}
           title="やり直す (Cmd+Y または Cmd+Shift+Z)"
+          aria-label="やり直す"
         >
-          <Redo size={14} />
+          <Redo2 size={15} />
         </button>
+      </div>
 
-        <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
+      <div className="h-5 w-px bg-line shrink-0" />
 
-        {/* Expand / Collapse All */}
+      {/* Baseline lock */}
+      <label
+        className={clsx(
+          'flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium cursor-pointer transition-colors no-drag shrink-0 border',
+          baselineLocked
+            ? 'bg-amber-50 border-amber-300 text-amber-700'
+            : 'border-transparent text-slate-600 hover:bg-slate-100'
+        )}
+        title="基準計画（予定）を固定し、実績のみを更新できるようにする"
+      >
+        <input
+          type="checkbox"
+          checked={baselineLocked}
+          onChange={(e) => setBaselineLocked(e.target.checked)}
+          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 text-amber-600 focus:ring-amber-400"
+        />
+        {baselineLocked ? <Lock size={12} /> : <LockOpen size={12} />}
+        基準計画固定
+      </label>
+
+      <div className="h-5 w-px bg-line shrink-0" />
+
+      {/* Project menu */}
+      <div className="relative shrink-0" ref={projectMenuRef}>
         <button
-          onClick={() => setAllCollapsed(false)}
-          disabled={!canExpandAll}
-          className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="すべて展開 (Cmd/Ctrl+Alt+ArrowDown)"
+          ref={projectButtonRef}
+          onClick={toggleProjectMenu}
+          className={clsx(
+            textButton,
+            isProjectMenuOpen && 'bg-slate-100 text-slate-800'
+          )}
+          aria-label="プロジェクト"
+          aria-expanded={isProjectMenuOpen}
         >
-          すべて展開
-        </button>
-        <button
-          onClick={() => setAllCollapsed(true)}
-          disabled={!canCollapseAll}
-          className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent rounded-sm no-drag"
-          title="すべて折りたたむ (Cmd/Ctrl+Alt+ArrowUp)"
-        >
-          すべて折りたたむ
+          <CalendarDays size={14} className="text-brand-500" />
+          <span className="hidden xl:inline">プロジェクト</span>
+          <ChevronDown size={12} />
         </button>
 
-        <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
-
-        {/* Baseline Lock Toggle */}
-        <label className="flex items-center space-x-1 cursor-pointer select-none text-xs text-gray-600 hover:bg-gray-200 px-2 py-1 rounded-sm no-drag">
-          <input
-            type="checkbox"
-            checked={baselineLocked}
-            onChange={(e) => setBaselineLocked(e.target.checked)}
-            className="cursor-pointer rounded text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 mr-1"
-          />
-          <span
-            className={clsx(
-              'font-medium',
-              baselineLocked ? 'text-amber-600 font-semibold' : 'text-gray-600'
-            )}
+        {projectMenuPos && (
+          <div
+            className="no-drag fixed z-[60] w-60 overflow-hidden rounded-lg border border-line bg-white py-1 shadow-pop"
+            style={{ top: projectMenuPos.top, right: projectMenuPos.right }}
           >
-            基準計画固定
-          </span>
-        </label>
+            <button
+              onClick={() => {
+                onOpenProjectSettings();
+                setProjectMenuPos(null);
+              }}
+              className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <CalendarDays size={14} className="text-brand-500" />
+              <span className="flex-1">祝日設定</span>
+              <span className="text-[10px] text-gray-400">{holidayCount}</span>
+            </button>
+          </div>
+        )}
+      </div>
 
-        <div className="w-px bg-gray-300 mx-2 h-4 my-auto" />
-
-        {/* File Operations */}
-        <button
-          onClick={handleSave}
-          className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
-        >
-          保存
+      {/* File operations */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        <button onClick={handleSave} className={textButton} title="保存 (JSON)" aria-label="保存">
+          <Save size={14} />
+          <span className="hidden xl:inline">保存</span>
         </button>
-        <button
-          onClick={handleLoad}
-          className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
-        >
-          読み込み
+        <button onClick={handleLoad} className={textButton} title="読み込み (JSON)" aria-label="読み込み">
+          <FolderOpen size={14} />
+          <span className="hidden xl:inline">読み込み</span>
         </button>
-        <button
-          onClick={handleExport}
-          className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-sm no-drag"
-        >
-          エクスポート
+        <button onClick={handleExport} className={textButton} title="Excel エクスポート" aria-label="エクスポート">
+          <FileSpreadsheet size={14} />
+          <span className="hidden xl:inline">エクスポート</span>
         </button>
       </div>
     </header>

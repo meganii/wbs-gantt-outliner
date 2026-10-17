@@ -40,6 +40,7 @@ export const Outliner = ({
   const flattenedIds = useStableFlattenedIds(flattenedItems);
 
   const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns);
+  const setVisibleColumns = useTaskStore((state) => state.setVisibleColumns);
 
   const visibleColumns = useMemo((): ColumnId[] => {
     let cols = storeVisibleColumns;
@@ -72,9 +73,17 @@ export const Outliner = ({
   };
 
   return (
-    <div className="bg-white text-gray-900 overflow-x-auto min-h-full">
+    // ここで overflow を auto にすると、この div 自身がスクロールコンテナになり
+    // （縦横とも auto になる）、TaskTableHeader の `sticky top-0` が実際の
+    // 縦スクロール（親の overflow-auto）ではなくこの要素を基準にしてしまい
+    // ヘッダーがスクロールアウトする。横スクロールは親に任せる。
+    <div className="bg-white text-gray-900 min-h-full">
       <div className="min-w-full w-min">
-        <TaskTableHeader visibleColumns={visibleColumns} />
+        <TaskTableHeader
+          visibleColumns={visibleColumns}
+          menuColumns={storeVisibleColumns ?? visibleColumns}
+          onColumnsChange={setVisibleColumns}
+        />
       <div className="pb-4 w-max">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>

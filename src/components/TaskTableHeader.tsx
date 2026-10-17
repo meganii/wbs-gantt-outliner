@@ -1,47 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
+import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
+import { COLUMN_LABEL, CENTERED_COLUMNS, PLAN_COLUMNS, ACTUAL_COLUMNS } from '../utils/columns';
 import type { ColumnId } from '../types';
 
 interface TaskTableHeaderProps {
+  /** 実際に描画する列（この順で表示する） */
   visibleColumns: ColumnId[];
+  /**
+   * 表示項目メニューのチェック状態・トグル対象にする列。
+   * 省略時は visibleColumns を使う。
+   * （例: ベースライン固定中は予定列を描画から外すが、メニューには残したい）
+   */
+  menuColumns?: ColumnId[];
+  /** 列の表示/非表示を変更する。省略時は WBS 用の visibleColumns を更新する。 */
+  onColumnsChange?: (columns: ColumnId[]) => void;
+  /** ヘッダー行の高さ(px)。統合表示ではタイムラインのヘッダーに合わせる。 */
+  height?: number;
 }
 
-const ALL_COLUMNS: { id: ColumnId; label: string }[] = [
-  { id: 'taskName', label: 'タスク名' },
-  { id: 'description', label: '説明' },
-  { id: 'assignee', label: '担当者' },
-  { id: 'deliverables', label: '成果物' },
-  { id: 'status', label: 'ステータス' },
-  { id: 'progress', label: '進捗率' },
-  { id: 'planDuration', label: '予定期間' },
-  { id: 'planDate', label: '予定日付' },
-  { id: 'duration', label: '実績期間' },
-  { id: 'date', label: '実績日付' },
-];
-
-const COLUMN_ORDER: ColumnId[] = [
-  'taskName',
-  'description',
-  'assignee',
-  'deliverables',
-  'status',
-  'progress',
-  'planDuration',
-  'planDate',
-  'duration',
-  'date',
-];
-
-export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
+export const TaskTableHeader = ({
+  visibleColumns,
+  menuColumns,
+  onColumnsChange,
+  height = 40,
+}: TaskTableHeaderProps) => {
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore((state) => state.setColumnWidth);
-  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns || COLUMN_ORDER);
   const setVisibleColumns = useTaskStore((state) => state.setVisibleColumns);
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
+
+  const menuSource = menuColumns ?? visibleColumns;
+  const changeColumns = onColumnsChange ?? setVisibleColumns;
 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
+    if (!menu) return;
     const closeMenu = () => setMenu(null);
     window.addEventListener('click', closeMenu);
     window.addEventListener('contextmenu', closeMenu);
@@ -49,23 +44,12 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
       window.removeEventListener('click', closeMenu);
       window.removeEventListener('contextmenu', closeMenu);
     };
-  }, []);
+  }, [menu]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setMenu({ x: e.clientX, y: e.clientY });
-  };
-
-  const toggleColumn = (columnId: ColumnId) => {
-    if (columnId === 'taskName') return;
-    let nextCols: ColumnId[];
-    if (storeVisibleColumns.includes(columnId)) {
-      nextCols = storeVisibleColumns.filter((col) => col !== columnId);
-    } else {
-      nextCols = COLUMN_ORDER.filter((col) => col === columnId || storeVisibleColumns.includes(col));
-    }
-    setVisibleColumns(nextCols);
   };
 
   const handleResize = (columnId: keyof typeof columnWidths) => (e: React.MouseEvent) => {
@@ -91,220 +75,51 @@ export const TaskTableHeader = ({ visibleColumns }: TaskTableHeaderProps) => {
 
   const Resizer = ({ columnId }: { columnId: keyof typeof columnWidths }) => (
     <div
-      className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 z-20 group-hover:opacity-50"
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-brand-400 opacity-0 hover:opacity-100 z-20 transition-opacity"
       onMouseDown={handleResize(columnId)}
     />
   );
 
   return (
-    <div 
-      className="h-[40px] sticky top-0 bg-gray-100 border-b border-gray-300 flex items-center font-bold text-xs z-10 w-max"
+    <div
+      className="sticky top-0 flex items-center w-max bg-slate-50 border-b border-line text-[11px] font-semibold text-slate-500 z-10 select-none"
+      style={{ height }}
       onContextMenu={handleContextMenu}
     >
       {visibleColumns.map((colId) => {
-        switch (colId) {
-          case 'taskName':
-            return (
-              <div
-                key="taskName"
-                className="flex-1 flex items-center px-4 relative group"
-                style={{
-                  width: columnWidths.taskName,
-                  minWidth: columnWidths.taskName,
-                  maxWidth: columnWidths.taskName,
-                }}
-              >
-                タスク名
-                <Resizer columnId="taskName" />
-              </div>
-            );
-          case 'description':
-            return (
-              <div
-                key="description"
-                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
-                style={{
-                  width: columnWidths.description,
-                  minWidth: columnWidths.description,
-                  maxWidth: columnWidths.description,
-                }}
-              >
-                説明
-                <Resizer columnId="description" />
-              </div>
-            );
-          case 'assignee':
-            return (
-              <div
-                key="assignee"
-                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
-                style={{
-                  width: columnWidths.assignee,
-                  minWidth: columnWidths.assignee,
-                  maxWidth: columnWidths.assignee,
-                }}
-              >
-                担当者
-                <Resizer columnId="assignee" />
-              </div>
-            );
-          case 'deliverables':
-            return (
-              <div
-                key="deliverables"
-                className="px-2 border-l border-gray-300 h-full flex items-center flex-shrink-0 relative group"
-                style={{
-                  width: columnWidths.deliverables,
-                  minWidth: columnWidths.deliverables,
-                  maxWidth: columnWidths.deliverables,
-                }}
-              >
-                成果物
-                <Resizer columnId="deliverables" />
-              </div>
-            );
-          case 'status':
-            return (
-              <div
-                key="status"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-gray-700 bg-gray-50/10"
-                style={{
-                  width: columnWidths.status,
-                  minWidth: columnWidths.status,
-                  maxWidth: columnWidths.status,
-                }}
-              >
-                ステータス
-                <Resizer columnId="status" />
-              </div>
-            );
-          case 'progress':
-            return (
-              <div
-                key="progress"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-gray-700 bg-gray-50/10"
-                style={{
-                  width: columnWidths.progress,
-                  minWidth: columnWidths.progress,
-                  maxWidth: columnWidths.progress,
-                }}
-              >
-                進捗率
-                <Resizer columnId="progress" />
-              </div>
-            );
-          case 'planDuration':
-            return (
-              <div
-                key="planDuration"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
-                style={{
-                  width: columnWidths.planDuration,
-                  minWidth: columnWidths.planDuration,
-                  maxWidth: columnWidths.planDuration,
-                }}
-              >
-                予定期間
-                <Resizer columnId="planDuration" />
-              </div>
-            );
-          case 'planDate':
-            return (
-              <div
-                key="planDate"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-blue-700 bg-blue-50/30"
-                style={{
-                  width: columnWidths.planDate,
-                  minWidth: columnWidths.planDate,
-                  maxWidth: columnWidths.planDate,
-                }}
-              >
-                予定日付
-                <Resizer columnId="planDate" />
-              </div>
-            );
-          case 'duration':
-            return (
-              <div
-                key="duration"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-amber-700 bg-amber-50/30"
-                style={{
-                  width: columnWidths.duration,
-                  minWidth: columnWidths.duration,
-                  maxWidth: columnWidths.duration,
-                }}
-              >
-                実績期間
-                <Resizer columnId="duration" />
-              </div>
-            );
-          case 'date':
-            return (
-              <div
-                key="date"
-                className="px-2 border-l border-gray-300 h-full flex items-center justify-center flex-shrink-0 relative group text-amber-700 bg-amber-50/30"
-                style={{
-                  width: columnWidths.date,
-                  minWidth: columnWidths.date,
-                  maxWidth: columnWidths.date,
-                }}
-              >
-                実績日付
-                <Resizer columnId="date" />
-              </div>
-            );
-          default:
-            return null;
-        }
+        const isCentered = CENTERED_COLUMNS.includes(colId);
+        const isPlan = PLAN_COLUMNS.includes(colId);
+        const isActual = ACTUAL_COLUMNS.includes(colId);
+
+        return (
+          <div
+            key={colId}
+            className={[
+              'h-full flex items-center flex-shrink-0 relative group whitespace-nowrap',
+              colId === 'taskName' ? 'flex-1 pl-4 pr-2' : 'px-2 border-l border-line',
+              isCentered ? 'justify-center' : '',
+              isPlan ? 'text-brand-700 bg-brand-50/40' : '',
+              isActual ? 'text-amber-700 bg-amber-50/40' : '',
+            ].join(' ')}
+            style={{
+              width: columnWidths[colId],
+              minWidth: columnWidths[colId],
+              maxWidth: columnWidths[colId],
+            }}
+          >
+            {COLUMN_LABEL[colId]}
+            <Resizer columnId={colId} />
+          </div>
+        );
       })}
 
       {menu && (
-        <div
-          className="fixed bg-white border border-gray-200 rounded-md shadow-lg py-1 z-50 text-gray-700 min-w-[160px] font-normal"
+        <ColumnVisibilityMenu
+          columns={menuSource}
+          onChange={changeColumns}
+          baselineLocked={baselineLocked}
           style={{ top: menu.y, left: menu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.stopPropagation()}
-        >
-          <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-100 select-none">
-            表示項目の設定
-          </div>
-          {ALL_COLUMNS.map(({ id, label }) => {
-            const isChecked = storeVisibleColumns.includes(id);
-            const isTaskName = id === 'taskName';
-            const isPlanColumn = id === 'planDuration' || id === 'planDate';
-            const isDisabled = isTaskName || (isPlanColumn && baselineLocked);
-
-            return (
-              <label
-                key={id}
-                className={`flex items-center px-3 py-1.5 text-xs hover:bg-gray-50 cursor-pointer select-none ${
-                  isDisabled ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-                onClick={(e) => {
-                  if (isDisabled) {
-                    e.preventDefault();
-                    return;
-                  }
-                  toggleColumn(id);
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  disabled={isDisabled}
-                  className="mr-2 h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
-                  onChange={() => {}}
-                />
-                <span>{label}</span>
-                {isPlanColumn && baselineLocked && (
-                  <span className="ml-auto text-[10px] text-amber-600 font-normal">
-                    (固定中)
-                  </span>
-                )}
-              </label>
-            );
-          })}
-        </div>
+        />
       )}
     </div>
   );

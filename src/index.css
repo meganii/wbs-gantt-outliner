@@ -3,12 +3,13 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN',
+    'Hiragino Sans', Meiryo, 'Noto Sans JP', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light;
-  color: #111827;
+  color: #0f172a;
   background-color: #ffffff;
 
   font-synthesis: none;
@@ -17,12 +18,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* キーボード操作時のフォーカスを控えめな青リングで示す */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 1px;
+  }
 }
 
 @layer utilities {
@@ -35,5 +48,26 @@ body {
   .gantt-row-optimized {
     content-visibility: auto;
     contain-intrinsic-size: 32px;
+  }
+  /* 細いスクロールバー（業務ツールらしい軽い見た目） */
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b8;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
   }
 }

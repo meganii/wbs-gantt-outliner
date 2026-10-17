@@ -74,7 +74,8 @@ function Toast({
 }
 
 /**
- * 画面右上に通知を表示する。警告・情報は自動で消え、エラーは手動で閉じるまで残る。
+ * 画面右下に通知を表示する。警告・情報は自動で消え、エラーは手動で閉じるまで残る。
+ * （右上はズーム等の操作系と重なるため、右下に固定する）
  */
 export function ToastContainer() {
   const notifications = useNotificationStore((state) => state.notifications);
@@ -84,7 +85,7 @@ export function ToastContainer() {
 
   return (
     <div
-      className="pointer-events-none fixed right-4 top-12 z-[100] flex w-80 max-w-[80vw] flex-col gap-2"
+      className="pointer-events-none fixed bottom-9 right-4 z-[100] flex w-80 max-w-[80vw] flex-col gap-2"
       aria-live="polite"
     >
       {notifications.map((notification) => (

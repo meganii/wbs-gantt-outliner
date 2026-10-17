@@ -72,39 +72,41 @@ export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialog
         }
       }}
     >
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-line bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
               <CalendarDays size={18} />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Project Settings</h2>
-              <p className="text-xs text-gray-500">Define non-working holidays for this project calendar.</p>
+              <h2 className="text-base font-semibold text-slate-900">プロジェクト設定</h2>
+              <p className="text-xs text-slate-500">
+                プロジェクトの稼働カレンダーで、休業日（祝日）を登録します。
+              </p>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close project settings"
+            className="rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            aria-label="プロジェクト設定を閉じる"
           >
             <X size={16} />
           </button>
         </div>
 
         <div className="space-y-4 px-5 py-5">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="rounded-lg border border-line bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Holidays</h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  Added dates are treated as non-working days in the calendar and future schedule calculations.
+                <h3 className="text-sm font-medium text-slate-900">祝日</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  登録した日付はカレンダーおよび以降の日程計算で休業日として扱われます。
                 </p>
               </div>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 shadow-sm">
-                {holidays.length} registered
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm">
+                {holidays.length} 件登録済み
               </span>
             </div>
 
@@ -119,40 +121,40 @@ export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialog
                     handleAddHoliday();
                   }
                 }}
-                className="h-10 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                className="h-10 flex-1 rounded-md border border-line bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
               />
               <button
                 type="button"
                 onClick={handleAddHoliday}
                 disabled={!draftHoliday}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-200"
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-medium text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
               >
                 <Plus size={16} />
-                Add Holiday
+                祝日を追加
               </button>
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-              <h3 className="text-sm font-medium text-gray-900">Registered Dates</h3>
-              <span className="text-xs text-gray-400">Saved in project JSON</span>
+          <div className="rounded-lg border border-line">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h3 className="text-sm font-medium text-slate-900">登録済みの日付</h3>
+              <span className="text-xs text-slate-400">プロジェクト JSON に保存されます</span>
             </div>
 
             {holidayItems.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500">
-                No holidays registered yet.
+              <div className="px-4 py-8 text-center text-sm text-slate-500">
+                登録された祝日はまだありません。
               </div>
             ) : (
-              <div className="max-h-72 overflow-auto">
+              <div className="max-h-72 overflow-auto thin-scrollbar">
                 {holidayItems.map((holiday) => (
                   <div
                     key={holiday.value}
-                    className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0"
+                    className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
                   >
                     <div>
-                      <div className="text-sm font-medium text-gray-800">{holiday.value}</div>
-                      <div className="text-xs text-gray-500">{holiday.label}</div>
+                      <div className="text-sm font-medium text-slate-800">{holiday.value}</div>
+                      <div className="text-xs text-slate-500">{holiday.label}</div>
                     </div>
                     <button
                       type="button"
@@ -160,7 +162,7 @@ export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialog
                       className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-500 transition hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 size={14} />
-                      Remove
+                      削除
                     </button>
                   </div>
                 ))}
@@ -169,13 +171,13 @@ export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialog
           </div>
         </div>
 
-        <div className="flex justify-end border-t border-gray-200 px-5 py-4">
+        <div className="flex justify-end border-t border-line px-5 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+            className="rounded-md border border-line px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
           >
-            Close
+            閉じる
           </button>
         </div>
       </div>

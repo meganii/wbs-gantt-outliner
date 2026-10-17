@@ -11,12 +11,14 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
 import type { ColumnId, Task } from '../types';
+import { COMPACT_COLUMNS } from '../utils/projectConfig';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
+import { leftPaneDividerStyle } from '../utils/leftPaneDivider';
 
 // Import custom hooks
 import { useGanttTimeline, TimelineContext, useTimelineContext } from '../hooks/useGanttTimeline';
@@ -33,6 +35,8 @@ interface RowContainerProps {
   outlinerWidth: number;
   currentBgClass: string;
   baselineLocked: boolean;
+  isSelected: boolean;
+  isHovered: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   onHoverTaskChange: ((taskId: string | null) => void) | undefined;
 }
@@ -46,6 +50,8 @@ const RowContainer = ({
   outlinerWidth,
   currentBgClass,
   baselineLocked,
+  isSelected,
+  isHovered,
   taskBarRefs,
   onHoverTaskChange,
 }: RowContainerProps) => {
@@ -73,6 +79,8 @@ const RowContainer = ({
         baselineLocked={baselineLocked}
         taskBarRefs={taskBarRefs}
         timelineWidth={timelineWidth}
+        isSelected={isSelected}
+        isHovered={isHovered}
       />
     </div>
   );
@@ -95,7 +103,6 @@ export const IntegratedView = ({
   hoveredTaskId = null,
   onHoverTaskChange,
 }: IntegratedViewProps) => {
-  const setViewMode = useTaskStore((state) => state.setViewMode);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
   // flattenedItems を prop で受け取らない場合（テストや単体利用）はここで
@@ -124,6 +131,7 @@ export const IntegratedView = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   // Use custom timeline hook
@@ -135,18 +143,11 @@ export const IntegratedView = ({
     calendar,
   } = useGanttTimeline(flattenedItems);
 
-  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns);
+  const storeVisibleColumns = useTaskStore((state) => state.projectConfig.integratedColumns);
+  const setIntegratedColumns = useTaskStore((state) => state.setIntegratedColumns);
 
   const visibleColumns = useMemo((): ColumnId[] => {
-    const cols = storeVisibleColumns || [
-      'taskName',
-      'status',
-      'progress',
-      'planDuration',
-      'planDate',
-      'duration',
-      'date',
-    ];
+    const cols = storeVisibleColumns ?? COMPACT_COLUMNS;
     if (baselineLocked) {
       return cols.filter((col) => col !== 'planDuration' && col !== 'planDate');
     }
@@ -174,6 +175,12 @@ export const IntegratedView = ({
         svgRef.current.style.clipPath =
           container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
       }
+      // 日付グリッド背景も同じ量だけ切り落とす。切らないと、行より下の
+      // 左ペイン（タスク名列）の余白にタイムラインの罫線が覗いてしまう。
+      if (gridRef.current) {
+        gridRef.current.style.clipPath =
+          container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
+      }
     };
 
     handleScroll();
@@ -195,6 +202,23 @@ export const IntegratedView = ({
       }
     }
   }, [viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, outlinerWidth]);
+
+  // サブツールバーの「今日」ボタン押下で今日の位置へスクロールする
+  // （初回マウント時は viewMode 効果が担当するため、押下時のみ動かす）
+  const todayFocusRequestId = useTaskStore((state) => state.todayFocusRequestId);
+  const lastTodayFocusRef = useRef(todayFocusRequestId);
+  useLayoutEffect(() => {
+    if (lastTodayFocusRef.current === todayFocusRequestId) return;
+    lastTodayFocusRef.current = todayFocusRequestId;
+
+    const container = containerRef.current;
+    if (!container || !timelineMetrics.pixelsPerDay) return;
+    const today = new Date();
+    const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
+    const timelineScrollLeft = diffDays * timelineMetrics.pixelsPerDay;
+    const timelineViewportWidth = Math.max(0, container.clientWidth - outlinerWidth);
+    container.scrollLeft = Math.max(0, timelineScrollLeft - timelineViewportWidth / 2);
+  }, [todayFocusRequestId, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, outlinerWidth]);
 
   // Scroll Anchoring: カレンダー自動拡張・縮小時に表示日付位置を維持する
   const lastTimelineStartRef = useRef<Date | null>(null);
@@ -280,7 +304,11 @@ export const IntegratedView = ({
           className="border-r border-gray-300 overflow-hidden flex-shrink-0 bg-gray-100"
           style={{ width: outlinerWidth }}
         >
-          <TaskTableHeader visibleColumns={visibleColumns} />
+          <TaskTableHeader
+            visibleColumns={visibleColumns}
+            menuColumns={storeVisibleColumns ?? COMPACT_COLUMNS}
+            onColumnsChange={setIntegratedColumns}
+          />
         </div>
         <div className="flex-1 relative overflow-hidden bg-gray-100 border-b border-gray-300">
           <div ref={headerRef} className="h-[56px] overflow-hidden">
@@ -291,30 +319,24 @@ export const IntegratedView = ({
               calendar={calendar}
             />
           </div>
-          <div className="absolute right-0 top-0 h-full bg-gray-100/90 backdrop-blur-sm border-l border-gray-300 px-3 flex items-center z-40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-            <select
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
-              className="text-xs p-1.5 border border-gray-300 rounded bg-white font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all"
-            >
-              <option value="Day">Day</option>
-              <option value="Week">Week</option>
-              <option value="Month">Month</option>
-              <option value="Year">Year</option>
-            </select>
-          </div>
         </div>
       </div>
 
-      <div ref={containerRef} className="flex-1 relative overflow-auto min-h-0 min-w-0">
+      <div
+        ref={containerRef}
+        className="flex-1 relative overflow-auto min-h-0 min-w-0"
+        style={leftPaneDividerStyle(outlinerWidth)}
+      >
         {/* Shared Background Grid Layer */}
         <TimelineGridBackground
+          ref={gridRef}
           timeRange={timeRange}
           cellWidth={cellWidth}
           calendar={calendar}
           viewMode={viewMode}
           totalHeight={flattenedItems.length * ROW_HEIGHT}
           timelineWidth={timelineWidth}
+          pixelsPerDay={timelineMetrics.pixelsPerDay}
           leftOffset={outlinerWidth}
         />
 
@@ -328,8 +350,8 @@ export const IntegratedView = ({
           }}
         >
           <defs>
-            <marker id="integrated-arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-              <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
+            <marker id="integrated-arrowhead" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+              <polygon points="0 0, 7 2.5, 0 5" fill="currentColor" className="text-slate-400" />
             </marker>
           </defs>
           <GanttDependencyLines
@@ -388,6 +410,8 @@ export const IntegratedView = ({
                         outlinerWidth={outlinerWidth}
                         currentBgClass={currentBgClass}
                         baselineLocked={baselineLocked}
+                        isSelected={isSelected}
+                        isHovered={isHovered}
                         taskBarRefs={taskBarRefs}
                         onHoverTaskChange={onHoverTaskChange}
                       />

@@ -175,6 +175,7 @@ describe('cell editing and derived values', () => {
     const parentId = useTaskStore.getState().rootIds[0];
     let childId = '';
     act(() => {
+      useTaskStore.getState().setIntegratedColumns(['taskName', 'planDate']);
       useTaskStore.getState().addTask(parentId, 'inside');
       childId = useTaskStore.getState().tasks[parentId].children[0];
       useTaskStore.getState().updateTask(childId, {
@@ -202,6 +203,7 @@ describe('cell editing and derived values', () => {
   it('IntegratedView without the flattenedItems prop still tracks store changes', () => {
     const id = useTaskStore.getState().rootIds[0];
     act(() => {
+      useTaskStore.getState().setIntegratedColumns(['taskName', 'planDate']);
       useTaskStore.getState().updateTask(id, {
         title: 'fallback',
         planStartDate: '2026-05-25',

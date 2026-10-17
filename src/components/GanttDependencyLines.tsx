@@ -32,9 +32,10 @@ export const GanttDependencyLines = memo(({
             d={d}
             stroke="currentColor"
             strokeWidth="1.5"
+            strokeLinejoin="round"
             fill="none"
             markerEnd={`url(#${markerId})`}
-            className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
+            className="text-slate-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
             style={{ pointerEvents: 'stroke' }}
             onMouseDown={(e) => {
               e.stopPropagation();

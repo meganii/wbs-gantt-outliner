@@ -62,6 +62,7 @@ const taskStore = create<TaskStoreState>()(
       selectedTaskIds: [],
       dragState: null,
       mousePos: null,
+      todayFocusRequestId: 0,
 
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
       setFocusedTaskCell: (id, field) => set({ focusedTaskId: id, focusedTaskField: field }),
@@ -513,8 +514,17 @@ const taskStore = create<TaskStoreState>()(
         },
       })),
 
+      setIntegratedColumns: (integratedColumns) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          integratedColumns,
+        },
+      })),
+
       setDragState: (dragState) => set({ dragState }),
       setMousePos: (mousePos) => set({ mousePos }),
+      requestScrollToToday: () =>
+        set((state) => ({ todayFocusRequestId: state.todayFocusRequestId + 1 })),
     }),
     {
       partialize: (state) => ({

@@ -215,4 +215,25 @@ describe('Outliner keyboard navigation', () => {
     expect(checkbox).not.toBeNull();
     expect(checkbox.disabled).toBe(true);
   });
+
+  /**
+   * WBS ビューは App 側の `overflow-auto` ラッパーの中に置かれている。
+   * Outliner 自身が `overflow-x-auto`（= 縦横ともスクロールコンテナ）を持つと、
+   * ヘッダーの `sticky top-0` が「実際には動かない Outliner 自身」を基準にして
+   * しまい、縦スクロールで列名が流れていく。ここでは Outliner 自身が
+   * スクロールコンテナになっていないこと（= 親の縦スクロールに追従すること）を固定する。
+   */
+  it('列名ヘッダーが縦スクロールに追従できるよう、Outliner 自身はスクロールコンテナにしない', () => {
+    const { container } = render(<Outliner showDetails />);
+
+    const root = container.firstElementChild as HTMLElement;
+    expect(root).not.toBeNull();
+    expect(root.className).not.toContain('overflow-x-auto');
+    expect(root.className).not.toContain('overflow-auto');
+
+    // ヘッダーは sticky top-0（縦スクロールで上に固定される）であること
+    const header = container.querySelector('.sticky') as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(header.className).toContain('top-0');
+  });
 });
