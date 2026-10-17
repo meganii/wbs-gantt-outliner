@@ -380,7 +380,7 @@ export const IntegratedView = ({
                 const currentBgClass = clsx(
                   isSelected && isHovered && 'bg-blue-100',
                   isSelected && !isHovered && 'bg-blue-50',
-                  !isSelected && isHovered && 'bg-gray-50',
+                  !isSelected && isHovered && 'bg-gray-100',
                   !isSelected && !isHovered && 'bg-white'
                 );
 

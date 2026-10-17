@@ -90,6 +90,24 @@ for (const [id, label] of [
   await shot(id);
 }
 
+// 複数行選択 + フォーカス列（全体選択 / フォーカス列 / 行ホバーの 3 段階の見分けを確認）
+await page.getByRole('button', { name: 'WBS', exact: true }).click();
+await page.waitForTimeout(200);
+const descInputs = page.locator('input[data-field="description"]');
+await descInputs.nth(1).click();
+await descInputs.nth(5).click({ modifiers: ['Shift'] });
+await page.locator('input[data-field="title"]').nth(9).hover();
+await page.waitForTimeout(200);
+await shot('wbs-active-column');
+
+await page.getByRole('button', { name: '統合表示', exact: true }).click();
+await page.waitForTimeout(200);
+const progressInputs = page.locator('input[data-field="progress"]');
+await progressInputs.nth(1).click();
+await progressInputs.nth(5).click({ modifiers: ['Shift'] });
+await page.waitForTimeout(200);
+await shot('integrated-active-column');
+
 // 狭いウィンドウ（ヘッダー/サブバーのはみ出し確認用）
 await page.setViewportSize({ width: 1024, height: 800 });
 await page.getByRole('button', { name: '統合表示', exact: true }).click();
@@ -108,4 +126,4 @@ if (await dialog.count()) {
 }
 
 await browser.close();
-console.log(`done: ${VIEWS.length + 5} screenshots -> ${outDir}`);
+console.log(`done: ${VIEWS.length + 7} screenshots -> ${outDir}`);

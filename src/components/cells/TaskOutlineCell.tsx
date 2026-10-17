@@ -6,6 +6,7 @@ import { useTaskCellKeyboard, getEffectiveTaskIds } from '../../hooks/useTaskCel
 import { parseTaskPaste } from '../../utils/parseTaskPaste';
 import { handleTextCellPaste, isMultiRowSelection } from '../../utils/cellPaste';
 import { cellPropsEqual } from './cellPropsEqual';
+import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { ProjectConfig, Task } from '../../types';
 
@@ -45,6 +46,9 @@ export const TaskOutlineCell = memo(({
   const isFocused = useTaskStore(
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'title'
   );
+
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
+  const isActiveColumn = useIsActiveColumn(taskId, 'title');
 
   // Sync with store updates (e.g. undo/redo)
   // (effect 内での setState を避け、レンダー中に state を調整する)
@@ -160,7 +164,7 @@ export const TaskOutlineCell = memo(({
 
   return (
     <div
-      className="flex items-center flex-1 h-full"
+      className={clsx('flex items-center flex-1 h-full', isActiveColumn && activeColumnClass)}
       style={{
         paddingLeft: `${depth * 20 + 8}px`,
         width: columnWidths.taskName,

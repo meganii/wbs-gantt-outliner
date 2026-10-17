@@ -2,6 +2,7 @@ import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { cellPropsEqual } from './cellPropsEqual';
+import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
 import clsx from 'clsx';
 import type { ProjectConfig, Task } from '../../types';
 
@@ -35,6 +36,9 @@ export const TaskStatusCell = memo(({
   const isFocused = useTaskStore(
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'status'
   );
+
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
+  const isActiveColumn = useIsActiveColumn(taskId, 'status');
 
   // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
   const [syncedStatus, setSyncedStatus] = useState(status);
@@ -79,7 +83,10 @@ export const TaskStatusCell = memo(({
 
   return (
     <div
-      className="px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0 justify-center"
+      className={clsx(
+        'px-2 border-l border-gray-100 h-full flex items-center flex-shrink-0 justify-center',
+        isActiveColumn && activeColumnClass
+      )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
       <select
