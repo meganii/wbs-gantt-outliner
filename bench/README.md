@@ -165,3 +165,106 @@ blur / Enter で確定する方式へ変更（Escape で取り消し）。タイ
 挙動は変わらない（純粋な再レンダー削減）ため、回帰テストの追加はしていません。
 既存のユニットテスト（この時点で 105 件）と E2E 6 件で退行がないことを確認しています。
 
+### Step 4-A: セル購読の集約とセルの `memo` 化（P1 / D7）
+
+1 行あたり約 79 購読（セル 8 ファイルで `useTaskStore(` が 61 箇所）していた構成を、
+`TaskRow` で 1 回だけ購読してセルへ props で配る形へ変更しました。セルは
+`React.memo` + 関数 props を無視する比較関数でメモ化し、「自分がフォーカスされているか」
+だけを返す boolean selector を残しています（選択状態を行の props にすると選択のたびに
+全行が再レンダーされるため）。
+
+変更:
+
+- `TaskRow`: `columnWidths` / `baselineLocked` を 1 回購読し、`task` と合わせて全セルへ配布。
+- `src/components/cells/cellPropsEqual.ts`（新規）: 関数 props を比較対象から外す共通 `memo` 比較関数。
+- セル 8 種（`TaskOutlineCell` / `TaskTextCell` / `TaskStatusCell` / `TaskProgressCell` /
+  `TaskPlanDurationCell` / `TaskPlanDateCell` / `TaskDurationCell` / `TaskDateCell`）:
+  `useTaskStore` の購読を全廃（操作は `getState()`、フォーカスのみ boolean selector）。
+  `TaskOutlineCell` の Enter / Backspace / Delete は `getEffectiveTaskIds(taskId)` を
+  イベント発生時に評価。
+- `useTaskCellKeyboard`: 購読をやめ、選択状態（effectiveIds）をハンドラ実行時に読む。
+
+計測（1,000 タスク / `npm run bench -- bench/perf.spec.ts`、同一セッション・同一環境での A/B）:
+
+| 操作 | Before(HEAD) longtask | After longtask | Before window | After window |
+|---|---|---|---|---|
+| duration type(3) + Enter commit | **402ms** | **84ms** | 616.4ms | 301.2ms |
+| title commit (Enter → 追加) | **1,053ms** | **184ms** | 1,197.5ms | 318.0ms |
+| drag commit (mouseup) | **456ms** | **106.7ms** | 584.1ms | 233.8ms |
+| drag bar (30 moves) | **486ms** | **162ms** | 1,142.9ms | 799.0ms |
+| drag mousemove only (30 moves, in-page) | 0ms | 0ms | 339.8ms | 185.8ms |
+| hover(20 rows) | 20.3ms | 36.7ms（ばらつき大） | 509.2ms | 516.4ms |
+| dependency-drag mousemove | 0ms | 0ms | 670.9ms | 675.3ms |
+
+100 タスク（longtask / run）:
+
+| 操作 | Before | After |
+|---|---|---|
+| duration type(3) + Enter | 60ms | 61ms |
+| title commit | 98ms | 0ms |
+| drag commit | 75ms | 18ms |
+| drag bar (30 moves) | 106.7ms | 62.7ms |
+
+確定 1 回あたりの主要因（全行の入力セルが再描画され、そのたびに約 96,000 個の selector が
+走っていた）が解消し、`duration` は約 79%、`title` は約 83%、`drag commit` は約 77% 減少しました。
+全体を支配していた「確定 1 回の全ツリー再描画」のうち、`flattenTree`（約 3ms）と
+selector 実行はこの段階でほぼ除去されています。
+
+### Step 4-B: 派生データの参照安定化（`flattenedIds` / `timeRange` / `timelineMetrics`）
+
+Step 4-A でセルは `memo` 化されましたが、`IntegratedView` / `Outliner` の
+`SortableContext items={flattenedIds}` と `TimelineContext.Provider` の値は、親の再レンダーごとに
+参照が変わるため、context 経由で **全行（`useSortable` 消費側 / `RowContainer`）が再レンダー**
+され続けていました（context 経由の再レンダーは `React.memo` では止まりません）。
+
+変更:
+
+- `src/hooks/useStableFlattenedIds.ts`（新規）: 表示順 ID 配列を内容ベースで安定化
+  （文字列キーに対する `useMemo`。キー生成も `useMemo` で編集コミット時のみ）。
+  `IntegratedView` / `Outliner` の `flattenedIds` に適用。
+- `useGanttTimeline`: `timeRange` / `timelineMetrics` を **値（epoch ms / Date の時刻）に依存**
+  させ、日付範囲が変わらない編集（タイトル変更など）では参照を据え置くようにした。
+  `getTaskDateRange` は `useMemo` で分離し、日付範囲の最小・最大を primitive（ms）で扱う。
+
+計測（1,000 タスク、Before = Step 4-A 適用後）:
+
+| 操作 | A longtask | B longtask | A window | B window |
+|---|---|---|---|---|
+| duration type(3) + Enter commit | 84ms | **0ms** | 301.2ms | 245.3ms |
+| title commit (Enter → 追加) | 184ms | 179〜185ms | 318.0ms | 308.9〜319.3ms |
+| drag commit (mouseup) | 106.7ms | **22〜42ms** | 233.8ms | 174.2〜177.6ms |
+| drag bar (30 moves) | 162ms | **77〜80ms** | 799.0ms | 723.3〜740.8ms |
+| drag mousemove only (30 moves, in-page) | 0ms | 0ms | 185.8ms | 191.1〜197.2ms |
+| hover(20 rows) | 36.7ms | 17.3〜36ms | 516.4ms | 520.7〜546.0ms |
+| dependency-drag mousemove | 0ms | 21.7〜24.7ms（※） | 675.3ms | 683.4〜689.2ms |
+
+（※）`dependency-drag` の longtask は、待機窓を 400ms に広げた条件では **Before（Step 4-A のみ）でも
+同程度（21.7ms / 最長 65ms）** に出ることから、窓長・環境による偶発的な longtask と判断しています
+（操作窓の実時間は 675ms → 685ms とほぼ不変）。Step 4-B による退行ではありません。
+
+`title commit` は Enter で **新規タスクを追加**する操作で、ID 列そのものが変わるため
+`SortableContext` の再構築（全行再レンダー）が残ります（1,053ms → 約 180ms で、残りはこの
+構造変更由来）。追加・削除を含まない編集では、`duration` / `drag commit` の longtask がほぼ 0 になりました。
+
+### Step 4 のまとめ（HEAD → Step 4-B、1,000 タスク）
+
+| 操作 | P1 開始前 longtask（Step 0 実測） | Step 4-B 後 longtask |
+|---|---|---|
+| duration 3 文字入力 + 確定 | 1,302〜1,430ms | **0ms** |
+| タイトル確定（Enter → 追加） | 869〜1,053ms | **約 180ms** |
+| バードラッグ確定（mouseup） | 455〜500ms | **約 22〜42ms** |
+| 行ホバー（20 行） | 63〜99ms | **約 17〜36ms** |
+
+### 分解用ハーネス（`bench/decompose.spec.ts`）
+
+「commit 1 回の時間が `flattenTree` / タイムライン再計算 / React の行再描画 / selector 実行の
+どこに落ちているか」を CDP の CPU プロファイラ（自己時間）で切り分けるハーネスです。
+通常の `npm run bench` ではスキップされます。
+
+```bash
+DECOMPOSE=1 npx playwright test --config playwright.bench.config.ts bench/decompose.spec.ts
+```
+
+結果は `bench/results/decompose.json` に出力されます（上位 40 関数の自己時間）。
+
+

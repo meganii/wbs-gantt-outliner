@@ -22,6 +22,7 @@ import { DraggingDependencyLine } from './DraggingDependencyLine';
 import { useGanttTimeline, TimelineContext, useTimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
 import { useRowSortSensors } from '../hooks/useRowSortSensors';
+import { useStableFlattenedIds } from '../hooks/useStableFlattenedIds';
 
 interface RowContainerProps {
   id: string;
@@ -104,7 +105,9 @@ export const IntegratedView = ({
     () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
     [flattenedItemsProp]
   );
-  const flattenedIds = useMemo(() => flattenedItems.map((item) => item.id), [flattenedItems]);
+  // SortableContext の items は参照比較で context を配るため、ID 列の内容が同じなら
+  // 参照を据え置く（タスクを 1 つ編集しただけで全行が再レンダーされるのを防ぐ）。
+  const flattenedIds = useStableFlattenedIds(flattenedItems);
 
   const [anchorId, setAnchorId] = useState<string | null>(null);
 

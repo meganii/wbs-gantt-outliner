@@ -77,6 +77,14 @@ export const useGanttTimeline = (flattenedItems: FlattenedItem[]) => {
     }
   }, [viewMode]);
 
+  // タスク群の最小開始・最大終了を primitive（epoch ms）で扱う。
+  // Date オブジェクトの参照ではなく値に依存させることで、日付範囲が変わらない
+  // 編集（タイトル変更など）では timeRange / timelineMetrics の参照が据え置かれ、
+  // ヘッダー・グリッド・context 依存の行が不要に再レンダーされない。
+  const taskDateRange = useMemo(() => getTaskDateRange(flattenedItems), [flattenedItems]);
+  const minDateMs = taskDateRange.minDate ? taskDateRange.minDate.getTime() : null;
+  const maxDateMs = taskDateRange.maxDate ? taskDateRange.maxDate.getTime() : null;
+
   const timeRange = useMemo(() => {
     const today = new Date();
 
@@ -97,37 +105,35 @@ export const useGanttTimeline = (flattenedItems: FlattenedItem[]) => {
       }
     }
 
-    // タスクデータから日付範囲を計算
-    const { minDate, maxDate } = getTaskDateRange(flattenedItems);
+    // タスクデータから日付範囲を計算（primitive から復元）
+    const base = minDateMs !== null && maxDateMs !== null
+      ? { min: new Date(minDateMs), max: new Date(maxDateMs) }
+      : null;
 
     switch (viewMode) {
       case 'Week': {
-        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
         const start = startOfWeek(base ? addMonths(base.min, -1) : addMonths(today, -6), { weekStartsOn: 1 });
         const end = endOfWeek(base ? addMonths(base.max, 1) : addMonths(today, 12), { weekStartsOn: 1 });
         return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
       }
       case 'Month': {
-        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
         const start = startOfMonth(base ? addMonths(base.min, -3) : addYears(today, -1));
         const end = endOfMonth(base ? addMonths(base.max, 3) : addYears(today, 2));
         return eachMonthOfInterval({ start, end });
       }
       case 'Year': {
-        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
         const start = startOfYear(base ? addYears(base.min, -1) : addYears(today, -5));
         const end = endOfYear(base ? addYears(base.max, 1) : addYears(today, 10));
         return eachYearOfInterval({ start, end });
       }
       case 'Day':
       default: {
-        const base = minDate && maxDate ? { min: minDate, max: maxDate } : null;
         const start = startOfWeek(base ? addWeeks(base.min, -2) : addMonths(today, -1), { weekStartsOn: 1 });
         const end = endOfWeek(base ? addWeeks(base.max, 2) : addMonths(today, 3), { weekStartsOn: 1 });
         return eachDayOfInterval({ start, end });
       }
     }
-  }, [viewMode, flattenedItems, timelineRangeConfig]);
+  }, [viewMode, minDateMs, maxDateMs, timelineRangeConfig]);
 
   const timelineMetrics = useMemo((): TimelineMetrics => {
     const timelineStart = timeRange[0];

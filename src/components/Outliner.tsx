@@ -9,6 +9,7 @@ import { TaskTableHeader } from './TaskTableHeader';
 import { useOutlinerKeyboard } from '../hooks/useOutlinerKeyboard';
 import { useTaskSelection } from '../hooks/useTaskSelection';
 import { useRowSortSensors } from '../hooks/useRowSortSensors';
+import { useStableFlattenedIds } from '../hooks/useStableFlattenedIds';
 import type { ColumnId } from '../types';
 
 interface OutlinerProps {
@@ -35,7 +36,8 @@ export const Outliner = ({
     [flattenedItemsProp, tasks, rootIds]
   );
 
-  const flattenedIds = useMemo(() => flattenedItems.map(i => i.id), [flattenedItems]);
+  // SortableContext の items は参照比較で context を配るため、ID 列の内容が同じなら参照を据え置く。
+  const flattenedIds = useStableFlattenedIds(flattenedItems);
 
   const storeVisibleColumns = useTaskStore((state) => state.projectConfig.visibleColumns);
 
