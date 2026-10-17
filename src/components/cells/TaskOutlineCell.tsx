@@ -3,6 +3,7 @@ import { useTaskStore } from '../../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useTaskCellKeyboard, getEffectiveTaskIds } from '../../hooks/useTaskCellKeyboard';
+import { parseTaskPaste } from '../../utils/parseTaskPaste';
 import { cellPropsEqual } from './cellPropsEqual';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { ProjectConfig, Task } from '../../types';
@@ -116,6 +117,36 @@ export const TaskOutlineCell = memo(({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (isComposing.current) {
+      return;
+    }
+
+    const text = e.clipboardData.getData('text/plain');
+    // 単一行は通常の貼り付けに任せる（複数行のときだけ一括登録する）
+    if (!text || !/[\r\n]/.test(text)) {
+      return;
+    }
+
+    const parsed = parseTaskPaste(text);
+    if (parsed.length === 0) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // 貼り付け先セルが空なら 1 行目をそのセルに使い、残りを直後に追加する。
+    // 空でなければ編集中の値を確定したうえで、全行を直後に追加する。
+    let items = parsed;
+    let referenceTitle = localTitle !== task.title ? localTitle : undefined;
+    if (localTitle.trim() === '' && parsed[0].depth === 0) {
+      referenceTitle = parsed[0].title;
+      items = parsed.slice(1);
+    }
+
+    useTaskStore.getState().addTasks(items, taskId, 'after', { referenceTitle });
+  };
+
   return (
     <div
       className="flex items-center flex-1 h-full"
@@ -179,6 +210,7 @@ export const TaskOutlineCell = memo(({
         onBlur={commitValue}
         onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'title')}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onCompositionStart={() => {
           isComposing.current = true;
         }}

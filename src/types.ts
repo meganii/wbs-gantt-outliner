@@ -108,6 +108,18 @@ export interface TaskStoreState {
   setFocusedTaskCell: (id: string | null, field: TaskFocusableField | null) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
+  /**
+   * 複数行の貼り付けなど、タスクをまとめて追加する。
+   * 1 回の set で挿入するため、Undo は 1 エントリ・再描画も 1 回になる。
+   * depth は先頭行を 0 とした相対的な階層（深さ上限へクランプされる）。
+   * options.referenceTitle を渡すと、参照タスクのタイトルも同じ set 内で更新する。
+   */
+  addTasks: (
+    items: Array<{ title: string; depth: number }>,
+    referenceTaskId?: string | null,
+    position?: 'after' | 'inside',
+    options?: { referenceTitle?: string }
+  ) => string[];
   updateTask: (id: string, updates: Partial<Task>) => void;
   endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
