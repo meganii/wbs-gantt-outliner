@@ -33,3 +33,6 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# 性能ベンチマークの計測結果（実行ごとに変化する）
+bench/results/

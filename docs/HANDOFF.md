@@ -4,6 +4,12 @@
 
 ## 現在の状態
 
+- **描画性能 P1 の Step 0（計測ハーネスと実測）** (October 17, 2026):
+  - `bench/` に Playwright ベースの実ブラウザ計測ハーネスを追加（`npm run bench` / `npm run bench:fixtures`）。**アプリ本体にテスト用フックは足していない**（`window.ipcRenderer` をスタブし、「読み込み」ボタンの実インポート経路でサンプル JSON を投入する）。
+  - 計測用サンプル `bench/fixtures/tasks-1000.json`（1,000 タスク = 25 フェーズ / 75 グループ / 900 リーフ / 225 依存）と、比較用 `tasks-100.json` を決定的に生成（`bench/generate-tasks.mjs`、`Math.random` 不使用）。
+  - 計測結果は `bench/README.md` に記録。主指標は `PerformanceObserver` の longtask（50ms 超の main-thread ブロック）。ヘッドレス Chromium の rAF は vsync 非同期のため補助情報。
+  - **実測（1,000 タスク, 改善前）**: 読み込み〜描画 2.0s / duration 3 文字入力で **1,302ms ブロック（1 文字 ≒ 430ms）** / タイトル確定 Enter で **869ms** / バードラッグ確定で **455ms** / ホバー 20 行で 99ms / データを変えない `setMousePos` だけでも 105ms。100 タスクとの比は duration 8.6x・タイトル 8.9x で、**P3（入力の O(N) 連鎖）が支配的**。次いで P2（依存線の毎フレーム全再計算）・D6（Context value の毎レンダー新規生成）。
+  - `vite.config.ts` の vitest `exclude` に `bench/**` を追加（Playwright の spec を vitest が拾わないように）。計測結果 `bench/results/` は `.gitignore` 済み。
 - **ガント操作で「意図しない日付変更」が起きるバグの修正（設計レビューの P0 対応）** (October 17, 2026):
   - コードレビューと実測（一時テストで再現）により、**タイムライン余白の単クリック（移動量ゼロ）で予定日が書き換わる**／**ベースライン固定中に予定バーを単クリックすると実績日が書き換わる**という2件のデータ破壊バグを確認し、修正した。
   - `src/hooks/useGanttDrag.ts` の `draw-range`（範囲ドラッグ）確定処理に、`move` と同じ「開始時の値と現在値が同一なら確定しない」ガードを追加。移動のない単クリックでは日付を書き換えない。
@@ -179,7 +185,7 @@
 
 いきなりセル購読の集約（影響最大・変更範囲最大）から着手しないこと。**先に計測し、効果の大きい独立した変更から**入れる。
 
-0. **計測（最初にやる）**: 1,000行相当のデータを読み込んだ状態で、(a) ガントバーをドラッグしたときのフレーム時間、(b) タイトル確定（Enter）や duration 1文字入力時のフレーム時間、(c) 行ホバー時のフレーム時間を DevTools Performance / React Profiler で記録する。P1/P2/P3 のどれが支配的かを確認してから着手する（HANDOFF の「O(1)」主張もここで検証できる）。
+0. **計測（最初にやる）**: 1,000行相当のデータを読み込んだ状態で、(a) ガントバーをドラッグしたときのフレーム時間、(b) タイトル確定（Enter）や duration 1文字入力時のフレーム時間、(c) 行ホバー時のフレーム時間を DevTools Performance / React Profiler で記録する。P1/P2/P3 のどれが支配的かを確認してから着手する（HANDOFF の「O(1)」主張もここで検証できる）。→ **完了済み (October 17, 2026)**。`bench/` にハーネスを追加し `npm run bench` で再計測できる。実測は `bench/README.md` 参照（支配的ボトルネックは P3、次いで P2・D6）。
 1. **依存線の分離**（独立・低リスク・効果大）: `useGanttDependencies` から `dragState` 依存を外し、「静的依存線（`tasks` / `flattenedItems` のみ）」と「ドラッグ中だけの線」を分離。`GanttDependencyLines` を `React.memo` 化。→ ドラッグ中の毎 mousemove 全再計算が消える。
 2. **duration セルの確定タイミング**（独立・低リスク）: `TaskPlanDurationCell` / `TaskDurationCell` の `onChange` 直書き `updateTask` を commit-on-blur / Enter（または短い debounce）に変更。
 3. **`TimelineContext` の value を `useMemo` 化**（独立・低リスク）: `IntegratedView.tsx` の `<TimelineContext.Provider value={{...}}>` のみ。ホバー時の全行 `RowContainer` 再レンダーが止まる。

@@ -16,6 +16,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "bench": "playwright test --config playwright.bench.config.ts",
+    "bench:fixtures": "node bench/generate-fixtures.mjs",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
