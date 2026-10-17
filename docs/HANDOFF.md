@@ -4,6 +4,12 @@
 
 ## 現在の状態
 
+- **Shift + 矢印 / Shift + クリックの範囲選択が不安定になる退行の修正** (October 17, 2026):
+  - 症状: WBS（Outliner / IntegratedView）で 2 行目を選択して Shift+↓ しても 1 行しか選択されない、起点が失われて複数行を選べない。
+  - 原因: **P1 Step 4-A（`c69f567`）** でセルを `React.memo` + `cellPropsEqual`（関数 props を無視）でメモ化した一方、選択ハンドラ（`handleSelectionChange`）は `anchorId` / `selectedTaskIds` / `focusedTaskId` をクロージャから読んでいた。セルは再レンダーされないため**古いクロージャを保持し続け**、Shift 操作時にアンカーが解決できずフォールバックして `endIdx` の行だけ（または `indexOf === -1` で 1 行だけ）選択されていた。関数 props を無視する最適化と「ハンドラがクロージャ変数を読む」設計の不整合。
+  - 修正: 選択ハンドラがイベント時に最新値を読むよう変更。アンカーは `useRef`、表示順は ref（`useEffect` で同期）、`selectedTaskIds` / `focusedTaskId` は `useTaskStore.getState()` から取得。対象は `src/hooks/useTaskSelection.ts`（Outliner）、`src/components/IntegratedView.tsx`、`src/components/GanttChart.tsx` の 3 箇所。`anchorId` を React state から ref 化したことで余分な再レンダーも削減。
+  - 回帰テスト `src/components/SelectionRange.test.tsx`（新規・4件）: Outliner の Shift+↓ 起点維持 / 連続拡張 / Shift+↑ 逆方向 / IntegratedView の Shift+↓。
+  - 検証: `npm test -- --run` **110 件合格** / `npm run test:e2e` 6 件合格 / `npm run lint` 0 件 / `npm run build` 通過。
 - **ガント日セル単クリックで予定が反映されない退行の修正** (October 17, 2026):
   - 直近コミット `55da44a`（P0 drag guards）で `useGanttDrag.ts` の `draw-range` 確定処理に追加した「移動量ゼロなら確定しない」ガードが、**日セルの単クリックによる 1 日予定の設定まで塞いでいた**（新規タスクは `planStartDate: null` のため「予定追加」で必ず踏む。2 日以上ドラッグしないと確定しない状態だった）。
   - このガードを撤去し、単クリックでも「クリックした日 1 日分」の予定を確定するよう元の挙動へ戻した。`55da44a` のもう一方の保護（予定/実績バーの `onMouseDown` で常に `stopPropagation` + `[data-gantt-bar]` 判定）はそのまま残しており、**予定バー/実績バーの単クリックが行の `draw-range` に伝播して日付を破壊する経路は塞がれたまま**であることを回帰テストで確認済み。

@@ -55,6 +55,12 @@ export const GanttChart = ({
     () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
     [flattenedItemsProp]
   );
+  // セルは関数 props を無視してメモ化されるため、古い handleSelectionChange が
+  // セルに残っても正しく動くよう、最新の表示順を ref で参照する。
+  const flattenedItemsRef = useRef(flattenedItems);
+  useEffect(() => {
+    flattenedItemsRef.current = flattenedItems;
+  }, [flattenedItems]);
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const NAME_COLUMN_WIDTH = columnWidths.taskName;
@@ -79,9 +85,12 @@ export const GanttChart = ({
   const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
 
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
+    const flattenedIds = flattenedItemsRef.current.map(item => item.id);
+    const { selectedTaskIds: currentSelected, setSelectedTaskIds, setFocusedTaskId } =
+      useTaskStore.getState();
+
     if (range) {
-      const targetAnchor = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id;
-      const flattenedIds = flattenedItems.map(item => item.id);
+      const targetAnchor = currentSelected.length > 0 ? currentSelected[currentSelected.length - 1] : id;
       const startIdx = flattenedIds.indexOf(targetAnchor);
       const endIdx = flattenedIds.indexOf(id);
       if (startIdx !== -1 && endIdx !== -1) {
@@ -94,10 +103,10 @@ export const GanttChart = ({
     }
 
     if (multi) {
-      if (selectedTaskIds.includes(id)) {
-        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
+      if (currentSelected.includes(id)) {
+        setSelectedTaskIds(currentSelected.filter(sid => sid !== id));
       } else {
-        setSelectedTaskIds([...selectedTaskIds, id]);
+        setSelectedTaskIds([...currentSelected, id]);
       }
     } else {
       setSelectedTaskIds([id]);

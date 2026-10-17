@@ -1,4 +1,4 @@
-import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   differenceInDays,
@@ -98,8 +98,6 @@ export const IntegratedView = ({
   const setViewMode = useTaskStore((state) => state.setViewMode);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const setSelectedTaskIds = useTaskStore((state) => state.setSelectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
@@ -109,7 +107,13 @@ export const IntegratedView = ({
   // 参照を据え置く（タスクを 1 つ編集しただけで全行が再レンダーされるのを防ぐ）。
   const flattenedIds = useStableFlattenedIds(flattenedItems);
 
-  const [anchorId, setAnchorId] = useState<string | null>(null);
+  const anchorIdRef = useRef<string | null>(null);
+  // セルは関数 props を無視してメモ化されるため、古い handleSelectionChange が
+  // セルに残り続けても正しく動くよう、最新の表示順を ref で参照する。
+  const flattenedIdsRef = useRef(flattenedIds);
+  useEffect(() => {
+    flattenedIdsRef.current = flattenedIds;
+  }, [flattenedIds]);
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,36 +210,46 @@ export const IntegratedView = ({
 
   const sensors = useRowSortSensors();
 
-  const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
-    if (range) {
-      const targetAnchor =
-        anchorId ||
-        focusedTaskId ||
-        (selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id);
+  const handleSelectionChange = useCallback(
+    (id: string, multi: boolean, range: boolean) => {
+      const ids = flattenedIdsRef.current;
+      const {
+        focusedTaskId,
+        selectedTaskIds: currentSelected,
+        setSelectedTaskIds,
+      } = useTaskStore.getState();
 
-      const startIdx = flattenedIds.indexOf(targetAnchor);
-      const endIdx = flattenedIds.indexOf(id);
+      if (range) {
+        const targetAnchor =
+          anchorIdRef.current ||
+          focusedTaskId ||
+          (currentSelected.length > 0 ? currentSelected[currentSelected.length - 1] : id);
 
-      if (startIdx !== -1 && endIdx !== -1) {
-        const min = Math.min(startIdx, endIdx);
-        const max = Math.max(startIdx, endIdx);
-        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
-        return;
+        const startIdx = ids.indexOf(targetAnchor);
+        const endIdx = ids.indexOf(id);
+
+        if (startIdx !== -1 && endIdx !== -1) {
+          const min = Math.min(startIdx, endIdx);
+          const max = Math.max(startIdx, endIdx);
+          setSelectedTaskIds(ids.slice(min, max + 1));
+          return;
+        }
       }
-    }
 
-    setAnchorId(id);
+      anchorIdRef.current = id;
 
-    if (multi) {
-      if (selectedTaskIds.includes(id)) {
-        setSelectedTaskIds(selectedTaskIds.filter((selectedId) => selectedId !== id));
+      if (multi) {
+        if (currentSelected.includes(id)) {
+          setSelectedTaskIds(currentSelected.filter((selectedId) => selectedId !== id));
+        } else {
+          setSelectedTaskIds([...currentSelected, id]);
+        }
       } else {
-        setSelectedTaskIds([...selectedTaskIds, id]);
+        setSelectedTaskIds([id]);
       }
-    } else {
-      setSelectedTaskIds([id]);
-    }
-  };
+    },
+    []
+  );
 
   const timelineWidth = timeRange.length * cellWidth;
   // D6: value を useMemo 化しないと、IntegratedView がホバー等で再レンダーするたびに
