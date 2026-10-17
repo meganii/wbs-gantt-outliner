@@ -358,17 +358,20 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
         }
       }
 
-      // ── (b) duration セルへの文字入力 ────────────────────────────────────
+      // ── (b) duration セルへの文字入力 + 確定 ─────────────────────────────
+      // Step 1 以降は入力中にストアを更新しないため、Enter による確定までを
+      // 1 つの計測窓に含めて「編集 + 確定」のコストを比較する。
       const durationCell = page.locator('.gantt-row-optimized').nth(targetIndex).locator('input[data-field="duration"]');
       await durationCell.scrollIntoViewIfNeeded();
       await durationCell.click();
       await page.keyboard.press('ControlOrMeta+a');
       interactions.push(
         summarize(
-          'duration typing (3 chars)',
+          'duration type(3) + Enter commit',
           [
             await recordOnce(page, async () => {
               await page.keyboard.type('123', { delay: 25 });
+              await page.keyboard.press('Enter');
             }),
           ]
         )

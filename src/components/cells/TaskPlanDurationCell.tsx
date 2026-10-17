@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import clsx from 'clsx';
@@ -25,15 +25,37 @@ export const TaskPlanDurationCell = ({
   const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
   const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
-  const durationValue = task?.planDuration !== undefined ? task.planDuration : (task?.duration ?? 0);
+  const planDurationValue = task?.planDuration !== undefined ? task.planDuration : (task?.duration ?? 0);
+  const storeValue = String(planDurationValue);
   const isParent = (task?.children.length ?? 0) > 0;
   const isReadOnly = baselineLocked || isParent;
   const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus synchronization
   const isFocused = focusedTaskId === taskId && focusedTaskField === 'planDuration';
+
+  // Local state for performant typing (1 文字ごとに updateTask を呼ばない)
+  const [localValue, setLocalValue] = useState(storeValue);
+  const localValueRef = useRef(storeValue);
+  const escapedRef = useRef(false);
+
+  // Sync with store updates (e.g. undo/redo). 編集中(フォーカス中)は上書きしない。
+  // (effect 内での setState を避け、レンダー中に state を調整する)
+  const [synced, setSynced] = useState({ focused: isFocused, value: storeValue });
+  if (synced.focused !== isFocused || synced.value !== storeValue) {
+    setSynced({ focused: isFocused, value: storeValue });
+    if (!isFocused) {
+      setLocalValue(storeValue);
+    }
+  }
+
+  // commit ハンドラが参照するミラー用 ref を最新化する
+  useEffect(() => {
+    if (!isFocused) localValueRef.current = storeValue;
+  }, [isFocused, storeValue]);
+
+  // Focus synchronization
   useEffect(() => {
     if (isFocused && inputRef.current && inputRef.current !== document.activeElement) {
       inputRef.current.focus();
@@ -41,8 +63,31 @@ export const TaskPlanDurationCell = ({
   }, [isFocused]);
 
   const commitValue = () => {
-    // Input natively saves during onChange for smooth experience. 
-    // No blur logic is strictly required, but focus control matches.
+    if (isReadOnly) return;
+
+    if (escapedRef.current) {
+      escapedRef.current = false;
+      setLocalValue(storeValue);
+      localValueRef.current = storeValue;
+      if (isFocused) setFocusedTaskCell(null, null);
+      return;
+    }
+
+    const parsed = parseInt(localValueRef.current, 10);
+    if (Number.isNaN(parsed)) {
+      // 数値として解釈できない入力は元の値へ戻す
+      setLocalValue(storeValue);
+      localValueRef.current = storeValue;
+    } else {
+      const nextValue = Math.max(0, parsed);
+      setLocalValue(String(nextValue));
+      localValueRef.current = String(nextValue);
+      if (task && nextValue !== planDurationValue) {
+        updateTask(taskId, { planDuration: nextValue });
+      }
+    }
+
+    if (isFocused) setFocusedTaskCell(null, null);
   };
 
   const { handleArrowNavigation } = useTaskCellKeyboard({
@@ -58,12 +103,20 @@ export const TaskPlanDurationCell = ({
   if (!task) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      escapedRef.current = true;
+      e.stopPropagation();
+      e.currentTarget.blur();
+      return;
+    }
+
     if (handleArrowNavigation(e, false)) {
       return;
     }
 
     if (e.key === 'Enter') {
       e.stopPropagation();
+      e.currentTarget.blur();
     }
   };
 
@@ -77,7 +130,8 @@ export const TaskPlanDurationCell = ({
       <input
         ref={inputRef}
         type="number"
-        value={durationValue}
+        min="0"
+        value={localValue}
         readOnly={isReadOnly}
         tabIndex={isReadOnly ? -1 : undefined}
         onFocus={() => {
@@ -86,9 +140,10 @@ export const TaskPlanDurationCell = ({
         }}
         onChange={(e) => {
           if (isReadOnly) return;
-          const newDuration = parseInt(e.target.value) || 0;
-          updateTask(taskId, { planDuration: newDuration });
+          setLocalValue(e.target.value);
+          localValueRef.current = e.target.value;
         }}
+        onBlur={commitValue}
         onKeyDown={handleKeyDown}
         data-task-id={taskId}
         data-field="planDuration"

@@ -65,3 +65,23 @@ npm run bench
 4. **(d) 購読ファンアウト**。タスクデータを変えない `setMousePos` だけでも、1 更新あたり約 59,000 の selector が走るため 30 moves で **105ms** のブロックが出る。→ HANDOFF の **P1 / D7**。
 
 いずれも 1,000 タスクで急増しており、**P3（入力の確定タイミング）→ P2（依存線の分離）→ D6（Context の `useMemo` 化）** の順に着手するのが効果的。
+
+## 改善の記録
+
+### Step 1: duration セルを commit-on-blur / Enter 化（P3）
+
+`TaskDurationCell` / `TaskPlanDurationCell` を、入力中はローカル state のみを更新し、
+blur / Enter で確定する方式へ変更（Escape で取り消し）。タイトル・進捗セルと同じパターン。
+
+計測条件: Playwright 1.64.1 / Chromium (headless) / viewport 1600x900。
+`duration type(3) + Enter commit` = 3 文字入力して Enter で確定するまでを 1 計測窓に含む。
+
+| シナリオ | Before | After |
+|---|---|---|
+| duration type(3) + Enter（1,000 タスク） | **1,430ms**（最長 538ms × 3 回 = 1 文字ごとに O(N) 連鎖） | **423ms**（最長 423ms × 1 回 = 確定時のみ） |
+| duration type(3) + Enter（100 タスク） | 101ms | 54ms |
+
+確定は 1 回だけになったため main-thread ブロックは約 1/3.4。残る 423ms は
+「確定 1 回あたりの全ツリー再描画（`flattenTree` + タイムライン再計算 + 全行再描画）」で、
+これは購読粒度の集約（HANDOFF の P1 / D7）側の課題。
+
