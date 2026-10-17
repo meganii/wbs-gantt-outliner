@@ -4,6 +4,11 @@
 
 ## 現在の状態
 
+- **描画性能 P1 Step 3: `TimelineContext` の value を `useMemo` 化（D6）** (October 17, 2026):
+  - `IntegratedView` / `GanttChart` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトだったため、行ホバー（`hoveredTaskId` の変更）のたびに **context 消費側の全行 `RowContainer` が再レンダー**していた（`React.memo` では止まらない）。`value` を `useMemo` 化（依存: `timelineMetrics` / `timelineWidth`）し、ホバーでは参照が変わらないようにした。
+  - 実測（1,000 タスク, `npm run bench` の `hover(20 rows)`）: 操作窓 **741.7ms → 524.2 / 511.0ms**、longtask 合計 **60.3ms（最長 91ms）→ 17.3 / 19.7ms（最長 52 / 59ms）**、over 50ms の longtask 数 2 → 0〜1。最長タスクは約 43% 減。
+  - 挙動は変わらない純粋な再レンダー削減のため、回帰テストは追加せず既存のユニットテスト 105 件・E2E 6 件で退行確認のみ（`bench/README.md` に計測記録）。
+  - **これで P1 の Step 1〜3（duration の確定タイミング / 依存線の分離 / Context value の `useMemo` 化）が完了**。残る支配的要因は「確定 1 回あたりの全ツリー再描画（`flattenTree` + タイムライン再計算 + 全行再描画、1,000 タスクで 400〜1,000ms）」で、これは Step 4（セル購読の集約）＝ HANDOFF の P1 / D7 側の課題。
 - **描画性能 P1 Step 2: 依存線レイヤーの分離（P2）** (October 17, 2026):
   - `useGanttDependencies` が `dragState`（mousemove のたびに新オブジェクトになる）を購読していたため、ドラッグ中は 1 mousemove ごとに全依存線（1,000 タスクで 225 本）を再計算し、`GanttDependencyLines`（`memo` なし）が再レンダーしていた。これを **静的レイヤー / ドラッグ中レイヤーに分離**した。
   - `src/hooks/useGanttDependencies.ts`: `useGanttDependencies`（静的）の購読を `dragState` 全体 → **ドラッグ中タスク ID（primitive。`move` / `resize-left` / `resize-right` のときだけ非 null）** に変更。日付変化では再計算しない。ドラッグ中タスクに接続する線は静的レイヤーから除外する。`ROW_HEIGHT = 32` / `BOX_PADDING = 20` を定数化し、`resolveTaskDates` / `createGeometryContext` / `buildDependencyLine` を共通ヘルパーとして抽出。
@@ -170,12 +175,12 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 17, 2026 / P1 Step 2 適用後)
+## 直近の検証結果 (October 17, 2026 / P1 Step 3 適用後)
 
-- `npm test -- --run` : **105テスト全件合格** (11ファイル。P1 Step 1 の回帰テスト7件＋Step 2 の回帰テスト2件を追加)
+- `npm test -- --run` : **105テスト全件合格** (11ファイル。P1 Step 1 の回帰テスト7件＋Step 2 の回帰テスト2件を追加。Step 3 は既存分のみ)
 - `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
-- `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 2: ドラッグ中 mousemove 405.9〜425.4ms → 340.2〜341.7ms)
+- `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 2: ドラッグ中 mousemove 405.9〜425.4ms → 340.2〜341.7ms / Step 3: ホバー longtask 60.3ms → 17.3〜19.7ms)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
 - `npm run lint` : **0件合格** (`eslint.config.js` に生成物の ignores を追加し、ソース側の違反も全件解消。内訳は下記「ESLint 違反の全件解消」参照)
 - テスト件数の内訳注意: `src/store/verify_bug.test.ts` (3件) と `e2e/reproduce-bug.spec.ts` はデバッグ用に追加された検証ファイルで、上記の件数に含まれている（恒久テストへ昇格するか削除するか未決）。
@@ -190,7 +195,7 @@
    - IPC 境界（`window.ipcRenderer.invoke`）は lint 対応で `unknown` 化済みなので、ここに入れるのは**型ではなく実行時の検証**になる。詳細は下記「IPC / Electron の申し送り」を参照。
 3. **描画性能の改善（設計レビューの P1）** — 詳細は下記「設計レビュー結果」を参照
    - **購読ファンアウト**: セル10種が各自 `useTaskStore` を購読しており、1行あたり約79購読（セル8ファイル合計で `useTaskStore((` が61箇所）。zustand は更新のたびに全購読者の selector を実行するため、1,000行では1更新あたり約79,000回走る。行で1回だけ購読し props で配る構成に変える。
-   - **ホバーでの全行再レンダー**: `IntegratedView` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトのため、ホバーのたびに全行の `RowContainer` が再レンダーされる（context 経由の再レンダーは `memo` では止まらない）。value を `useMemo` 化するか、「静的メトリクス」と「動的な値」を別 context に分割する。
+   - **ホバーでの全行再レンダー**: `IntegratedView` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトのため、ホバーのたびに全行の `RowContainer` が再レンダーされる（context 経由の再レンダーは `memo` では止まらない）。value を `useMemo` 化するか、「静的メトリクス」と「動的な値」を別 context に分割する。→ **対応済み (October 17, 2026, P1 Step 3)**。
    - **ドラッグ中の依存線全再計算**: `useGanttDependencies` が `dragState` を `useMemo` 依存に含み、`GanttDependencyLines` も `memo` 化されていないため、ドラッグ中は毎 mousemove で全依存線を再計算＋再レンダーする。静的線とドラッグ中のみの線を分離して `memo` 化する。→ **対応済み (October 17, 2026, P1 Step 2)**。
    - **高頻度更新の O(N) 連鎖**: ガントの duration セルが `onChange`（1文字ごと）で `updateTask` を呼び、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を毎文字起こす。commit-on-blur / 短い debounce にする。→ **対応済み (October 17, 2026, P1 Step 1)**。
    - 併せて P2（保守性）: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合、`ROW_HEIGHT = 32` の定数化、未使用の `taskBarRefs` の削除、zundo の `partialize` と `equality` の揃え、デバッグ用テストの去就決定。
@@ -199,14 +204,15 @@
 
 いきなりセル購読の集約（影響最大・変更範囲最大）から着手しないこと。**先に計測し、効果の大きい独立した変更から**入れる。
 
-**実施順の変更（October 17, 2026）**: Step 0 の実測で **P3（duration の O(N) 連鎖）が最も支配的**だったため、ユーザー確認のうえ「**duration → 依存線 → Context**」の順で実施する（下記の番号は HANDOFF 初版の案のまま）。
+**実施順の変更（October 17, 2026）**: Step 0 の実測で **P3（duration の O(N) 連鎖）が最も支配的**だったため、ユーザー確認のうえ「**duration → 依存線 → Context**」の順で実施する（下記の番号は HANDOFF 初版の案のまま）。→ **Step 1〜3 完了（October 17, 2026）**。次は Step 4（セル購読の集約）。
 
 0. **計測（最初にやる）**: 1,000行相当のデータを読み込んだ状態で、(a) ガントバーをドラッグしたときのフレーム時間、(b) タイトル確定（Enter）や duration 1文字入力時のフレーム時間、(c) 行ホバー時のフレーム時間を DevTools Performance / React Profiler で記録する。P1/P2/P3 のどれが支配的かを確認してから着手する（HANDOFF の「O(1)」主張もここで検証できる）。→ **完了済み (October 17, 2026)**。`bench/` にハーネスを追加し `npm run bench` で再計測できる。実測は `bench/README.md` 参照（支配的ボトルネックは P3、次いで P2・D6）。
 1. **依存線の分離**（独立・低リスク・効果大）: `useGanttDependencies` から `dragState` 依存を外し、「静的依存線（`tasks` / `flattenedItems` のみ）」と「ドラッグ中だけの線」を分離。`GanttDependencyLines` を `React.memo` 化。→ ドラッグ中の毎 mousemove 全再計算が消える。→ **完了済み (October 17, 2026)**（実施順 2 番目。ドラッグ中 mousemove 約 18% 減）。
 2. **duration セルの確定タイミング**（独立・低リスク）: `TaskPlanDurationCell` / `TaskDurationCell` の `onChange` 直書き `updateTask` を commit-on-blur / Enter（または短い debounce）に変更。→ **完了済み (October 17, 2026)**（実施順 1 番目。1,430ms → 423ms）。
-3. **`TimelineContext` の value を `useMemo` 化**（独立・低リスク）: `IntegratedView.tsx` の `<TimelineContext.Provider value={{...}}>` のみ。ホバー時の全行 `RowContainer` 再レンダーが止まる。
+3. **`TimelineContext` の value を `useMemo` 化**（独立・低リスク）: `IntegratedView.tsx` の `<TimelineContext.Provider value={{...}}>` のみ。ホバー時の全行 `RowContainer` 再レンダーが止まる。→ **完了済み (October 17, 2026)**（実施順 3 番目。ホバー longtask 60.3ms → 17.3ms）。
 4. **セル購読の集約**（大規模・計測で必要性が確認できた場合のみ）: `TaskRow` で必要な値を1回購読してセルへ props 配信する。**注意**: `focusedTaskId` / `selectedTaskIds` を行の props にすると選択のたびに全行が再レンダーされるため、「自分がフォーカス/選択されているか」を返す安価な selector（boolean）を各セルに残すのが正解。セル1つずつ置換し、都度テストを回すこと。
-5. **P2（保守性）** は上記とは独立に随時。
+   - **Step 3 完了時点の残課題（次に着手する候補）**: 計測上いちばん大きいのは「確定 1 回あたりの全ツリー再描画」（duration 確定 400ms / タイトル確定 1,000ms / ドラッグ確定 450ms）。内訳は `flattenTree` + `useGanttTimeline` の再計算 + 全行再描画で、さらに `updateTask` が毎回 `tasks` オブジェクト全体の参照を替えるため各セルの `useTaskStore` selector が全行分走る（P1 購読ファンアウト）。ここに手を入れるのが次の一手で、購読の集約（本項）と同時に検討するのがよい。
+5. **P2（保守性）** は上記とは独立に随時。`ROW_HEIGHT = 32` は `useGanttDependencies` では定数化済み（他ファイルは未対応）。
 
 各ステップで `npm run lint` / `npx vitest --run` / `npm run test:e2e` / `npm run build` を回し、個別コミットにする（P0 修正 `55da44a` と同様）。
 
@@ -223,7 +229,7 @@
 | D3 | Month/Year ビューでは単クリックが月/年スナップで「1か月/1年」を上書き（D1 の帰結） | **修正済み**（D1 のガードで解消） |
 | D4 | `draw-range` の終点だけ丸めが `round(delta)` で、起点の `floor(absolute)` と1日ずれる | **修正済み**（終点も floor に統一） |
 | D5 | dnd-kit の KeyboardSensor が既定で有効。非表示グリップにフォーカスが残ると Enter/Space がキーボードドラッグ開始になり、Enter=新規タスクと衝突 | **修正済み**（センサー集約） |
-| D6 | `TimelineContext` の value が毎レンダー新規 → ホバーのたびに全行 `RowContainer` が再レンダー | 未対応（優先課題 #3） |
+| D6 | `TimelineContext` の value が毎レンダー新規 → ホバーのたびに全行 `RowContainer` が再レンダー | **修正済み**（P1 Step 3 で `useMemo` 化） |
 | D7 | `selectedTaskIds.includes(id)` を行ごと、`flattenedIds.indexOf` を選択のたびに実行（O(N·M)） | 未対応（優先課題 #3） |
 | D8 | `updateTask` / `endDragUpdate` / `addDependency` のロジック二重化（D1 の非対称を生む土壌） | 未対応（優先課題 #3） |
 | D9 | 未使用の `taskBarRefs`、行高 `32` の散在、デバッグ用テストの混在 | 未対応（優先課題 #3） |
@@ -233,8 +239,8 @@
 
 - **P1 購読ファンアウト**: 1行あたり約79購読（セル8ファイル合計で `useTaskStore((` が61箇所）× 行数。ドラッグ中は `setDragState` が mousemove ごとに走るため、1,000行では selector が毎秒500万回規模で実行される。再レンダーは1行でも通知コストは O(N)（未対応）。
 - **P2 依存線の毎フレーム全再計算**: `useGanttDependencies` が `dragState` を依存に含む。HANDOFF の「ドラッグ中の計算量 O(N)→O(1)」は、依存線の再計算と購読通知については成立していない（**対応済み (October 17, 2026, P1 Step 2)** 静的線とドラッグ中のみの線を分離）。
-- **P3 高頻度更新の O(N) 連鎖**: duration セルの1文字ごとの `updateTask` が、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を引き起こす（未対応）。
-- 一方で「変更された行だけ再レンダーする」設計（`React.memo` + カスタム比較 + タスク単位のオブジェクト同一性維持）は妥当で、実際に機能している。データモデル・純粋関数へのロジック集約・セル分割も方向性は良い。問題は入力ガードの欠落（P0・修正済み）と、購読粒度・派生計算の更新戦略（P1・未対応）。
+- **P3 高頻度更新の O(N) 連鎖**: duration セルの1文字ごとの `updateTask` が、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を引き起こす（**対応済み (October 17, 2026, P1 Step 1)** commit-on-blur / Enter 化）。
+- 一方で「変更された行だけ再レンダーする」設計（`React.memo` + カスタム比較 + タスク単位のオブジェクト同一性維持）は妥当で、実際に機能している。データモデル・純粋関数へのロジック集約・セル分割も方向性は良い。問題は入力ガードの欠落（P0・修正済み）と、購読粒度・派生計算の更新戦略（P1・未対応。P2 / P3 / D6 は P1 Step 1〜3 で対応済み）。
 
 ## 注意点
 

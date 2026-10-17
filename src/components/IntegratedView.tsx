@@ -235,6 +235,12 @@ export const IntegratedView = ({
   };
 
   const timelineWidth = timeRange.length * cellWidth;
+  // D6: value を useMemo 化しないと、IntegratedView がホバー等で再レンダーするたびに
+  // 参照が変わり、context 経由で全行の RowContainer が再レンダーされる（memo では止まらない）。
+  const timelineContextValue = useMemo(
+    () => ({ timelineMetrics, timelineWidth }),
+    [timelineMetrics, timelineWidth]
+  );
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
@@ -310,7 +316,7 @@ export const IntegratedView = ({
           />
         </svg>
 
-        <TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>
+        <TimelineContext.Provider value={timelineContextValue}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
               {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {

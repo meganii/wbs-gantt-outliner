@@ -137,3 +137,31 @@ blur / Enter で確定する方式へ変更（Escape で取り消し）。タイ
 （`endDragUpdate` → 全ツリー再描画で 450ms 前後）が支配しており、Step 2 では変わりません。
 これは「購読粒度の集約」（HANDOFF の P1 / D7）側の課題で、今回の対象外です。
 
+### Step 3: `TimelineContext` の value を `useMemo` 化（D6）
+
+`IntegratedView` / `GanttChart` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` は
+毎レンダーで新しいオブジェクトを作っていました。context の値は参照比較されるため、
+`IntegratedView` が再レンダーするたび（＝行ホバーで `hoveredTaskId` が変わるたび）に
+**全行の `RowContainer`（context 消費側）が再レンダー**されます。`RowContainer` ↔ `TaskRow` 間が
+`React.memo` でも context 経由の再レンダーは止まりません。
+
+変更:
+
+- `IntegratedView` / `GanttChart` で `value` を `useMemo` 化（依存: `timelineMetrics` / `timelineWidth`）。
+  `timelineMetrics` は `useGanttTimeline` 内で既に `useMemo` 済み、`timelineWidth` は数値なので、
+  ホバーによる再レンダーでは値の参照が変わらなくなります。
+
+計測結果（1,000 タスク、`hover(20 rows)`、3 回実行の集計）:
+
+| 指標 | Before | After |
+|---|---|---|
+| 操作窓 | 741.7ms | **524.2ms / 511.0ms** |
+| longtask 合計（20 ホバーあたり） | 60.3ms（最長 91ms） | **17.3ms / 19.7ms（最長 52ms / 59ms）** |
+| over 50ms の longtask 数 | 2 | 0〜1 |
+
+ホバー時の main-thread ブロックは約 71%（60.3ms → 17.3ms）、最長タスクは約 43%（91ms → 52ms）減少しました。
+100 タスクでも 0ms のまま（元から longtask なし。操作窓は 473.3ms → 466.3ms）。
+
+挙動は変わらない（純粋な再レンダー削減）ため、回帰テストの追加はしていません。
+既存のユニットテスト（この時点で 105 件）と E2E 6 件で退行がないことを確認しています。
+

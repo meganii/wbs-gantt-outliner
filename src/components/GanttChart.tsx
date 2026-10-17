@@ -244,6 +244,13 @@ export const GanttChart = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [containerRef, selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
 
+  // D6: context value を useMemo 化しないと、ホバー等で GanttChart が再レンダーするたびに
+  // 参照が変わり、context 経由で全行が再レンダーされる（memo では止まらない）。
+  const timelineContextValue = useMemo(
+    () => ({ timelineMetrics, timelineWidth: timeRange.length * CELL_WIDTH }),
+    [timelineMetrics, timeRange.length, CELL_WIDTH]
+  );
+
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
       {/* Timeline Header */}
@@ -361,7 +368,7 @@ export const GanttChart = ({
           />
         </svg>
 
-        <TimelineContext.Provider value={{ timelineMetrics, timelineWidth: timeRange.length * CELL_WIDTH }}>
+        <TimelineContext.Provider value={timelineContextValue}>
           {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
             const isHovered = hoveredTaskId === id;
           const isSelected = selectedTaskIds.includes(id);
