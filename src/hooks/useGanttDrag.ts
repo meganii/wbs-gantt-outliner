@@ -97,25 +97,13 @@ export const useGanttDrag = (
         state.setDragState(null);
         state.setMousePos(null);
       } else if (currentDragState.mode === 'draw-range') {
-        const {
-          taskId,
-          currentStartDate,
-          currentEndDate,
-          initialStartDate,
-          initialEndDate,
-        } = currentDragState;
+        const { taskId, currentStartDate, currentEndDate } = currentDragState;
 
-        // 移動のない単クリックでは日付を書き換えない。
-        // draw-range は実際にドラッグしたときだけ確定する。
-        if (
-          currentStartDate.getTime() === initialStartDate.getTime() &&
-          currentEndDate.getTime() === initialEndDate.getTime()
-        ) {
-          state.setDragState(null);
-          state.setMousePos(null);
-          return;
-        }
-
+        // 移動のない単クリックでも確定する（クリックした日 1 日分の予定を設定）。
+        // 開始・終了はどちらもクリックした日で初期化されているため、
+        // 単クリックでは 1 日予定、ドラッグでは範囲予定になる。
+        // 予定バー上のクリックは行の draw-range に伝播しないよう
+        // GanttTimelineRow 側で stopPropagation している。
         let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
         let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
 

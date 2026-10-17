@@ -4,6 +4,11 @@
 
 ## 現在の状態
 
+- **ガント日セル単クリックで予定が反映されない退行の修正** (October 17, 2026):
+  - 直近コミット `55da44a`（P0 drag guards）で `useGanttDrag.ts` の `draw-range` 確定処理に追加した「移動量ゼロなら確定しない」ガードが、**日セルの単クリックによる 1 日予定の設定まで塞いでいた**（新規タスクは `planStartDate: null` のため「予定追加」で必ず踏む。2 日以上ドラッグしないと確定しない状態だった）。
+  - このガードを撤去し、単クリックでも「クリックした日 1 日分」の予定を確定するよう元の挙動へ戻した。`55da44a` のもう一方の保護（予定/実績バーの `onMouseDown` で常に `stopPropagation` + `[data-gantt-bar]` 判定）はそのまま残しており、**予定バー/実績バーの単クリックが行の `draw-range` に伝播して日付を破壊する経路は塞がれたまま**であることを回帰テストで確認済み。
+  - `src/components/GanttDragGuards.test.tsx`: 「単クリックで日付を書き換えない」テストを「単クリックで 1 日予定を設定する」に置換し、予定未設定タスクの単クリック作成テストを追加（計 6 件）。
+  - 検証: `npm test -- --run` 106 件合格 / `npm run lint` 0 件 / `npm run build` 通過。
 - **描画性能 P1 Step 4: セル購読の集約（4-A）と派生データの参照安定化（4-B）（D7）** (October 17, 2026):
   - **4-A（セル購読の集約 / セルの memo 化）**: 1 行あたり約 79 購読（セル 8 ファイルで `useTaskStore(` が 61 箇所）していた構成を `TaskRow` で 1 回だけ購読し props で配る形へ変更。セルは `React.memo` + 関数 props を無視する共通比較関数 `src/components/cells/cellPropsEqual.ts`（新規）でメモ化し、「自分がフォーカスされているか」を返す boolean selector だけ残した（選択状態を行の props にすると選択のたびに全行再レンダーになるため）。セル 8 種の `useTaskStore` 購読を全廃し操作は `getState()`、`TaskOutlineCell` の Enter/Backspace/Delete は `getEffectiveTaskIds(taskId)` をイベント時に評価。`useTaskCellKeyboard` は購読をやめ選択状態をハンドラ実行時に読む。
   - **4-B（参照安定化）**: `SortableContext items={flattenedIds}` と `TimelineContext` の値が親の再レンダーごとに参照が変わり、context 経由で全行（`useSortable` 消費側 / `RowContainer`）が再レンダーし続けていた（`React.memo` では止まらない）。`src/hooks/useStableFlattenedIds.ts`（新規）で ID 列を内容ベースで安定化し、`useGanttTimeline` の `timeRange` / `timelineMetrics` を値（epoch ms / Date の時刻）依存にして、日付範囲が変わらない編集では参照を据え置くようにした。

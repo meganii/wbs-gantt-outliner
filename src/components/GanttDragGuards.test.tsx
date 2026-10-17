@@ -34,11 +34,14 @@ describe('Gantt drag guards', () => {
     vi.useRealTimers();
   });
 
-  it('does not rewrite plan dates on a single click (no movement) in the timeline area', () => {
+  it('sets a one-day plan on a single click (no movement) in the timeline area', () => {
+    act(() => {
+      useTaskStore.getState().setViewMode('Day');
+    });
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Click Guard',
+        title: 'Click To Plan',
         planStartDate: '2026-05-25',
         planEndDate: '2026-05-27',
         planDuration: 3,
@@ -55,7 +58,39 @@ describe('Gantt drag guards', () => {
     fireEvent.mouseDown(rowArea, { button: 0, clientX: 300, clientY: 50 });
     fireEvent.mouseUp(window);
 
-    expect(snapshot(rootId)).toEqual(before);
+    const after = snapshot(rootId);
+    // クリックした日 1 日分の予定に確定する
+    expect(after.planStartDate).not.toBe(before.planStartDate);
+    expect(after.planStartDate).toBe(after.planEndDate);
+    expect(after.planDuration).toBe(1);
+    expect(useTaskStore.getState().dragState).toBeNull();
+  });
+
+  it('creates a one-day plan by a single click on a task that has no plan', () => {
+    act(() => {
+      useTaskStore.getState().setViewMode('Day');
+    });
+    const rootId = useTaskStore.getState().rootIds[0];
+    let newId = '';
+    act(() => {
+      useTaskStore.getState().addTask(rootId, 'after');
+      newId = useTaskStore.getState().focusedTaskId!;
+    });
+    expect(useTaskStore.getState().tasks[newId].planStartDate).toBeNull();
+
+    const { container } = render(<GanttChart showNames />);
+    const rowArea = container.querySelector(
+      `[data-task-id="${newId}"].cursor-crosshair`
+    ) as HTMLDivElement;
+    expect(rowArea).not.toBeNull();
+
+    fireEvent.mouseDown(rowArea, { button: 0, clientX: 300, clientY: 50 });
+    fireEvent.mouseUp(window);
+
+    const after = snapshot(newId);
+    expect(after.planStartDate).toBeTruthy();
+    expect(after.planStartDate).toBe(after.planEndDate);
+    expect(after.planDuration).toBe(1);
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 
