@@ -1,34 +1,33 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import clsx from 'clsx';
 import { formatToShow, formatToEdit, parseInputDate } from '../../utils/date';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskDateCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskDateCell = ({
+export const TaskDateCell = memo(({
   taskId,
+  task,
+  columnWidths,
   prevId,
   nextId,
   onSelectionChange,
 }: TaskDateCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-
-  const startValue = task?.startDate || '';
-  const endValue = task?.endDate || '';
-  const isParent = (task?.children.length ?? 0) > 0;
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+  const startValue = task.startDate || '';
+  const endValue = task.endDate || '';
+  const isParent = task.children.length > 0;
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -42,8 +41,13 @@ export const TaskDateCell = ({
   const escapedStartRef = useRef(false);
   const escapedEndRef = useRef(false);
 
-  const isFocusedStart = focusedTaskId === taskId && focusedTaskField === 'startDate';
-  const isFocusedEnd = focusedTaskId === taskId && focusedTaskField === 'endDate';
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocusedStart = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'startDate'
+  );
+  const isFocusedEnd = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'endDate'
+  );
 
   const isReadOnly = isParent;
 
@@ -76,23 +80,26 @@ export const TaskDateCell = ({
 
   // Focus synchronization
   useEffect(() => {
-    if (focusedTaskId !== taskId) return;
-
-    if (focusedTaskField === 'startDate' && startDateRef.current && startDateRef.current !== document.activeElement) {
+    if (isFocusedStart && startDateRef.current && startDateRef.current !== document.activeElement) {
       startDateRef.current.focus();
-    } else if (focusedTaskField === 'endDate' && endDateRef.current && endDateRef.current !== document.activeElement) {
+    }
+  }, [isFocusedStart]);
+
+  useEffect(() => {
+    if (isFocusedEnd && endDateRef.current && endDateRef.current !== document.activeElement) {
       endDateRef.current.focus();
     }
-  }, [focusedTaskId, focusedTaskField, taskId]);
+  }, [isFocusedEnd]);
 
   const commitStartValue = () => {
     if (isReadOnly) return;
+    const { updateTask, setFocusedTaskCell } = useTaskStore.getState();
     if (escapedStartRef.current) {
       escapedStartRef.current = false;
       const showVal = formatToShow(startValue);
       setLocalStart(showVal);
       localStartRef.current = showVal;
-      if (focusedTaskId === taskId && focusedTaskField === 'startDate') {
+      if (isFocusedStart) {
         setFocusedTaskCell(null, null);
       }
       return;
@@ -112,19 +119,20 @@ export const TaskDateCell = ({
         localStartRef.current = showVal;
       }
     }
-    if (focusedTaskId === taskId && focusedTaskField === 'startDate') {
+    if (isFocusedStart) {
       setFocusedTaskCell(null, null);
     }
   };
 
   const commitEndValue = () => {
     if (isReadOnly) return;
+    const { updateTask, setFocusedTaskCell } = useTaskStore.getState();
     if (escapedEndRef.current) {
       escapedEndRef.current = false;
       const showVal = formatToShow(endValue);
       setLocalEnd(showVal);
       localEndRef.current = showVal;
-      if (focusedTaskId === taskId && focusedTaskField === 'endDate') {
+      if (isFocusedEnd) {
         setFocusedTaskCell(null, null);
       }
       return;
@@ -134,7 +142,7 @@ export const TaskDateCell = ({
     if (parsed !== null) {
       if (parsed !== endValue) {
         // Enforce endDate >= startDate
-        const currentStart = task?.startDate;
+        const currentStart = task.startDate;
         if (currentStart) {
           const start = new Date(currentStart);
           const end = new Date(parsed);
@@ -156,7 +164,7 @@ export const TaskDateCell = ({
         localEndRef.current = showVal;
       }
     }
-    if (focusedTaskId === taskId && focusedTaskField === 'endDate') {
+    if (isFocusedEnd) {
       setFocusedTaskCell(null, null);
     }
   };
@@ -166,7 +174,6 @@ export const TaskDateCell = ({
     field: 'startDate',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitStartValue,
     onSelectionChange,
   });
@@ -176,12 +183,9 @@ export const TaskDateCell = ({
     field: 'endDate',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitEndValue,
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleStartKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -236,7 +240,7 @@ export const TaskDateCell = ({
             const editVal = formatToEdit(startValue);
             setLocalStart(editVal);
             localStartRef.current = editVal;
-            setFocusedTaskCell(taskId, 'startDate');
+            useTaskStore.getState().setFocusedTaskCell(taskId, 'startDate');
           }}
           onChange={(e) => {
             if (isReadOnly) return;
@@ -279,7 +283,7 @@ export const TaskDateCell = ({
             const editVal = formatToEdit(endValue);
             setLocalEnd(editVal);
             localEndRef.current = editVal;
-            setFocusedTaskCell(taskId, 'endDate');
+            useTaskStore.getState().setFocusedTaskCell(taskId, 'endDate');
           }}
           onChange={(e) => {
             if (isReadOnly) return;
@@ -303,4 +307,6 @@ export const TaskDateCell = ({
       </div>
     </div>
   );
-};
+}, cellPropsEqual);
+
+TaskDateCell.displayName = 'TaskDateCell';

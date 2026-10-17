@@ -1,36 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import clsx from 'clsx';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskStatusCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskStatusCell = ({
+export const TaskStatusCell = memo(({
   taskId,
+  task,
+  columnWidths,
   prevId,
   nextId,
   onSelectionChange,
 }: TaskStatusCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-
-  const status = task?.status || '';
-  const isParent = (task?.children.length ?? 0) > 0;
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+  const status = task.status || '';
+  const isParent = task.children.length > 0;
 
   // Local state
   const [localStatus, setLocalStatus] = useState(status);
   const selectRef = useRef<HTMLSelectElement>(null);
+
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocused = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'status'
+  );
 
   // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
   const [syncedStatus, setSyncedStatus] = useState(status);
@@ -40,7 +44,6 @@ export const TaskStatusCell = ({
   }
 
   // Focus synchronization
-  const isFocused = focusedTaskId === taskId && focusedTaskField === 'status';
   useEffect(() => {
     if (isFocused && selectRef.current && selectRef.current !== document.activeElement) {
       selectRef.current.focus();
@@ -49,7 +52,7 @@ export const TaskStatusCell = ({
 
   const commitValue = (value: string) => {
     if (status !== value) {
-      updateTask(taskId, { status: value });
+      useTaskStore.getState().updateTask(taskId, { status: value });
     }
   };
 
@@ -58,12 +61,9 @@ export const TaskStatusCell = ({
     field: 'status',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: () => {}, // select box saves directly onChange, no blur commit needed
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLSelectElement>) => {
     if (handleArrowNavigation(e, false)) {
@@ -91,7 +91,7 @@ export const TaskStatusCell = ({
           setLocalStatus(val);
           commitValue(val);
         }}
-        onFocus={() => setFocusedTaskCell(taskId, 'status')}
+        onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'status')}
         data-task-id={taskId}
         data-field="status"
         style={{ backgroundColor: 'transparent' }}
@@ -113,4 +113,6 @@ export const TaskStatusCell = ({
       </select>
     </div>
   );
-};
+}, cellPropsEqual);
+
+TaskStatusCell.displayName = 'TaskStatusCell';

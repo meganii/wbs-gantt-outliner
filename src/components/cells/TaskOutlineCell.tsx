@@ -1,12 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
-import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { useTaskCellKeyboard, getEffectiveTaskIds } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskOutlineCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
   depth?: number;
   wbsNumber?: string;
   prevId?: string;
@@ -16,8 +22,10 @@ interface TaskOutlineCellProps {
   listeners?: DraggableSyntheticListeners;
 }
 
-export const TaskOutlineCell = ({
+export const TaskOutlineCell = memo(({
   taskId,
+  task,
+  columnWidths,
   depth = 0,
   wbsNumber,
   prevId,
@@ -26,27 +34,19 @@ export const TaskOutlineCell = ({
   attributes,
   listeners,
 }: TaskOutlineCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const toggleCollapse = useTaskStore((state) => state.toggleCollapse);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const addTask = useTaskStore((state) => state.addTask);
-  const deleteTask = useTaskStore((state) => state.deleteTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
-
   // Local state for performant typing and IME
-  const [localTitle, setLocalTitle] = useState(task?.title || '');
+  const [localTitle, setLocalTitle] = useState(task.title || '');
   const isComposing = useRef(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocused = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'title'
+  );
+
   // Sync with store updates (e.g. undo/redo)
   // (effect 内での setState を避け、レンダー中に state を調整する)
-  const storeTitle = task?.title ?? '';
+  const storeTitle = task.title ?? '';
   const [syncedTitle, setSyncedTitle] = useState(storeTitle);
   if (syncedTitle !== storeTitle) {
     setSyncedTitle(storeTitle);
@@ -54,7 +54,6 @@ export const TaskOutlineCell = ({
   }
 
   // Focus synchronization
-  const isFocused = focusedTaskId === taskId && focusedTaskField === 'title';
   useEffect(() => {
     if (isFocused && titleInputRef.current && titleInputRef.current !== document.activeElement) {
       titleInputRef.current.focus();
@@ -62,8 +61,8 @@ export const TaskOutlineCell = ({
   }, [isFocused]);
 
   const commitValue = () => {
-    if (task && task.title !== localTitle) {
-      updateTask(taskId, { title: localTitle });
+    if (task.title !== localTitle) {
+      useTaskStore.getState().updateTask(taskId, { title: localTitle });
     }
   };
 
@@ -72,17 +71,18 @@ export const TaskOutlineCell = ({
     field: 'title',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitValue,
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (handleArrowNavigation(e, isComposing.current)) {
       return;
     }
+
+    // 選択状態（操作対象 ID 群）はイベント発生時に最新値を読む。
+    // 購読すると選択変更のたびに全行のセルが再描画されるため。
+    const { addTask, deleteTask, setFocusedTaskCell } = useTaskStore.getState();
 
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -94,6 +94,7 @@ export const TaskOutlineCell = ({
     if (e.key === 'Backspace' && localTitle === '') {
       e.preventDefault();
       if (e.repeat) return;
+      const effectiveIds = getEffectiveTaskIds(taskId);
       if (effectiveIds.length <= 1) {
         const targetPrev = prevId;
         deleteTask(taskId);
@@ -106,6 +107,7 @@ export const TaskOutlineCell = ({
     if (e.key === 'Delete' || (e.metaKey && e.key === 'Backspace')) {
       e.preventDefault();
       if (e.repeat) return;
+      const effectiveIds = getEffectiveTaskIds(taskId);
       const targetFocus = prevId || nextId;
       deleteTask(effectiveIds);
       if (targetFocus && !effectiveIds.includes(targetFocus)) {
@@ -151,7 +153,7 @@ export const TaskOutlineCell = ({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          toggleCollapse(taskId);
+          useTaskStore.getState().toggleCollapse(taskId);
         }}
         className={clsx(
           "p-0.5 rounded hover:bg-gray-100 text-gray-400 mr-1 flex-shrink-0",
@@ -175,7 +177,7 @@ export const TaskOutlineCell = ({
         value={localTitle}
         onChange={(e) => setLocalTitle(e.target.value)}
         onBlur={commitValue}
-        onFocus={() => setFocusedTaskCell(taskId, 'title')}
+        onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'title')}
         onKeyDown={handleKeyDown}
         onCompositionStart={() => {
           isComposing.current = true;
@@ -189,4 +191,6 @@ export const TaskOutlineCell = ({
       />
     </div>
   );
-};
+}, cellPropsEqual);
+
+TaskOutlineCell.displayName = 'TaskOutlineCell';

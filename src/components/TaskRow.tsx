@@ -13,6 +13,7 @@ import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
 import { TaskDurationCell } from './cells/TaskDurationCell';
 import { TaskDateCell } from './cells/TaskDateCell';
 
+import { useTaskStore } from '../store/useTaskStore';
 import type { ColumnId, Task } from '../types';
 
 interface TaskRowProps {
@@ -63,6 +64,12 @@ export const TaskRow = memo(({
     transition,
     isDragging,
   } = useSortable({ id: taskId });
+
+  // 行で 1 回だけ購読し、セルへ props で配る（購読ファンアウトの集約）。
+  // セルごとに tasks[taskId] / columnWidths / action を購読すると、
+  // ストア更新のたびに 1 行あたり数十個の selector が実行される。
+  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
+  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -118,6 +125,8 @@ export const TaskRow = memo(({
               <TaskOutlineCell
                 key="taskName"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 depth={depth}
                 wbsNumber={wbsNumber}
                 prevId={prevId}
@@ -132,6 +141,8 @@ export const TaskRow = memo(({
               <TaskTextCell
                 key="description"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 field="description"
                 placeholder="説明"
                 prevId={prevId}
@@ -144,6 +155,8 @@ export const TaskRow = memo(({
               <TaskTextCell
                 key="assignee"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 field="assignee"
                 placeholder="担当者"
                 prevId={prevId}
@@ -156,6 +169,8 @@ export const TaskRow = memo(({
               <TaskTextCell
                 key="deliverables"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 field="deliverables"
                 placeholder="成果物"
                 prevId={prevId}
@@ -168,6 +183,8 @@ export const TaskRow = memo(({
               <TaskStatusCell
                 key="status"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -178,6 +195,8 @@ export const TaskRow = memo(({
               <TaskProgressCell
                 key="progress"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -188,6 +207,9 @@ export const TaskRow = memo(({
               <TaskPlanDurationCell
                 key="planDuration"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
+                baselineLocked={baselineLocked}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -198,6 +220,9 @@ export const TaskRow = memo(({
               <TaskPlanDateCell
                 key="planDate"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
+                baselineLocked={baselineLocked}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -208,6 +233,8 @@ export const TaskRow = memo(({
               <TaskDurationCell
                 key="duration"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -218,6 +245,8 @@ export const TaskRow = memo(({
               <TaskDateCell
                 key="date"
                 taskId={taskId}
+                task={task}
+                columnWidths={columnWidths}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}

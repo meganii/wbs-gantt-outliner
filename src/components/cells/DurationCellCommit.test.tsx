@@ -10,14 +10,25 @@ const getDuration = (id: string) => useTaskStore.getState().tasks[id].duration;
 const getPlanDuration = (id: string) => useTaskStore.getState().tasks[id].planDuration;
 
 const renderDurationCell = (taskId: string) => {
-  const { container } = render(<TaskDurationCell taskId={taskId} />);
+  const state = useTaskStore.getState();
+  const { container } = render(
+    <TaskDurationCell taskId={taskId} task={state.tasks[taskId]} columnWidths={state.projectConfig.columnWidths} />
+  );
   const input = container.querySelector<HTMLInputElement>(`input[data-field="duration"]`);
   expect(input).not.toBeNull();
   return input!;
 };
 
 const renderPlanDurationCell = (taskId: string) => {
-  const { container } = render(<TaskPlanDurationCell taskId={taskId} />);
+  const state = useTaskStore.getState();
+  const { container } = render(
+    <TaskPlanDurationCell
+      taskId={taskId}
+      task={state.tasks[taskId]}
+      columnWidths={state.projectConfig.columnWidths}
+      baselineLocked={state.projectConfig.baselineLocked ?? false}
+    />
+  );
   const input = container.querySelector<HTMLInputElement>(`input[data-field="planDuration"]`);
   expect(input).not.toBeNull();
   return input!;

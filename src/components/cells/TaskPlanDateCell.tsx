@@ -1,36 +1,36 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import clsx from 'clsx';
 import { formatToShow, formatToEdit, parseInputDate } from '../../utils/date';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskPlanDateCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
+  baselineLocked: boolean;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskPlanDateCell = ({
+export const TaskPlanDateCell = memo(({
   taskId,
+  task,
+  columnWidths,
+  baselineLocked,
   prevId,
   nextId,
   onSelectionChange,
 }: TaskPlanDateCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
-
-  const planStart = task?.planStartDate || task?.startDate || '';
-  const planEnd = task?.planEndDate || task?.endDate || '';
-  const isParent = (task?.children.length ?? 0) > 0;
+  const planStart = task.planStartDate || task.startDate || '';
+  const planEnd = task.planEndDate || task.endDate || '';
+  const isParent = task.children.length > 0;
   const isReadOnly = baselineLocked || isParent;
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
@@ -44,8 +44,13 @@ export const TaskPlanDateCell = ({
   const escapedStartRef = useRef(false);
   const escapedEndRef = useRef(false);
 
-  const isFocusedStart = focusedTaskId === taskId && focusedTaskField === 'planStartDate';
-  const isFocusedEnd = focusedTaskId === taskId && focusedTaskField === 'planEndDate';
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocusedStart = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'planStartDate'
+  );
+  const isFocusedEnd = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'planEndDate'
+  );
 
   // Sync state when focus changes or stored dates change
   // (effect 内での setState を避け、レンダー中に state を調整する)
@@ -76,23 +81,26 @@ export const TaskPlanDateCell = ({
 
   // Focus synchronization
   useEffect(() => {
-    if (focusedTaskId !== taskId) return;
-
-    if (focusedTaskField === 'planStartDate' && startDateRef.current && startDateRef.current !== document.activeElement) {
+    if (isFocusedStart && startDateRef.current && startDateRef.current !== document.activeElement) {
       startDateRef.current.focus();
-    } else if (focusedTaskField === 'planEndDate' && endDateRef.current && endDateRef.current !== document.activeElement) {
+    }
+  }, [isFocusedStart]);
+
+  useEffect(() => {
+    if (isFocusedEnd && endDateRef.current && endDateRef.current !== document.activeElement) {
       endDateRef.current.focus();
     }
-  }, [focusedTaskId, focusedTaskField, taskId]);
+  }, [isFocusedEnd]);
 
   const commitStartValue = () => {
     if (isReadOnly) return;
+    const { updateTask, setFocusedTaskCell } = useTaskStore.getState();
     if (escapedStartRef.current) {
       escapedStartRef.current = false;
       const showVal = formatToShow(planStart);
       setLocalStart(showVal);
       localStartRef.current = showVal;
-      if (focusedTaskId === taskId && focusedTaskField === 'planStartDate') {
+      if (isFocusedStart) {
         setFocusedTaskCell(null, null);
       }
       return;
@@ -112,19 +120,20 @@ export const TaskPlanDateCell = ({
         localStartRef.current = showVal;
       }
     }
-    if (focusedTaskId === taskId && focusedTaskField === 'planStartDate') {
+    if (isFocusedStart) {
       setFocusedTaskCell(null, null);
     }
   };
 
   const commitEndValue = () => {
     if (isReadOnly) return;
+    const { updateTask, setFocusedTaskCell } = useTaskStore.getState();
     if (escapedEndRef.current) {
       escapedEndRef.current = false;
       const showVal = formatToShow(planEnd);
       setLocalEnd(showVal);
       localEndRef.current = showVal;
-      if (focusedTaskId === taskId && focusedTaskField === 'planEndDate') {
+      if (isFocusedEnd) {
         setFocusedTaskCell(null, null);
       }
       return;
@@ -134,7 +143,7 @@ export const TaskPlanDateCell = ({
     if (parsed !== null) {
       if (parsed !== planEnd) {
         // Enforce planEndDate >= planStartDate
-        const currentStart = task?.planStartDate || task?.startDate;
+        const currentStart = task.planStartDate || task.startDate;
         if (currentStart) {
           const start = new Date(currentStart);
           const end = new Date(parsed);
@@ -156,7 +165,7 @@ export const TaskPlanDateCell = ({
         localEndRef.current = showVal;
       }
     }
-    if (focusedTaskId === taskId && focusedTaskField === 'planEndDate') {
+    if (isFocusedEnd) {
       setFocusedTaskCell(null, null);
     }
   };
@@ -166,7 +175,6 @@ export const TaskPlanDateCell = ({
     field: 'planStartDate',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitStartValue,
     onSelectionChange,
   });
@@ -176,12 +184,9 @@ export const TaskPlanDateCell = ({
     field: 'planEndDate',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitEndValue,
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleStartKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -236,7 +241,7 @@ export const TaskPlanDateCell = ({
             const editVal = formatToEdit(planStart);
             setLocalStart(editVal);
             localStartRef.current = editVal;
-            setFocusedTaskCell(taskId, 'planStartDate');
+            useTaskStore.getState().setFocusedTaskCell(taskId, 'planStartDate');
           }}
           onChange={(e) => {
             if (isReadOnly) return;
@@ -279,7 +284,7 @@ export const TaskPlanDateCell = ({
             const editVal = formatToEdit(planEnd);
             setLocalEnd(editVal);
             localEndRef.current = editVal;
-            setFocusedTaskCell(taskId, 'planEndDate');
+            useTaskStore.getState().setFocusedTaskCell(taskId, 'planEndDate');
           }}
           onChange={(e) => {
             if (isReadOnly) return;
@@ -303,6 +308,6 @@ export const TaskPlanDateCell = ({
       </div>
     </div>
   );
-};
+}, cellPropsEqual);
 
-
+TaskPlanDateCell.displayName = 'TaskPlanDateCell';

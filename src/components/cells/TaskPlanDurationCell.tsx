@@ -1,39 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import clsx from 'clsx';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskPlanDurationCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
+  baselineLocked: boolean;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskPlanDurationCell = ({
+export const TaskPlanDurationCell = memo(({
   taskId,
+  task,
+  columnWidths,
+  baselineLocked,
   prevId,
   nextId,
   onSelectionChange,
 }: TaskPlanDurationCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
-
-  const planDurationValue = task?.planDuration !== undefined ? task.planDuration : (task?.duration ?? 0);
+  const planDurationValue = task.planDuration !== undefined ? task.planDuration : (task.duration ?? 0);
   const storeValue = String(planDurationValue);
-  const isParent = (task?.children.length ?? 0) > 0;
+  const isParent = task.children.length > 0;
   const isReadOnly = baselineLocked || isParent;
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isFocused = focusedTaskId === taskId && focusedTaskField === 'planDuration';
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocused = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'planDuration'
+  );
 
   // Local state for performant typing (1 文字ごとに updateTask を呼ばない)
   const [localValue, setLocalValue] = useState(storeValue);
@@ -65,6 +68,8 @@ export const TaskPlanDurationCell = ({
   const commitValue = () => {
     if (isReadOnly) return;
 
+    const { updateTask, setFocusedTaskCell } = useTaskStore.getState();
+
     if (escapedRef.current) {
       escapedRef.current = false;
       setLocalValue(storeValue);
@@ -82,7 +87,7 @@ export const TaskPlanDurationCell = ({
       const nextValue = Math.max(0, parsed);
       setLocalValue(String(nextValue));
       localValueRef.current = String(nextValue);
-      if (task && nextValue !== planDurationValue) {
+      if (nextValue !== planDurationValue) {
         updateTask(taskId, { planDuration: nextValue });
       }
     }
@@ -95,12 +100,9 @@ export const TaskPlanDurationCell = ({
     field: 'planDuration',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitValue,
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
@@ -136,7 +138,7 @@ export const TaskPlanDurationCell = ({
         tabIndex={isReadOnly ? -1 : undefined}
         onFocus={() => {
           if (isReadOnly) return;
-          setFocusedTaskCell(taskId, 'planDuration');
+          useTaskStore.getState().setFocusedTaskCell(taskId, 'planDuration');
         }}
         onChange={(e) => {
           if (isReadOnly) return;
@@ -158,4 +160,6 @@ export const TaskPlanDurationCell = ({
       />
     </div>
   );
-};
+}, cellPropsEqual);
+
+TaskPlanDurationCell.displayName = 'TaskPlanDurationCell';

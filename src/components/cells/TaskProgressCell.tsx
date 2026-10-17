@@ -1,36 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { cellPropsEqual } from './cellPropsEqual';
 import clsx from 'clsx';
+import type { ProjectConfig, Task } from '../../types';
+
+type ColumnWidths = ProjectConfig['columnWidths'];
 
 interface TaskProgressCellProps {
   taskId: string;
+  task: Task;
+  columnWidths: ColumnWidths;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
-export const TaskProgressCell = ({
+export const TaskProgressCell = memo(({
   taskId,
+  task,
+  columnWidths,
   prevId,
   nextId,
   onSelectionChange,
 }: TaskProgressCellProps) => {
-  const task = useTaskStore((state) => state.tasks[taskId]);
-  const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const updateTask = useTaskStore((state) => state.updateTask);
-  const setFocusedTaskCell = useTaskStore((state) => state.setFocusedTaskCell);
-  const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
-  const focusedTaskId = useTaskStore((state) => state.focusedTaskId);
-  const focusedTaskField = useTaskStore((state) => state.focusedTaskField);
-
-  const progress = task?.progress !== undefined ? String(task.progress) : '0';
-  const isParent = (task?.children.length ?? 0) > 0;
-  const effectiveIds = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+  const progress = task.progress !== undefined ? String(task.progress) : '0';
+  const isParent = task.children.length > 0;
 
   // Local state
   const [localProgress, setLocalProgress] = useState(progress);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
+  const isFocused = useTaskStore(
+    (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'progress'
+  );
 
   // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
   const [syncedProgress, setSyncedProgress] = useState(progress);
@@ -40,7 +44,6 @@ export const TaskProgressCell = ({
   }
 
   // Focus synchronization
-  const isFocused = focusedTaskId === taskId && focusedTaskField === 'progress';
   useEffect(() => {
     if (isFocused && inputRef.current && inputRef.current !== document.activeElement) {
       inputRef.current.focus();
@@ -51,8 +54,8 @@ export const TaskProgressCell = ({
     if (isParent) return;
     const val = Math.min(100, Math.max(0, parseInt(localProgress) || 0));
     setLocalProgress(String(val));
-    if (task && task.progress !== val) {
-      updateTask(taskId, { progress: val });
+    if (task.progress !== val) {
+      useTaskStore.getState().updateTask(taskId, { progress: val });
     }
   };
 
@@ -61,12 +64,9 @@ export const TaskProgressCell = ({
     field: 'progress',
     prevId,
     nextId,
-    effectiveIds,
     commitFieldLocalState: commitValue,
     onSelectionChange,
   });
-
-  if (!task) return null;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (handleArrowNavigation(e, false)) {
@@ -98,7 +98,7 @@ export const TaskProgressCell = ({
         onBlur={commitValue}
         onFocus={() => {
           if (isParent) return;
-          setFocusedTaskCell(taskId, 'progress');
+          useTaskStore.getState().setFocusedTaskCell(taskId, 'progress');
         }}
         placeholder="0"
         style={{ backgroundColor: 'transparent' }}
@@ -111,4 +111,6 @@ export const TaskProgressCell = ({
       <span className="text-[10px] text-gray-400 select-none mr-1">%</span>
     </div>
   );
-};
+}, cellPropsEqual);
+
+TaskProgressCell.displayName = 'TaskProgressCell';
