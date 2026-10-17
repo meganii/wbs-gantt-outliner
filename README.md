@@ -33,14 +33,23 @@ npm install
 # 開発サーバー
 npm run dev
 
-# テスト実行
+# テスト実行（ユニット）
 npm test -- --run
+
+# E2E テスト（Playwright。初回は `npx playwright install chromium` が必要）
+npm run test:e2e
+
+# Lint（eslint）
+npm run lint
 
 # 本番ビルド
 npm run build
 
-# パッケージング
-npx electron-builder
+# パッケージング（electron-forge。成果物は out/ に出力）
+npm run package
+
+# インストーラ作成（electron-forge make）
+npm run make
 ```
 
 ## プロジェクト構成
@@ -53,10 +62,13 @@ npx electron-builder
   - ツリー展開、営業日計算、Excel エクスポートなどの補助処理をまとめています。
 - `electron`
   - Electron の main/preload を持ち、ファイル保存/読込の IPC を扱います。
+- `e2e`
+  - Playwright による結合テストを配置しています。
 
 ## 技術スタック
 
 - [Electron](https://www.electronjs.org/)
+- [Electron Forge](https://www.electronforge.io/)
 - [React](https://react.dev/)
 - [Vite](https://vitejs.dev/)
 - [TypeScript](https://www.typescriptlang.org/)
@@ -66,6 +78,7 @@ npx electron-builder
 - [Dnd Kit](https://dndkit.com/)
 - [ExcelJS](https://github.com/exceljs/exceljs)
 - [Vitest](https://vitest.dev/)
+- [Playwright](https://playwright.dev/)
 
 ## 開発状況
 

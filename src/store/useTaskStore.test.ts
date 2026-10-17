@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getTemporalState, loadProjectState, useTaskStore } from './useTaskStore';
 import { act } from '@testing-library/react';
-import type { ProjectConfig } from '../types';
+import type { ProjectConfig, Task } from '../types';
 import { propagateDependencyDates } from './taskStoreUtils';
 
 // To properly test the store, we need to interact with it outside of a React component.
@@ -129,6 +129,110 @@ describe('useTaskStore', () => {
       expect(tasks[siblingId].dependencies).toEqual([]);
       expect(focusedTaskId).toBeNull();
       expect(selectedTaskIds).toEqual([]);
+    });
+
+    it('should delete multiple tasks at once and clean up all descendants and dependencies', () => {
+      const parent1Id = useTaskStore.getState().rootIds[0];
+      
+      // Add second root task
+      act(() => {
+        useTaskStore.getState().addTask(parent1Id, 'after');
+      });
+      const parent2Id = useTaskStore.getState().rootIds[1];
+
+      // Add child tasks
+      act(() => {
+        useTaskStore.getState().addTask(parent1Id, 'inside');
+      });
+      const child1Id = useTaskStore.getState().tasks[parent1Id].children[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parent2Id, 'inside');
+      });
+      const child2Id = useTaskStore.getState().tasks[parent2Id].children[0];
+
+      // Establish a cross-hierarchy dependency: child2 depends on child1
+      act(() => {
+        useTaskStore.getState().addDependency(child1Id, child2Id);
+      });
+
+      expect(useTaskStore.getState().tasks[child2Id].dependencies).toContain(child1Id);
+
+      // Action: Delete both parent1 and parent2 at once
+      act(() => {
+        useTaskStore.getState().deleteTask([parent1Id, parent2Id]);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[parent1Id]).toBeUndefined();
+      expect(tasks[parent2Id]).toBeUndefined();
+      expect(tasks[child1Id]).toBeUndefined();
+      expect(tasks[child2Id]).toBeUndefined();
+      expect(rootIds.length).toBe(0);
+    });
+
+    it('should handle deleting a task in the middle of a multi-level dependency chain (A -> B -> C)', () => {
+      const taskAId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskAId, 'after');
+      });
+      const taskBId = useTaskStore.getState().rootIds[1];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskBId, 'after');
+      });
+      const taskCId = useTaskStore.getState().rootIds[2];
+
+      // Setup dependency chain: C depends on B, B depends on A (A -> B -> C)
+      act(() => {
+        useTaskStore.getState().addDependency(taskAId, taskBId);
+        useTaskStore.getState().addDependency(taskBId, taskCId);
+      });
+
+      expect(useTaskStore.getState().tasks[taskBId].dependencies).toContain(taskAId);
+      expect(useTaskStore.getState().tasks[taskCId].dependencies).toContain(taskBId);
+
+      // Action: Delete middle task B
+      act(() => {
+        useTaskStore.getState().deleteTask(taskBId);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[taskBId]).toBeUndefined();
+      expect(tasks[taskAId]).toBeDefined();
+      expect(tasks[taskCId]).toBeDefined();
+
+      // Dependencies should be cleaned up
+      expect(tasks[taskCId].dependencies).not.toContain(taskBId);
+      expect(tasks[taskAId].dependencies).not.toContain(taskBId);
+      expect(rootIds).toEqual([taskAId, taskCId]);
+    });
+
+    it('should delete multiple tasks with mutual dependencies at once without throwing errors', () => {
+      const taskAId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(taskAId, 'after');
+      });
+      const taskBId = useTaskStore.getState().rootIds[1];
+
+      // Setup dependency: B depends on A
+      act(() => {
+        useTaskStore.getState().addDependency(taskAId, taskBId);
+      });
+
+      expect(useTaskStore.getState().tasks[taskBId].dependencies).toContain(taskAId);
+
+      // Action: Delete both A and B at the same time
+      act(() => {
+        useTaskStore.getState().deleteTask([taskAId, taskBId]);
+      });
+
+      const { tasks, rootIds } = useTaskStore.getState();
+      expect(tasks[taskAId]).toBeUndefined();
+      expect(tasks[taskBId]).toBeUndefined();
+      expect(rootIds.length).toBe(0);
     });
   });
 
@@ -412,8 +516,8 @@ describe('useTaskStore', () => {
       const { tasks: updatedTasks } = useTaskStore.getState();
       // task2's plan start date should be the next workday after task1's new plan end date
       expect(updatedTasks[task2Id].planStartDate).toBe('2024-01-04');
-      // Actual dates should remain null
-      expect(updatedTasks[task2Id].startDate).toBeNull();
+      // Actual dates should be synchronized when baseline is unlocked
+      expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
     });
   });
 
@@ -631,7 +735,7 @@ describe('useTaskStore', () => {
             } as ProjectConfig['calendar'],
             viewMode: 'Week',
             columnWidths: {
-              taskDescription: 320,
+              taskName: 320,
             } as ProjectConfig['columnWidths'],
           },
         });
@@ -640,8 +744,51 @@ describe('useTaskStore', () => {
       const { projectConfig } = useTaskStore.getState();
       expect(projectConfig.viewMode).toBe('Week');
       expect(projectConfig.calendar.holidays).toEqual([]);
-      expect(projectConfig.columnWidths.taskDescription).toBe(320);
+      expect(projectConfig.columnWidths.taskName).toBe(320);
       expect(projectConfig.columnWidths.date).toBe(224);
+    });
+
+    it('should reject structurally invalid input without modifying the store', () => {
+      const before = useTaskStore.getState().tasks;
+
+      const missingTasks = loadProjectState({ rootIds: [] });
+      expect(missingTasks.ok).toBe(false);
+
+      const tasksIsArray = loadProjectState({ tasks: [], rootIds: [] });
+      expect(tasksIsArray.ok).toBe(false);
+
+      const nullInput = loadProjectState(null);
+      expect(nullInput.ok).toBe(false);
+
+      // ストアは変更されない（参照が同じ）
+      expect(useTaskStore.getState().tasks).toBe(before);
+    });
+
+    it('should repair broken tasks, break cycles, and report warnings', () => {
+      const brokenA = {
+        id: 'a', parentId: null, title: 'A', startDate: 'abc', endDate: null,
+        duration: 1, progress: '50', status: '', isCollapsed: false,
+        children: ['b'], dependencies: [], planStartDate: '2026-13-45', planEndDate: null,
+      } as unknown as Task;
+      const brokenB = {
+        id: 'b', parentId: 'a', title: 'B', startDate: null, endDate: null,
+        duration: 1, progress: 0, status: '', isCollapsed: false,
+        children: ['a'], dependencies: [], planStartDate: null, planEndDate: null,
+      } as unknown as Task;
+
+      let result: ReturnType<typeof loadProjectState> | undefined;
+      act(() => {
+        result = loadProjectState({ tasks: { a: brokenA, b: brokenB }, rootIds: ['a'] });
+      });
+
+      expect(result?.ok).toBe(true);
+      expect(result?.warnings.length).toBeGreaterThan(0);
+
+      const state = useTaskStore.getState();
+      expect(state.tasks['a'].startDate).toBe(null); // 不正日付は null に
+      expect(state.tasks['a'].progress).toBe(50); // 数値文字列は数値に
+      expect(state.rootIds).toEqual(['a']); // 循環が切れてルートから到達可能
+      expect(state.tasks['b'].parentId).toBe('a');
     });
   });
 
@@ -883,10 +1030,10 @@ describe('useTaskStore', () => {
         useTaskStore.setState({ tasks });
       });
 
-      // Now trigger propagateDependencyDates manually to test the engine
+      // Now trigger propagateDependencyDates manually with baselineLocked=true to test decoupling
       act(() => {
         const state = useTaskStore.getState();
-        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar);
+        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar, true);
         useTaskStore.setState({ tasks: updatedTasks });
       });
 
@@ -919,11 +1066,11 @@ describe('useTaskStore', () => {
   });
 
   describe('Baseline Plan and Actual Date Synchronization & Locking', () => {
-    it('should NOT synchronize plan and actual dates when baseline is not locked', () => {
+    it('should synchronize plan and actual dates when baseline is not locked', () => {
       const { rootIds } = useTaskStore.getState();
       const taskId = rootIds[0];
 
-      // 1. Update actual date, plan date should remain null/unchanged
+      // 1. Update actual date, plan date should be synchronized
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           startDate: '2026-05-25',
@@ -934,10 +1081,10 @@ describe('useTaskStore', () => {
 
       let task = useTaskStore.getState().tasks[taskId];
       expect(task.startDate).toBe('2026-05-25');
-      expect(task.planStartDate).toBe('2026-05-23'); // Project root's default initial planStartDate
-      expect(task.planEndDate).toBe('2026-05-23');
+      expect(task.planStartDate).toBe('2026-05-25');
+      expect(task.planEndDate).toBe('2026-05-27');
 
-      // 2. Update plan date, actual date should remain unchanged
+      // 2. Update plan date, actual date should be synchronized
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           planStartDate: '2026-06-01',
@@ -948,7 +1095,8 @@ describe('useTaskStore', () => {
 
       task = useTaskStore.getState().tasks[taskId];
       expect(task.planStartDate).toBe('2026-06-01');
-      expect(task.startDate).toBe('2026-05-25'); // Unchanged
+      expect(task.startDate).toBe('2026-06-01');
+      expect(task.endDate).toBe('2026-06-05');
     });
 
     it('should ignore plan updates and only modify actual dates when baseline is locked', () => {
@@ -1078,10 +1226,10 @@ describe('useTaskStore', () => {
         });
       });
 
-      // Sibling plan date should shift, but actual date must remain unchanged (2026-05-26)
+      // Sibling plan date should shift, and actual date must also shift because baseline is not locked
       const sibling = useTaskStore.getState().tasks[siblingId];
       expect(sibling.planStartDate).toBe('2026-06-02');
-      expect(sibling.startDate).toBe('2026-05-26'); // Unchanged
+      expect(sibling.startDate).toBe('2026-06-02');
     });
 
     it('should NOT propagate dependency changes to actual dates when baseline is locked', () => {

@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 import { getTemporalState, useTaskStore } from './store/useTaskStore';
+import type { IpcRenderer } from './renderer';
+
+/** テスト用の IPC ダブル（本番の IpcRenderer に test 用の trigger を足したもの） */
+type TestIpcRenderer = IpcRenderer & {
+  trigger: (channel: string, ...args: unknown[]) => void;
+};
+
+const getTestIpc = () => window.ipcRenderer as TestIpcRenderer;
 
 const initialState = useTaskStore.getState();
 
@@ -12,7 +20,7 @@ describe('App collapse controls', () => {
       getTemporalState().clear();
     });
 
-    const ipcListeners: Record<string, Function> = {};
+    const ipcListeners: Record<string, (event: unknown, ...args: unknown[]) => void> = {};
     Object.defineProperty(window, 'ipcRenderer', {
       value: {
         invoke: vi.fn().mockResolvedValue(undefined),
@@ -23,7 +31,7 @@ describe('App collapse controls', () => {
             delete ipcListeners[channel];
           };
         }),
-        trigger: (channel: string, ...args: any[]) => {
+        trigger: (channel: string, ...args: unknown[]) => {
           ipcListeners[channel]?.({}, ...args);
         },
       },
@@ -41,10 +49,10 @@ describe('App collapse controls', () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'すべて折りたたむ' }));
     expect(useTaskStore.getState().tasks[rootId].isCollapsed).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'すべて展開' }));
     expect(useTaskStore.getState().tasks[rootId].isCollapsed).toBe(false);
   });
 
@@ -68,8 +76,8 @@ describe('App collapse controls', () => {
     render(<App />);
 
     const wbsBtn = screen.getByRole('button', { name: 'WBS' });
-    const integratedBtn = screen.getByRole('button', { name: 'Integrated' });
-    const ganttBtn = screen.getByRole('button', { name: 'Gantt' });
+    const integratedBtn = screen.getByRole('button', { name: '統合表示' });
+    const ganttBtn = screen.getByRole('button', { name: 'ガントチャート' });
 
     expect(integratedBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');
@@ -98,8 +106,8 @@ describe('App collapse controls', () => {
     render(<App />);
 
     const wbsBtn = screen.getByRole('button', { name: 'WBS' });
-    const integratedBtn = screen.getByRole('button', { name: 'Integrated' });
-    const ganttBtn = screen.getByRole('button', { name: 'Gantt' });
+    const integratedBtn = screen.getByRole('button', { name: '統合表示' });
+    const ganttBtn = screen.getByRole('button', { name: 'ガントチャート' });
 
     expect(integratedBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');
@@ -107,7 +115,7 @@ describe('App collapse controls', () => {
 
     // Switch to WBS view (IPC)
     act(() => {
-      (window.ipcRenderer as any).trigger('switch-view', 'wbs');
+      getTestIpc().trigger('switch-view', 'wbs');
     });
     expect(wbsBtn.className).toContain('bg-white');
     expect(integratedBtn.className).not.toContain('bg-white');
@@ -115,7 +123,7 @@ describe('App collapse controls', () => {
 
     // Switch to Gantt view (IPC)
     act(() => {
-      (window.ipcRenderer as any).trigger('switch-view', 'gantt');
+      getTestIpc().trigger('switch-view', 'gantt');
     });
     expect(ganttBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');
@@ -123,7 +131,7 @@ describe('App collapse controls', () => {
 
     // Switch back to Integrated view (IPC)
     act(() => {
-      (window.ipcRenderer as any).trigger('switch-view', 'integrated');
+      getTestIpc().trigger('switch-view', 'integrated');
     });
     expect(integratedBtn.className).toContain('bg-white');
     expect(wbsBtn.className).not.toContain('bg-white');

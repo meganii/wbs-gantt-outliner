@@ -50,6 +50,33 @@ export function collectSubtreeIds(tasks: Record<string, Task>, ids: string[]): S
   return collected;
 }
 
+/**
+ * `startId` から依存関係（dependencies）をたどって `targetId` に到達できるか。
+ * 依存の循環検出・循環依存の切断に使う。visited 管理の反復 DFS なので、
+ * 入力が既に循環していても停止する。
+ */
+export function hasDependencyPath(
+  tasks: Record<string, Task>,
+  startId: string,
+  targetId: string
+): boolean {
+  const visited = new Set<string>();
+  const stack: string[] = [startId];
+
+  while (stack.length > 0) {
+    const currentId = stack.pop()!;
+    if (currentId === targetId) return true;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const task = tasks[currentId];
+    if (!task) continue;
+    task.dependencies.forEach((depId) => stack.push(depId));
+  }
+
+  return false;
+}
+
 export function deleteTasksAndCleanup(state: TaskGraphState, ids: string[]): TaskGraphState {
   const idsToDelete = collectSubtreeIds(state.tasks, ids);
   if (idsToDelete.size === 0) {
@@ -82,9 +109,10 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  baselineLocked?: boolean
 ): Record<string, Task> {
-  let nextTasks = { ...tasks };
+  const nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
   if (!parent || !parent.planStartDate) return nextTasks;
 
@@ -95,7 +123,7 @@ export function shiftDescendants(
   const getDescendantIds = (id: string): string[] => {
     const task = nextTasks[id];
     if (!task) return [];
-    let list: string[] = [];
+    const list: string[] = [];
     task.children.forEach((childId) => {
       list.push(childId);
       list.push(...getDescendantIds(childId));
@@ -125,6 +153,10 @@ export function shiftDescendants(
       ...descTask,
       planStartDate: format(newDescStart, 'yyyy-MM-dd'),
       planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
+      ...(!baselineLocked && {
+        startDate: format(newDescStart, 'yyyy-MM-dd'),
+        endDate: format(newDescEnd, 'yyyy-MM-dd'),
+      }),
     };
   });
 
@@ -184,7 +216,7 @@ export function propagateDependencyDates(
         const getDescendantIds = (id: string): string[] => {
           const t = nextTasks[id];
           if (!t) return [];
-          let list: string[] = [];
+          const list: string[] = [];
           t.children.forEach((childId) => {
             list.push(childId);
             list.push(...getDescendantIds(childId));
@@ -194,7 +226,7 @@ export function propagateDependencyDates(
         const descIds = getDescendantIds(currentId);
 
         // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, baselineLocked);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -217,6 +249,11 @@ export function propagateDependencyDates(
         planStartDate: format(newStartDate, 'yyyy-MM-dd'),
         planEndDate: format(newEndDate, 'yyyy-MM-dd'),
         planDuration: duration,
+        ...(!baselineLocked && {
+          startDate: format(newStartDate, 'yyyy-MM-dd'),
+          endDate: format(newEndDate, 'yyyy-MM-dd'),
+          duration: duration,
+        }),
       };
 
       if (nextTasks[currentId].parentId) {
@@ -511,3 +548,399 @@ export function cleanupHierarchicalDependencies(tasks: Record<string, Task>): Re
 
   return nextTasks;
 }
+
+export function applyDateCalculations(
+  oldTask: Task,
+  updates: Partial<Task>,
+  calendar: ProjectConfig['calendar']
+): Partial<Task> {
+  // Do not perform automatic calculation on parent tasks (dates are rolled up from children)
+  if (oldTask.children.length > 0) {
+    return updates;
+  }
+
+  const nextUpdates = { ...updates };
+
+  // 1. Plan Duration Update
+  if (nextUpdates.planDuration !== undefined && nextUpdates.planEndDate === undefined) {
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.planDuration, calendar);
+      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 2. Plan Start Date Update
+  else if (nextUpdates.planStartDate !== undefined && nextUpdates.planEndDate === undefined) {
+    const duration = nextUpdates.planDuration !== undefined ? nextUpdates.planDuration : (oldTask.planDuration !== undefined ? oldTask.planDuration : oldTask.duration);
+    const startStr = nextUpdates.planStartDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
+      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 3. Plan End Date Update
+  else if (nextUpdates.planEndDate !== undefined && nextUpdates.planDuration === undefined) {
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    const endStr = nextUpdates.planEndDate;
+    if (startStr && endStr) {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (end >= start) {
+        nextUpdates.planDuration = getWorkDaysCount(start, end, calendar);
+      }
+    }
+  }
+
+  // 4. Actual Duration Update
+  if (nextUpdates.duration !== undefined && nextUpdates.endDate === undefined) {
+    const startStr = nextUpdates.startDate || oldTask.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.duration, calendar);
+      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 5. Actual Start Date Update
+  else if (nextUpdates.startDate !== undefined && nextUpdates.endDate === undefined) {
+    const duration = nextUpdates.duration !== undefined ? nextUpdates.duration : oldTask.duration;
+    const startStr = nextUpdates.startDate;
+    if (startStr) {
+      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
+      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+    }
+  }
+  // 6. Actual End Date Update
+  else if (nextUpdates.endDate !== undefined && nextUpdates.duration === undefined) {
+    const startStr = nextUpdates.startDate || oldTask.startDate;
+    const endStr = nextUpdates.endDate;
+    if (startStr && endStr) {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (end >= start) {
+        nextUpdates.duration = getWorkDaysCount(start, end, calendar);
+      }
+    }
+  }
+
+  return nextUpdates;
+}
+
+export function indentTaskInGraph(
+  state: TaskGraphState,
+  ids: string[],
+  calendar: ProjectConfig['calendar']
+): TaskGraphState {
+  const idArray = Array.isArray(ids) ? ids : [ids];
+  if (idArray.length === 0) {
+    return state;
+  }
+
+  const tasks = { ...state.tasks };
+  const rootIds = [...state.rootIds];
+  const firstId = idArray[0];
+  const task = tasks[firstId];
+  if (!task) {
+    return state;
+  }
+
+  const parentId = task.parentId;
+  const siblings = parentId ? tasks[parentId]?.children : rootIds;
+  if (!siblings) {
+    return state;
+  }
+
+  const sortedIds = idArray
+    .filter((id) => siblings.includes(id))
+    .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
+
+  if (sortedIds.length === 0) {
+    return state;
+  }
+
+  const firstIdx = siblings.indexOf(sortedIds[0]);
+  if (firstIdx <= 0) {
+    return state;
+  }
+
+  const newParentId = siblings[firstIdx - 1];
+  if (idArray.includes(newParentId)) {
+    return state;
+  }
+
+  const newParent = tasks[newParentId];
+  if (!newParent) {
+    return state;
+  }
+
+  const newParentDepth = getTaskDepth(tasks, newParentId);
+  for (const id of sortedIds) {
+    const subtreeDepth = getSubtreeMaxDepth(tasks, id);
+    if (newParentDepth + 1 + subtreeDepth > 3) {
+      console.warn('Cannot indent: Resulting depth exceeds Level 4');
+      return state;
+    }
+  }
+
+  const newSiblings = siblings.filter((sid) => !sortedIds.includes(sid));
+  const newParentChildren = [...newParent.children, ...sortedIds];
+
+  const nextRootIds = parentId ? rootIds : newSiblings;
+
+  if (parentId) {
+    tasks[parentId] = { ...tasks[parentId], children: newSiblings };
+  }
+
+  tasks[newParentId] = {
+    ...newParent,
+    children: newParentChildren,
+    isCollapsed: false,
+  };
+
+  sortedIds.forEach((id) => {
+    const childTask = tasks[id];
+    const hasPlanDate = childTask.planStartDate && childTask.planEndDate;
+    const hasActualDate = childTask.startDate && childTask.endDate;
+
+    const parentHasPlanDate = newParent.planStartDate && newParent.planEndDate;
+    const parentHasActualDate = newParent.startDate && newParent.endDate;
+
+    const taskUpdates: Partial<Task> = { parentId: newParentId };
+
+    // If child has no plan dates, inherit from parent
+    if (!hasPlanDate && parentHasPlanDate) {
+      taskUpdates.planStartDate = newParent.planStartDate;
+      taskUpdates.planEndDate = newParent.planEndDate;
+      taskUpdates.planDuration = newParent.planDuration;
+    }
+
+    // If child has no actual dates, inherit from parent
+    if (!hasActualDate && parentHasActualDate) {
+      taskUpdates.startDate = newParent.startDate;
+      taskUpdates.endDate = newParent.endDate;
+      taskUpdates.duration = newParent.duration;
+    }
+
+    tasks[id] = { ...childTask, ...taskUpdates };
+  });
+
+  let updatedTasks = cleanupHierarchicalDependencies(tasks);
+  if (parentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, calendar);
+  }
+  if (newParentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, calendar);
+  }
+
+  return {
+    tasks: updatedTasks,
+    rootIds: nextRootIds,
+  };
+}
+
+export function outdentTaskInGraph(
+  state: TaskGraphState,
+  ids: string[],
+  calendar: ProjectConfig['calendar']
+): TaskGraphState {
+  const idArray = Array.isArray(ids) ? ids : [ids];
+  if (idArray.length === 0) {
+    return state;
+  }
+
+  const tasks = { ...state.tasks };
+  const firstId = idArray[0];
+  const task = tasks[firstId];
+  if (!task?.parentId) {
+    return state;
+  }
+
+  const currentParent = tasks[task.parentId];
+  if (!currentParent) {
+    return state;
+  }
+
+  const currentSiblings = currentParent.children;
+  const sortedIds = idArray
+    .filter((id) => currentSiblings.includes(id))
+    .sort((a, b) => currentSiblings.indexOf(a) - currentSiblings.indexOf(b));
+
+  if (sortedIds.length === 0) {
+    return state;
+  }
+
+  const newSiblings = currentSiblings.filter((sid) => !sortedIds.includes(sid));
+  let newContextIds: string[];
+  let grandParentId: string | null = null;
+
+  if (currentParent.parentId) {
+    grandParentId = currentParent.parentId;
+    const grandParent = tasks[grandParentId];
+    if (!grandParent) {
+      return state;
+    }
+    newContextIds = [...grandParent.children];
+  } else {
+    newContextIds = [...state.rootIds];
+  }
+
+  const parentIdx = newContextIds.indexOf(task.parentId);
+  newContextIds.splice(parentIdx + 1, 0, ...sortedIds);
+
+  tasks[task.parentId] = { ...currentParent, children: newSiblings };
+  sortedIds.forEach((id) => {
+    tasks[id] = { ...tasks[id], parentId: grandParentId };
+  });
+
+  const nextRootIds = grandParentId ? [...state.rootIds] : newContextIds;
+
+  if (grandParentId) {
+    tasks[grandParentId] = { ...tasks[grandParentId], children: newContextIds };
+  }
+
+  let updatedTasks = cleanupHierarchicalDependencies(tasks);
+  if (task.parentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, task.parentId, calendar);
+  }
+  if (grandParentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, grandParentId, calendar);
+  }
+
+  return {
+    tasks: updatedTasks,
+    rootIds: nextRootIds,
+  };
+}
+
+export function reorderTaskInGraph(
+  state: TaskGraphState,
+  activeId: string,
+  overId: string,
+  calendar: ProjectConfig['calendar']
+): TaskGraphState {
+  if (activeId === overId) {
+    return state;
+  }
+
+  const tasks = { ...state.tasks };
+  const rootIds = [...state.rootIds];
+  const activeTask = tasks[activeId];
+  const overTask = tasks[overId];
+
+  if (!activeTask || !overTask) {
+    return state;
+  }
+
+  let current = overTask;
+  while (current.parentId) {
+    if (current.parentId === activeId) {
+      return state;
+    }
+    const parent = tasks[current.parentId];
+    if (!parent) {
+      break;
+    }
+    current = parent;
+  }
+
+  if (activeTask.parentId) {
+    const parent = tasks[activeTask.parentId];
+    if (parent) {
+      tasks[activeTask.parentId] = {
+        ...parent,
+        children: parent.children.filter((id) => id !== activeId),
+      };
+    }
+  } else {
+    const idx = rootIds.indexOf(activeId);
+    if (idx !== -1) {
+      rootIds.splice(idx, 1);
+    }
+  }
+
+  const newParentId = overTask.parentId;
+  if (!newParentId) {
+    const idx = rootIds.indexOf(overId);
+    rootIds.splice(idx + 1, 0, activeId);
+  } else {
+    const parent = tasks[newParentId];
+    if (!parent) {
+      return state;
+    }
+    const siblings = [...parent.children];
+    const idx = siblings.indexOf(overId);
+    siblings.splice(idx + 1, 0, activeId);
+    tasks[newParentId] = { ...parent, children: siblings };
+  }
+
+  tasks[activeId] = { ...activeTask, parentId: newParentId };
+
+  let updatedTasks = cleanupHierarchicalDependencies(tasks);
+  if (activeTask.parentId && activeTask.parentId !== newParentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, activeTask.parentId, calendar);
+  }
+  if (newParentId && activeTask.parentId !== newParentId) {
+    updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, calendar);
+  }
+
+  return { tasks: updatedTasks, rootIds };
+}
+
+export function moveTaskInGraph(
+  state: TaskGraphState,
+  ids: string[],
+  direction: 'up' | 'down'
+): TaskGraphState {
+  const idArray = Array.isArray(ids) ? ids : [ids];
+  if (idArray.length === 0) {
+    return state;
+  }
+
+  const tasks = { ...state.tasks };
+  const firstId = idArray[0];
+  const task = tasks[firstId];
+  if (!task) {
+    return state;
+  }
+
+  const parentId = task.parentId;
+  const siblings = parentId ? [...(tasks[parentId]?.children ?? [])] : [...state.rootIds];
+  if (siblings.length === 0) {
+    return state;
+  }
+
+  const sortedIds = idArray
+    .filter((id) => siblings.includes(id))
+    .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
+
+  if (sortedIds.length === 0) {
+    return state;
+  }
+
+  const firstIdx = siblings.indexOf(sortedIds[0]);
+  const lastIdx = siblings.indexOf(sortedIds[sortedIds.length - 1]);
+
+  if ((lastIdx - firstIdx + 1) !== sortedIds.length) {
+    return state;
+  }
+
+  if (direction === 'up') {
+    if (firstIdx === 0) {
+      return state;
+    }
+    siblings.splice(firstIdx, sortedIds.length);
+    siblings.splice(firstIdx - 1, 0, ...sortedIds);
+  } else {
+    if (lastIdx === siblings.length - 1) {
+      return state;
+    }
+    siblings.splice(firstIdx, sortedIds.length);
+    siblings.splice(firstIdx + 1, 0, ...sortedIds);
+  }
+
+  if (parentId) {
+    tasks[parentId] = { ...tasks[parentId], children: siblings };
+    return { tasks, rootIds: state.rootIds };
+  }
+
+  return { tasks, rootIds: siblings };
+}
+

@@ -1,7 +1,7 @@
 export interface IpcRenderer {
-  send(channel: string, ...args: any[]): void;
-  invoke(channel: string, ...args: any[]): Promise<any>;
-  on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: any[]) => void): () => void;
+  send(channel: string, ...args: unknown[]): void;
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  on(channel: string, listener: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void): () => void;
 }
 
 declare global {

@@ -18,6 +18,18 @@ export interface Task {
   planDuration?: number;         // Workdays (Plan / Baseline)
 }
 
+export type ColumnId =
+  | 'taskName'
+  | 'description'
+  | 'assignee'
+  | 'deliverables'
+  | 'status'
+  | 'progress'
+  | 'planDuration'
+  | 'planDate'
+  | 'duration'
+  | 'date';
+
 export interface WorkCalendar {
   workDays: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
   holidays: string[]; // ISO 8601 YYYY-MM-DD strings
@@ -27,7 +39,7 @@ export interface ProjectConfig {
   calendar: WorkCalendar;
   viewMode: 'Day' | 'Week' | 'Month' | 'Year';
   columnWidths: {
-    taskDescription: number;
+    taskName: number;
     description: number;
     assignee: number;
     deliverables: number;
@@ -39,6 +51,11 @@ export interface ProjectConfig {
     date: number;
   };
   baselineLocked?: boolean;
+  timelineRange?: {
+    start: string; // ISO date YYYY-MM-DD
+    end: string;   // ISO date YYYY-MM-DD
+  };
+  visibleColumns?: ColumnId[];
 }
 
 export type TaskFocusableField =
@@ -55,19 +72,39 @@ export type TaskFocusableField =
   | 'startDate'
   | 'endDate';
 
+export interface GanttDragState {
+  taskId: string;
+  mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
+  startX: number;
+  startY: number;
+  /**
+   * draw-range の基準となるタイムライン領域の左端(px)。
+   * 起点・終点をどちらも「カーソル下の日セル」で決めるために保持する。
+   */
+  timelineLeft?: number;
+  initialStartDate: Date;
+  initialEndDate: Date;
+  currentStartDate: Date;
+  currentEndDate: Date;
+  targetTaskId?: string;
+}
+
 export interface TaskStoreState {
   tasks: Record<string, Task>;
   rootIds: string[];
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
-  focusedTaskField: TaskFocusableField;
+  focusedTaskField: TaskFocusableField | null;
   selectedTaskIds: string[];
+  dragState: GanttDragState | null;
+  mousePos: { x: number; y: number } | null;
 
   setFocusedTaskId: (id: string | null) => void;
-  setFocusedTaskCell: (id: string | null, field: TaskFocusableField) => void;
+  setFocusedTaskCell: (id: string | null, field: TaskFocusableField | null) => void;
   setSelectedTaskIds: (ids: string[]) => void;
   addTask: (targetId?: string | null, position?: 'after' | 'inside') => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
+  endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;
   setCollapsed: (ids: string[], isCollapsed: boolean) => void;
@@ -82,4 +119,7 @@ export interface TaskStoreState {
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
   setBaselineLocked: (baselineLocked: boolean) => void;
+  setVisibleColumns: (columns: ColumnId[]) => void;
+  setDragState: (dragState: GanttDragState | null) => void;
+  setMousePos: (mousePos: { x: number; y: number } | null) => void;
 }

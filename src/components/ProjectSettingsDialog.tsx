@@ -21,12 +21,20 @@ export const ProjectSettingsDialog = ({ isOpen, onClose }: ProjectSettingsDialog
     [holidays]
   );
 
+  // ダイアログを開いたタイミングで入力をリセットする
+  // (effect 内での setState を避け、レンダー中に state を調整する)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setDraftHoliday('');
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-
-    setDraftHoliday('');
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {

@@ -5,14 +5,18 @@ import { format } from 'date-fns';
 import type { ProjectConfig, Task, TaskStoreState } from '../types';
 import {
   deleteTasksAndCleanup,
-  getSubtreeMaxDepth,
-  getTaskDepth,
-  normalizeProjectState,
   propagateDependencyDates,
   recalculateParentDatesRecursive,
-  cleanupHierarchicalDependencies,
+  applyDateCalculations,
+  indentTaskInGraph,
+  outdentTaskInGraph,
+  reorderTaskInGraph,
+  moveTaskInGraph,
+  getTaskDepth,
+  hasDependencyPath,
 } from './taskStoreUtils';
-import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
+import { DEFAULT_PROJECT_CONFIG, normalizeHolidayList } from '../utils/projectConfig';
+import { validateProjectState } from '../utils/validateProjectState';
 
 export interface ProjectData {
   tasks: Record<string, Task>;
@@ -56,6 +60,8 @@ const taskStore = create<TaskStoreState>()(
       focusedTaskId: null,
       focusedTaskField: 'title',
       selectedTaskIds: [],
+      dragState: null,
+      mousePos: null,
 
       setFocusedTaskId: (id) => set({ focusedTaskId: id }),
       setFocusedTaskCell: (id, field) => set({ focusedTaskId: id, focusedTaskField: field }),
@@ -178,6 +184,29 @@ const taskStore = create<TaskStoreState>()(
           delete finalUpdates.planStartDate;
           delete finalUpdates.planEndDate;
           delete finalUpdates.planDuration;
+        } else {
+          // Bidirectional sync before calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
+
+        // Apply automatic date & duration calculations
+        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
+
+        if (!baselineLocked) {
+          // Sync any calculated values after calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
         }
 
         let tasks = {
@@ -200,6 +229,71 @@ const taskStore = create<TaskStoreState>()(
         }
 
         return { tasks };
+      }),
+
+      endDragUpdate: (id, updates) => set((state) => {
+        const oldTask = state.tasks[id];
+        if (!oldTask) {
+          return { dragState: null, mousePos: null };
+        }
+
+        const baselineLocked = state.projectConfig.baselineLocked ?? false;
+        let finalUpdates = { ...updates };
+
+        if (baselineLocked) {
+          // Ignore plan updates when baseline is locked
+          delete finalUpdates.planStartDate;
+          delete finalUpdates.planEndDate;
+          delete finalUpdates.planDuration;
+        } else {
+          // Bidirectional sync before calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
+
+        // Apply automatic date & duration calculations
+        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
+
+        if (!baselineLocked) {
+          // Sync any calculated values after calculation
+          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
+          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
+          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
+
+          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
+          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
+          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
+        }
+
+        let tasks = {
+          ...state.tasks,
+          [id]: { ...oldTask, ...finalUpdates },
+        };
+
+        if (
+          finalUpdates.endDate !== undefined ||
+          finalUpdates.startDate !== undefined ||
+          finalUpdates.planEndDate !== undefined ||
+          finalUpdates.planStartDate !== undefined ||
+          finalUpdates.progress !== undefined ||
+          finalUpdates.status !== undefined
+        ) {
+          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
+          if (oldTask.parentId) {
+            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar, baselineLocked);
+          }
+        }
+
+        return {
+          tasks,
+          dragState: null,
+          mousePos: null,
+        };
       }),
 
       deleteTask: (ids) => set((state) => {
@@ -278,308 +372,36 @@ const taskStore = create<TaskStoreState>()(
       }),
 
       indentTask: (ids) => set((state) => {
-        const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) {
-          return {};
-        }
-
-        const tasks = { ...state.tasks };
-        const firstId = idArray[0];
-        const task = tasks[firstId];
-        if (!task) {
-          return {};
-        }
-
-        const parentId = task.parentId;
-        const siblings = parentId ? tasks[parentId]?.children : state.rootIds;
-        if (!siblings) {
-          return {};
-        }
-
-        const sortedIds = idArray
-          .filter((id) => siblings.includes(id))
-          .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
-
-        if (sortedIds.length === 0) {
-          return {};
-        }
-
-        const firstIdx = siblings.indexOf(sortedIds[0]);
-        if (firstIdx <= 0) {
-          return {};
-        }
-
-        const newParentId = siblings[firstIdx - 1];
-        if (idArray.includes(newParentId)) {
-          return {};
-        }
-
-        const newParent = tasks[newParentId];
-        if (!newParent) {
-          return {};
-        }
-
-        const newParentDepth = getTaskDepth(tasks, newParentId);
-        for (const id of sortedIds) {
-          const subtreeDepth = getSubtreeMaxDepth(tasks, id);
-          if (newParentDepth + 1 + subtreeDepth > 3) {
-            console.warn('Cannot indent: Resulting depth exceeds Level 4');
-            return {};
-          }
-        }
-
-        const newSiblings = siblings.filter((sid) => !sortedIds.includes(sid));
-        const newParentChildren = [...newParent.children, ...sortedIds];
-        const updates: Partial<TaskStoreState> = { tasks };
-
-        if (parentId) {
-          tasks[parentId] = { ...tasks[parentId], children: newSiblings };
-        } else {
-          updates.rootIds = newSiblings;
-        }
-
-        tasks[newParentId] = {
-          ...newParent,
-          children: newParentChildren,
-          isCollapsed: false,
-        };
-
-        sortedIds.forEach((id) => {
-          const childTask = tasks[id];
-          const hasPlanDate = childTask.planStartDate && childTask.planEndDate;
-          const hasActualDate = childTask.startDate && childTask.endDate;
-
-          const parentHasPlanDate = newParent.planStartDate && newParent.planEndDate;
-          const parentHasActualDate = newParent.startDate && newParent.endDate;
-
-          const taskUpdates: Partial<Task> = { parentId: newParentId };
-
-          // If child has no plan dates, inherit from parent
-          if (!hasPlanDate && parentHasPlanDate) {
-            taskUpdates.planStartDate = newParent.planStartDate;
-            taskUpdates.planEndDate = newParent.planEndDate;
-            taskUpdates.planDuration = newParent.planDuration;
-          }
-
-          // If child has no actual dates, inherit from parent
-          if (!hasActualDate && parentHasActualDate) {
-            taskUpdates.startDate = newParent.startDate;
-            taskUpdates.endDate = newParent.endDate;
-            taskUpdates.duration = newParent.duration;
-          }
-
-          tasks[id] = { ...childTask, ...taskUpdates };
-        });
-
-        let updatedTasks = cleanupHierarchicalDependencies(tasks);
-        if (parentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar);
-        }
-        if (newParentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, state.projectConfig.calendar);
-        }
-
-        return {
-          ...updates,
-          tasks: updatedTasks,
-        };
+        return indentTaskInGraph(
+          { tasks: state.tasks, rootIds: state.rootIds },
+          Array.isArray(ids) ? ids : [ids],
+          state.projectConfig.calendar
+        );
       }),
 
       outdentTask: (ids) => set((state) => {
-        const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) {
-          return {};
-        }
-
-        const tasks = { ...state.tasks };
-        const firstId = idArray[0];
-        const task = tasks[firstId];
-        if (!task?.parentId) {
-          return {};
-        }
-
-        const currentParent = tasks[task.parentId];
-        if (!currentParent) {
-          return {};
-        }
-
-        const currentSiblings = currentParent.children;
-        const sortedIds = idArray
-          .filter((id) => currentSiblings.includes(id))
-          .sort((a, b) => currentSiblings.indexOf(a) - currentSiblings.indexOf(b));
-
-        if (sortedIds.length === 0) {
-          return {};
-        }
-
-        const newSiblings = currentSiblings.filter((sid) => !sortedIds.includes(sid));
-        let newContextIds: string[];
-        let grandParentId: string | null = null;
-
-        if (currentParent.parentId) {
-          grandParentId = currentParent.parentId;
-          const grandParent = tasks[grandParentId];
-          if (!grandParent) {
-            return {};
-          }
-          newContextIds = [...grandParent.children];
-        } else {
-          newContextIds = [...state.rootIds];
-        }
-
-        const parentIdx = newContextIds.indexOf(task.parentId);
-        newContextIds.splice(parentIdx + 1, 0, ...sortedIds);
-
-        const updates: Partial<TaskStoreState> = { tasks };
-
-        tasks[task.parentId] = { ...currentParent, children: newSiblings };
-        sortedIds.forEach((id) => {
-          tasks[id] = { ...tasks[id], parentId: grandParentId };
-        });
-
-        if (grandParentId) {
-          tasks[grandParentId] = { ...tasks[grandParentId], children: newContextIds };
-        } else {
-          updates.rootIds = newContextIds;
-        }
-
-        let updatedTasks = cleanupHierarchicalDependencies(tasks);
-        if (task.parentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, task.parentId, state.projectConfig.calendar);
-        }
-        if (grandParentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, grandParentId, state.projectConfig.calendar);
-        }
-
-        return {
-          ...updates,
-          tasks: updatedTasks,
-        };
+        return outdentTaskInGraph(
+          { tasks: state.tasks, rootIds: state.rootIds },
+          Array.isArray(ids) ? ids : [ids],
+          state.projectConfig.calendar
+        );
       }),
 
       reorderTask: (activeId, overId) => set((state) => {
-        if (activeId === overId) {
-          return {};
-        }
-
-        const tasks = { ...state.tasks };
-        const rootIds = [...state.rootIds];
-        const activeTask = tasks[activeId];
-        const overTask = tasks[overId];
-
-        if (!activeTask || !overTask) {
-          return {};
-        }
-
-        let current = overTask;
-        while (current.parentId) {
-          if (current.parentId === activeId) {
-            return {};
-          }
-          const parent = tasks[current.parentId];
-          if (!parent) {
-            break;
-          }
-          current = parent;
-        }
-
-        if (activeTask.parentId) {
-          const parent = tasks[activeTask.parentId];
-          if (parent) {
-            tasks[activeTask.parentId] = {
-              ...parent,
-              children: parent.children.filter((id) => id !== activeId),
-            };
-          }
-        } else {
-          const idx = rootIds.indexOf(activeId);
-          if (idx !== -1) {
-            rootIds.splice(idx, 1);
-          }
-        }
-
-        const newParentId = overTask.parentId;
-        if (!newParentId) {
-          const idx = rootIds.indexOf(overId);
-          rootIds.splice(idx + 1, 0, activeId);
-        } else {
-          const parent = tasks[newParentId];
-          if (!parent) {
-            return {};
-          }
-          const siblings = [...parent.children];
-          const idx = siblings.indexOf(overId);
-          siblings.splice(idx + 1, 0, activeId);
-          tasks[newParentId] = { ...parent, children: siblings };
-        }
-
-        tasks[activeId] = { ...activeTask, parentId: newParentId };
-
-        let updatedTasks = cleanupHierarchicalDependencies(tasks);
-        if (activeTask.parentId && activeTask.parentId !== newParentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, activeTask.parentId, state.projectConfig.calendar);
-        }
-        if (newParentId && activeTask.parentId !== newParentId) {
-          updatedTasks = recalculateParentDatesRecursive(updatedTasks, newParentId, state.projectConfig.calendar);
-        }
-
-        return { tasks: updatedTasks, rootIds };
+        return reorderTaskInGraph(
+          { tasks: state.tasks, rootIds: state.rootIds },
+          activeId,
+          overId,
+          state.projectConfig.calendar
+        );
       }),
 
       moveTask: (ids, direction) => set((state) => {
-        const idArray = Array.isArray(ids) ? ids : [ids];
-        if (idArray.length === 0) {
-          return {};
-        }
-
-        const tasks = { ...state.tasks };
-        const firstId = idArray[0];
-        const task = tasks[firstId];
-        if (!task) {
-          return {};
-        }
-
-        const parentId = task.parentId;
-        const siblings = parentId ? [...(tasks[parentId]?.children ?? [])] : [...state.rootIds];
-        if (siblings.length === 0) {
-          return {};
-        }
-
-        const sortedIds = idArray
-          .filter((id) => siblings.includes(id))
-          .sort((a, b) => siblings.indexOf(a) - siblings.indexOf(b));
-
-        if (sortedIds.length === 0) {
-          return {};
-        }
-
-        const firstIdx = siblings.indexOf(sortedIds[0]);
-        const lastIdx = siblings.indexOf(sortedIds[sortedIds.length - 1]);
-
-        if ((lastIdx - firstIdx + 1) !== sortedIds.length) {
-          return {};
-        }
-
-        if (direction === 'up') {
-          if (firstIdx === 0) {
-            return {};
-          }
-          siblings.splice(firstIdx, sortedIds.length);
-          siblings.splice(firstIdx - 1, 0, ...sortedIds);
-        } else {
-          if (lastIdx === siblings.length - 1) {
-            return {};
-          }
-          siblings.splice(firstIdx, sortedIds.length);
-          siblings.splice(firstIdx + 1, 0, ...sortedIds);
-        }
-
-        if (parentId) {
-          tasks[parentId] = { ...tasks[parentId], children: siblings };
-          return { tasks };
-        }
-
-        return { tasks, rootIds: siblings };
+        return moveTaskInGraph(
+          { tasks: state.tasks, rootIds: state.rootIds },
+          Array.isArray(ids) ? ids : [ids],
+          direction
+        );
       }),
 
       addDependency: (fromId, toId) => set((state) => {
@@ -613,28 +435,7 @@ const taskStore = create<TaskStoreState>()(
           return {};
         }
 
-        const checkCycle = (
-          currentId: string,
-          targetId: string,
-          visited: Set<string> = new Set()
-        ): boolean => {
-          if (currentId === targetId) {
-            return true;
-          }
-          if (visited.has(currentId)) {
-            return false;
-          }
-          visited.add(currentId);
-
-          const task = state.tasks[currentId];
-          if (!task) {
-            return false;
-          }
-
-          return task.dependencies.some((depId) => checkCycle(depId, targetId, visited));
-        };
-
-        if (checkCycle(fromId, toId)) {
+        if (hasDependencyPath(state.tasks, fromId, toId)) {
           console.warn('Cycle detected, cannot add dependency');
           return {};
         }
@@ -704,6 +505,16 @@ const taskStore = create<TaskStoreState>()(
           baselineLocked,
         },
       })),
+
+      setVisibleColumns: (visibleColumns) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          visibleColumns,
+        },
+      })),
+
+      setDragState: (dragState) => set({ dragState }),
+      setMousePos: (mousePos) => set({ mousePos }),
     }),
     {
       partialize: (state) => ({
@@ -714,11 +525,10 @@ const taskStore = create<TaskStoreState>()(
         focusedTaskField: state.focusedTaskField,
         selectedTaskIds: state.selectedTaskIds,
       }),
-      equality: (a, b) => (
+      equality: (a, b) =>
         a.tasks === b.tasks &&
         a.rootIds === b.rootIds &&
-        a.projectConfig === b.projectConfig
-      ),
+        a.projectConfig === b.projectConfig,
     }
   )
 );
@@ -731,16 +541,34 @@ export function getTemporalState(): TemporalState<TaskStoreHistoryState> {
   return useTaskStore.temporal.getState();
 }
 
-export function loadProjectState(data: ProjectData): void {
-  const normalized = normalizeProjectState(data.tasks, data.rootIds);
+export interface LoadProjectStateResult {
+  ok: boolean;
+  /** 修復した内容の要約（ok:true のときのみ意味を持つ）。 */
+  warnings: string[];
+  /** 読み込めなかった理由（ok:false のときのみ）。 */
+  error?: string;
+}
+
+/**
+ * プロジェクト状態を読み込む。IPC 経由かどうかに依存しない単一の入口。
+ * 入力は実行時に検証・正規化され、読み込めない場合はストアを変更しない。
+ */
+export function loadProjectState(input: unknown): LoadProjectStateResult {
+  const validation = validateProjectState(input);
+  if (!validation.ok) {
+    return { ok: false, warnings: [], error: validation.error };
+  }
+
   useTaskStore.setState({
     ...useTaskStore.getState(),
-    tasks: normalized.tasks,
-    rootIds: normalized.rootIds,
-    projectConfig: mergeProjectConfig(data.projectConfig),
+    tasks: validation.tasks,
+    rootIds: validation.rootIds,
+    projectConfig: validation.projectConfig,
     focusedTaskId: null,
     focusedTaskField: 'title',
     selectedTaskIds: [],
   });
   getTemporalState().clear();
+
+  return { ok: true, warnings: validation.warnings };
 }

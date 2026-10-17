@@ -39,15 +39,19 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Parent cell
     const parentCell = cells[0];
-    expect(parentCell.textContent).toContain('Parent Task');
+    const parentOutlineCell = parentCell.querySelector('.flex.items-center.flex-1.h-full') as HTMLDivElement;
+    const parentInput = parentCell.querySelector('input')!;
+    expect(parentInput.value).toBe('Parent Task');
     expect(parentCell.textContent).toContain('1');
-    expect(parentCell.style.paddingLeft).toBe('8px'); // depth 0: 0 * 20 + 8 = 8px
+    expect(parentOutlineCell.style.paddingLeft).toBe('8px'); // depth 0: 0 * 20 + 8 = 8px
 
     // Child cell
     const childCell = cells[1];
-    expect(childCell.textContent).toContain('Child Task');
+    const childOutlineCell = childCell.querySelector('.flex.items-center.flex-1.h-full') as HTMLDivElement;
+    const childInput = childCell.querySelector('input')!;
+    expect(childInput.value).toBe('Child Task');
     expect(childCell.textContent).toContain('1.1');
-    expect(childCell.style.paddingLeft).toBe('28px'); // depth 1: 1 * 20 + 8 = 28px
+    expect(childOutlineCell.style.paddingLeft).toBe('28px'); // depth 1: 1 * 20 + 8 = 28px
   });
 
   it('toggles collapse state when clicking the chevron button', () => {
@@ -71,7 +75,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     const firstTaskCell = allCells[1];
     expect(firstTaskCell).not.toBeNull();
 
-    const chevronButton = firstTaskCell!.querySelector('button');
+    const chevronButton = firstTaskCell!.querySelector('.lucide-chevron-down, .lucide-chevron-right')?.closest('button');
     expect(chevronButton).not.toBeNull();
 
     act(() => {
@@ -103,7 +107,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     expect(firstTaskCell).not.toBeNull();
 
     act(() => {
-      fireEvent.click(firstTaskCell!);
+      fireEvent.mouseDown(firstTaskCell!);
     });
 
     expect(useTaskStore.getState().selectedTaskIds).toContain(rootId);
@@ -120,6 +124,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     act(() => {
       useTaskStore.getState().updateTask(rootId, { title: 'Parent Task' });
       useTaskStore.getState().setSelectedTaskIds([rootId]);
+      useTaskStore.getState().setFocusedTaskId(null);
     });
 
     render(<GanttChart showNames />);
@@ -150,14 +155,14 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     // Get the Task Name header cell (the first sticky left element)
     const headerCell = container.querySelector('.sticky.left-0');
     expect(headerCell).not.toBeNull();
-    expect(headerCell?.textContent).toContain('Task Name');
+    expect(headerCell?.textContent).toContain('タスク名');
 
     // Get the resizer div inside the header cell
     const resizer = headerCell!.querySelector('.cursor-col-resize');
     expect(resizer).not.toBeNull();
 
-    // The initial width of taskDescription is 200 (based on DEFAULT_PROJECT_CONFIG)
-    expect(useTaskStore.getState().projectConfig.columnWidths.taskDescription).toBe(200);
+    // The initial width of taskName is 200 (based on DEFAULT_PROJECT_CONFIG)
+    expect(useTaskStore.getState().projectConfig.columnWidths.taskName).toBe(200);
 
     // Simulate drag start on the resizer
     fireEvent.mouseDown(resizer!, { clientX: 200 });
@@ -166,7 +171,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     fireEvent.mouseMove(document, { clientX: 250 });
 
     // Verify it updated the store width to 250!
-    expect(useTaskStore.getState().projectConfig.columnWidths.taskDescription).toBe(250);
+    expect(useTaskStore.getState().projectConfig.columnWidths.taskName).toBe(250);
 
     // Release mouse
     fireEvent.mouseUp(document);
@@ -193,7 +198,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press ArrowDown to move to the second task
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowDown' });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
     });
 
     // Selection should move to secondId
@@ -202,7 +207,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press ArrowUp to move back to the first task
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowUp' });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
     });
 
     // Selection should move back to rootId
@@ -211,7 +216,7 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Press Shift + ArrowDown to extend selection
     act(() => {
-      fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true });
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', shiftKey: true });
     });
 
     // Both should be selected
@@ -231,7 +236,12 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
-      useTaskStore.getState().updateTask(rootId, { title: 'Test Task' });
+      useTaskStore.getState().updateTask(rootId, {
+        title: 'Test Task',
+        planStartDate: '2026-05-23',
+        planEndDate: '2026-05-23',
+        planDuration: 1,
+      });
     });
 
     const { container } = render(<GanttChart showNames />);
@@ -266,11 +276,16 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
 
     // Verify task is updated with exact day-level precision instead of being rounded to week boundaries!
     const task = useTaskStore.getState().tasks[rootId];
-    // Expected planStartDate: 2025-11-24 (timelineStart) + 10 days = 2025-12-04
-    // Expected planEndDate: 2025-12-04 + 3 days = 2025-12-07
-    expect(task.planStartDate).toBe('2025-12-04');
-    expect(task.planEndDate).toBe('2025-12-07');
-    expect(task.planDuration).toBe(2); // 4, 5 are work days. 6, 7 are weekends.
+    // New logic: no task dates → fallback to today-centered range
+    // today = 2026-05-23, Week mode fallback: start = startOfWeek(addMonths(today, -1)) = startOfWeek(2026-04-23) = 2026-04-20 (Mon)
+    // clientX=143, cellWidth=100 → weekIndex=1 → week starting 2026-04-27
+    // relativeX=43, daysPerCell=7, pixPerDay=100/7 → dayOffset = floor(43/(100/7)) = floor(3.01) = 3
+    // planStartDate = 2026-04-27 + 3days = 2026-04-30 (Thu)
+    // planEndDate = 2026-04-30 + 3 more days = 2026-05-03 (Sun), or with drag end at clientX=186:
+    //   weekIndex2 = floor(186/100)=1, relX2=86, dayOffset2=floor(86/14.28)=6 → 2026-04-27+6=2026-05-03
+    expect(task.planStartDate).toBe('2026-04-30');
+    expect(task.planEndDate).toBe('2026-05-03');
+    expect(task.planDuration).toBe(2); // Apr 30 (Thu), May 1 (Fri) are work days; May 2 (Sat), May 3 (Sun) are weekends.
 
     vi.useRealTimers();
   });

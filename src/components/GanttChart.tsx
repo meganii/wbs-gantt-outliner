@@ -1,28 +1,24 @@
-import React, { useMemo, useLayoutEffect, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useRef, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
-  addDays,
-  addMonths,
-  addYears,
   differenceInDays,
-  eachDayOfInterval,
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  eachYearOfInterval,
-  endOfMonth,
-  endOfWeek,
-  endOfYear,
-  format,
-  startOfMonth,
-  startOfWeek,
-  startOfYear,
 } from 'date-fns';
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
-import { isWorkDay, getWorkDaysCount } from '../utils/date';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { TaskRow } from './TaskRow';
+import type { ColumnId } from '../types';
+import { GanttTimelineRow } from './GanttTimelineRow';
+import { TimelineHeader } from './TimelineHeader';
+import { TimelineGridBackground } from './TimelineGridBackground';
+import { GanttDependencyLines } from './GanttDependencyLines';
+import { DraggedDependencyLines } from './DraggedDependencyLines';
+import { DraggingDependencyLine } from './DraggingDependencyLine';
 
-const HEADER_HEIGHT = 40;
+// Import custom hooks
+import { useGanttTimeline, TimelineContext } from '../hooks/useGanttTimeline';
+import { useGanttDrag } from '../hooks/useGanttDrag';
+
+const HEADER_HEIGHT = 56;
 
 interface GanttChartProps {
   showSidebar?: boolean;
@@ -43,10 +39,6 @@ export const GanttChart = ({
   scrollRef,
   onScroll
 }: GanttChartProps) => {
-  const tasks = useTaskStore(state => state.tasks);
-  const rootIds = useTaskStore(state => state.rootIds);
-  const calendar = useTaskStore(state => state.projectConfig.calendar);
-  const viewMode = useTaskStore(state => state.projectConfig.viewMode);
   const setViewMode = useTaskStore(state => state.setViewMode);
   
   const selectedTaskIds = useTaskStore(state => state.selectedTaskIds);
@@ -54,89 +46,94 @@ export const GanttChart = ({
   const focusedTaskId = useTaskStore(state => state.focusedTaskId);
   const setFocusedTaskId = useTaskStore(state => state.setFocusedTaskId);
   const setCollapsed = useTaskStore(state => state.setCollapsed);
-  const toggleCollapse = useTaskStore(state => state.toggleCollapse);
   const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
-  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
+  // flattenedItems を prop で受け取らない場合（テストや単体利用）に追随できるよう
+  // tasks / rootIds を購読する（Outliner / IntegratedView と同様）。
+  const tasks = useTaskStore(state => state.tasks);
+  const rootIds = useTaskStore(state => state.rootIds);
+
+  const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
     [flattenedItemsProp, tasks, rootIds]
   );
+  // セルは関数 props を無視してメモ化されるため、古い handleSelectionChange が
+  // セルに残っても正しく動くよう、最新の表示順を ref で参照する。
+  const flattenedItemsRef = useRef(flattenedItems);
+  useEffect(() => {
+    flattenedItemsRef.current = flattenedItems;
+  }, [flattenedItems]);
 
-  const [dependencyLines, setDependencyLines] = useState<Array<{ key: string; d: string; fromId: string; toId: string }>>([]);
+  // 範囲選択の起点。Outliner / IntegratedView と同様に ref で保持し、
+  // Shift+矢印を繰り返しても範囲が伸び縮みせず起点から広がるようにする
+  // （直前の選択の末尾を起点にすると、2 回目以降で範囲が後ろにずれる）。
+  const anchorIdRef = useRef<string | null>(null);
+
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const NAME_COLUMN_WIDTH = columnWidths.taskDescription;
+  const NAME_COLUMN_WIDTH = columnWidths.taskName;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
 
-  const CELL_WIDTH = useMemo(() => {
-    switch (viewMode) {
-      case 'Week': return 100;
-      case 'Month': return 200;
-      case 'Year': return 400;
-      case 'Day':
-      default: return 40;
-    }
-  }, [viewMode]);
-
-  const timeRange = useMemo(() => {
-    const today = new Date();
-    switch (viewMode) {
-      case 'Week': {
-        const start = startOfWeek(addMonths(today, -6), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 12), { weekStartsOn: 1 });
-        return eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
-      }
-      case 'Month': {
-        const start = startOfMonth(addYears(today, -1));
-        const end = endOfMonth(addYears(today, 2));
-        return eachMonthOfInterval({ start, end });
-      }
-      case 'Year': {
-        const start = startOfYear(addYears(today, -5));
-        const end = endOfYear(addYears(today, 10));
-        return eachYearOfInterval({ start, end });
-      }
-      case 'Day':
-      default: {
-        const start = startOfWeek(addMonths(today, -1), { weekStartsOn: 1 });
-        const end = endOfWeek(addMonths(today, 3), { weekStartsOn: 1 });
-        return eachDayOfInterval({ start, end });
-      }
-    }
-  }, [viewMode]);
-
-  const timelineMetrics = useMemo(() => {
-    const timelineStart = timeRange[0];
-    if (!timelineStart) return { timelineStart: new Date(), timelineEnd: new Date(), totalDays: 0, totalWidth: 0, pixelsPerDay: 0 };
-    let timelineEnd: Date;
-
-    switch (viewMode) {
-      case 'Week':
-        timelineEnd = endOfWeek(timeRange[timeRange.length - 1], { weekStartsOn: 1 });
-        break;
-      case 'Month':
-        timelineEnd = endOfMonth(timeRange[timeRange.length - 1]);
-        break;
-      case 'Year':
-        timelineEnd = endOfYear(timeRange[timeRange.length - 1]);
-        break;
-      case 'Day':
-      default:
-        timelineEnd = timeRange[timeRange.length - 1];
-        break;
-    }
-
-    const totalDays = differenceInDays(timelineEnd, timelineStart) + 1;
-    const totalWidth = timeRange.length * CELL_WIDTH;
-    const pixelsPerDay = totalDays > 0 ? totalWidth / totalDays : 0;
-
-    return { timelineStart, timelineEnd, totalDays, totalWidth, pixelsPerDay };
-  }, [timeRange, viewMode, CELL_WIDTH]);
+  // Use custom timeline hook
+  const {
+    cellWidth: CELL_WIDTH,
+    timeRange,
+    timelineMetrics,
+    viewMode,
+    calendar,
+  } = useGanttTimeline(flattenedItems);
 
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollRef || internalContainerRef;
   const headerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Use custom drag interaction hook
+  useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
+
+  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
+
+  const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
+    const flattenedIds = flattenedItemsRef.current.map(item => item.id);
+    const {
+      focusedTaskId,
+      selectedTaskIds: currentSelected,
+      setSelectedTaskIds,
+      setFocusedTaskId,
+    } = useTaskStore.getState();
+
+    if (range) {
+      // 起点（無ければ現在フォーカス中の行 / 直近の選択末尾）から id まで
+      const targetAnchor =
+        anchorIdRef.current ||
+        focusedTaskId ||
+        (currentSelected.length > 0 ? currentSelected[currentSelected.length - 1] : id);
+      const startIdx = flattenedIds.indexOf(targetAnchor);
+      const endIdx = flattenedIds.indexOf(id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const min = Math.min(startIdx, endIdx);
+        const max = Math.max(startIdx, endIdx);
+        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
+        setFocusedTaskId(id);
+        return;
+      }
+    }
+
+    // 範囲選択以外は起点を更新する
+    anchorIdRef.current = id;
+
+    if (multi) {
+      if (currentSelected.includes(id)) {
+        setSelectedTaskIds(currentSelected.filter(sid => sid !== id));
+      } else {
+        setSelectedTaskIds([...currentSelected, id]);
+      }
+    } else {
+      setSelectedTaskIds([id]);
+    }
+    setFocusedTaskId(id);
+  };
 
   // Sync header horizontal scroll
   useEffect(() => {
@@ -147,22 +144,55 @@ export const GanttChart = ({
       if (headerRef.current) {
         headerRef.current.scrollLeft = container.scrollLeft;
       }
+      // 左のタスク名カラム（sticky で画面左端に固定）は、行が
+      // `content-visibility: auto`（paint containment）でスタッキング
+      // コンテキストになるため z-index では依存線より前面にできない。
+      // 横スクロールで名前カラムの下に潜り込んだ分だけ依存線を切り落とす。
+      if (svgRef.current) {
+        svgRef.current.style.clipPath =
+          container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
+      }
     };
 
+    handleScroll();
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [containerRef]);
 
   // Scroll to today on mount or viewMode change
+  const lastViewModeRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     if (containerRef.current && timelineMetrics.pixelsPerDay) {
-      const today = new Date();
-      const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
-      const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
-      const containerWidth = containerRef.current.clientWidth;
-      containerRef.current.scrollLeft = Math.max(0, scrollPos - containerWidth / 3);
+      if (lastViewModeRef.current !== viewMode) {
+        const today = new Date();
+        const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
+        const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
+        const containerWidth = containerRef.current.clientWidth;
+        const timelineViewportWidth = Math.max(0, containerWidth - nameOffset);
+        containerRef.current.scrollLeft = Math.max(0, scrollPos - timelineViewportWidth / 3);
+        lastViewModeRef.current = viewMode;
+      }
     }
-  }, [viewMode, timelineMetrics]);
+  }, [containerRef, viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
+
+  // Scroll Anchoring: カレンダー自動拡張・縮小時に表示日付位置を維持する
+  const lastTimelineStartRef = useRef<Date | null>(null);
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container || !timelineMetrics.pixelsPerDay) return;
+
+    const oldStart = lastTimelineStartRef.current;
+    const newStart = timelineMetrics.timelineStart;
+
+    if (oldStart && oldStart.getTime() !== newStart.getTime()) {
+      const diffDays = differenceInDays(newStart, oldStart);
+      if (diffDays !== 0) {
+        const shiftPixels = -diffDays * timelineMetrics.pixelsPerDay;
+        container.scrollLeft += shiftPixels;
+      }
+    }
+    lastTimelineStartRef.current = newStart;
+  }, [containerRef, timelineMetrics.timelineStart, timelineMetrics.pixelsPerDay]);
 
   // Keyboard Shortcut: Alt + ArrowUp / ArrowDown to Collapse/Expand, and Up/Down to Navigate Rows
   useEffect(() => {
@@ -251,201 +281,14 @@ export const GanttChart = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
+  }, [containerRef, selectedTaskIds, hoveredTaskId, focusedTaskId, flattenedItems, setCollapsed, setSelectedTaskIds, setFocusedTaskId]);
 
-  const updateTask = useTaskStore(state => state.updateTask);
-  const addDependency = useTaskStore(state => state.addDependency);
-  const removeDependency = useTaskStore(state => state.removeDependency);
-
-  // Drag & Drop State
-  const [dragState, setDragState] = useState<{
-    taskId: string;
-    mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
-    startX: number;
-    startY: number; // Added for dependency and draw-range
-    initialStartDate: Date;
-    initialEndDate: Date;
-    currentStartDate: Date;
-    currentEndDate: Date;
-    targetTaskId?: string; // For dependency drop target
-  } | null>(null);
-
-  const [mousePos, setMousePos] = useState<{ x: number, y: number } | null>(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!dragState) return;
-
-      if (dragState.mode === 'dependency') {
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect();
-          setMousePos({
-            x: e.clientX - rect.left + containerRef.current.scrollLeft - nameOffset,
-            y: e.clientY - rect.top + containerRef.current.scrollTop,
-          });
-        }
-        return;
-      }
-
-      const deltaX = e.clientX - dragState.startX;
-      const daysPerPixel = differenceInDays(timeRange[timeRange.length - 1], timeRange[0]) / (timeRange.length * CELL_WIDTH);
-      const deltaDays = Math.round(deltaX * daysPerPixel);
-
-      setDragState(prev => {
-        if (!prev) return null;
-        const newDragState = { ...prev };
-
-        if (prev.mode === 'move') {
-          newDragState.currentStartDate = addDays(prev.initialStartDate, deltaDays);
-          newDragState.currentEndDate = addDays(prev.initialEndDate, deltaDays);
-        } else if (prev.mode === 'resize-left') {
-          const newStart = addDays(prev.initialStartDate, deltaDays);
-          if (newStart <= prev.initialEndDate) {
-            newDragState.currentStartDate = newStart;
-          }
-        } else if (prev.mode === 'resize-right') {
-          const newEnd = addDays(prev.initialEndDate, deltaDays);
-          if (newEnd >= prev.initialStartDate) {
-            newDragState.currentEndDate = newEnd;
-          }
-        } else if (prev.mode === 'draw-range') {
-          newDragState.currentEndDate = addDays(prev.initialStartDate, deltaDays);
-        }
-        return newDragState;
-      });
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (!dragState) return;
-
-      if (dragState.mode === 'dependency') {
-        let target = e.target as HTMLElement;
-        while (target && !target.getAttribute?.('data-task-id')) {
-          target = target.parentElement as HTMLElement;
-        }
-        if (target) {
-          const targetId = target.getAttribute('data-task-id');
-          if (targetId && targetId !== dragState.taskId) {
-            const targetTask = tasks[targetId];
-            if (targetTask && targetTask.children.length === 0) {
-              addDependency(dragState.taskId, targetId);
-            }
-          }
-        }
-      } else if (dragState.mode === 'draw-range') {
-        const { taskId, currentStartDate, currentEndDate } = dragState;
-        let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
-        let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
-
-        switch (viewMode) {
-          case 'Month':
-            start = startOfMonth(start);
-            end = endOfMonth(end);
-            break;
-          case 'Year':
-            start = startOfYear(start);
-            end = endOfYear(end);
-            break;
-        }
-
-        const newDuration = getWorkDaysCount(start, end, calendar);
-        if (baselineLocked) {
-          updateTask(taskId, {
-            startDate: format(start, 'yyyy-MM-dd'),
-            endDate: format(end, 'yyyy-MM-dd'),
-            duration: newDuration,
-          });
-        } else {
-          updateTask(taskId, {
-            planStartDate: format(start, 'yyyy-MM-dd'),
-            planEndDate: format(end, 'yyyy-MM-dd'),
-            planDuration: newDuration,
-          });
-        }
-      } else {
-        const { taskId, currentStartDate, currentEndDate, initialStartDate, initialEndDate } = dragState;
-        if (currentStartDate.getTime() !== initialStartDate.getTime() || currentEndDate.getTime() !== initialEndDate.getTime()) {
-          const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
-          if (baselineLocked) {
-            updateTask(taskId, {
-              startDate: format(currentStartDate, 'yyyy-MM-dd'),
-              endDate: format(currentEndDate, 'yyyy-MM-dd'),
-              duration: newDuration,
-            });
-          } else {
-            updateTask(taskId, {
-              planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-              planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-              planDuration: newDuration,
-            });
-          }
-        }
-      }
-
-      setDragState(null);
-      setMousePos(null);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragState, updateTask, addDependency, removeDependency, timeRange, CELL_WIDTH, viewMode]);
-
-  useLayoutEffect(() => {
-    const lines = [];
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    if (!containerRect || !timelineMetrics.pixelsPerDay) return;
-
-    for (const { id, task } of flattenedItems) {
-      if (task.dependencies) {
-        for (const depId of task.dependencies) {
-          const sourceTask = tasks[depId];
-          const targetTask = tasks[id];
-
-          if (sourceTask && targetTask && (sourceTask.planEndDate || sourceTask.endDate) && (targetTask.planStartDate || targetTask.startDate)) {
-            const sourceEl = taskBarRefs.current.get(depId);
-            const targetEl = taskBarRefs.current.get(id);
-            if (!sourceEl || !targetEl) continue;
-
-            const sourceRect = sourceEl.getBoundingClientRect();
-            const targetRect = targetEl.getBoundingClientRect();
-
-            const scrollLeft = containerRef.current?.scrollLeft || 0;
-            const scrollTop = containerRef.current?.scrollTop || 0;
-
-            const startX = sourceRect.right - containerRect.left + scrollLeft - nameOffset;
-            const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top + scrollTop;
-            const endX = targetRect.left - containerRect.left + scrollLeft - nameOffset;
-            const endY = targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop;
-
-            let path = '';
-            const boxPadding = 20;
-
-            if (endX > startX + boxPadding * 2) {
-              const midX = startX + (endX - startX) / 2;
-              path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-            } else {
-              const rowHeight = 32;
-              const verticalLaneY = endY > startY ? startY + (rowHeight / 2) : startY - (rowHeight / 2);
-              path = `M ${startX} ${startY} L ${startX + boxPadding} ${startY} L ${startX + boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${verticalLaneY} L ${endX - boxPadding} ${endY} L ${endX} ${endY}`;
-            }
-
-            lines.push({
-              key: `${depId}::${id}`,
-              d: path,
-              fromId: depId,
-              toId: id
-            });
-          }
-        }
-      }
-    }
-    setDependencyLines(lines);
-  }, [flattenedItems, tasks, showSidebar, timelineMetrics, baselineLocked, dragState]);
+  // D6: context value を useMemo 化しないと、ホバー等で GanttChart が再レンダーするたびに
+  // 参照が変わり、context 経由で全行が再レンダーされる（memo では止まらない）。
+  const timelineContextValue = useMemo(
+    () => ({ timelineMetrics, timelineWidth: timeRange.length * CELL_WIDTH }),
+    [timelineMetrics, timeRange.length, CELL_WIDTH]
+  );
 
   return (
     <div className="flex-1 bg-white text-gray-900 flex flex-col h-full min-h-0 min-w-0 select-none overflow-hidden relative">
@@ -457,10 +300,10 @@ export const GanttChart = ({
       >
         {showNames && (
           <div
-            className="flex-shrink-0 border-r border-gray-300 p-2 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
+            className="flex-shrink-0 border-r border-gray-300 p-2 pl-4 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
-            Task Name
+            タスク名
             <div
               className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 z-50 group-hover:opacity-50"
               onMouseDown={(e) => {
@@ -470,7 +313,7 @@ export const GanttChart = ({
 
                 const onMouseMove = (moveEvent: MouseEvent) => {
                   const delta = moveEvent.clientX - startX;
-                  setColumnWidth('taskDescription', Math.max(50, startWidth + delta));
+                  setColumnWidth('taskName', Math.max(50, startWidth + delta));
                 };
 
                 const onMouseUp = () => {
@@ -486,44 +329,12 @@ export const GanttChart = ({
             />
           </div>
         )}
-        <div className="flex" style={{ width: timeRange.length * CELL_WIDTH }}>
-          {timeRange.map(date => {
-            const isWknd = !isWorkDay(date, calendar);
-            let label;
-            let subLabel;
-            switch (viewMode) {
-              case 'Week':
-                label = `W${format(date, 'w')}`;
-                subLabel = `${format(date, 'M/d')}`;
-                break;
-              case 'Month':
-                label = format(date, 'MMM');
-                subLabel = format(date, 'yyyy');
-                break;
-              case 'Year':
-                label = format(date, 'yyyy');
-                subLabel = '';
-                break;
-              case 'Day':
-              default:
-                label = format(date, 'd');
-                subLabel = format(date, 'EE');
-            }
-            return (
-              <div
-                key={date.toISOString()}
-                className={clsx(
-                  "flex-shrink-0 border-r border-gray-300 text-[10px] flex flex-col items-center justify-center",
-                  viewMode === 'Day' && isWknd ? "bg-gray-200/50 text-gray-400" : "text-gray-600"
-                )}
-                style={{ width: CELL_WIDTH }}
-              >
-                <span>{label}</span>
-                <span className="text-[8px]">{subLabel}</span>
-              </div>
-            );
-          })}
-        </div>
+        <TimelineHeader
+          timeRange={timeRange}
+          cellWidth={CELL_WIDTH}
+          viewMode={viewMode}
+          calendar={calendar}
+        />
 
         {/* Toggle Selector on the right */}
         {showSidebar && (
@@ -548,11 +359,22 @@ export const GanttChart = ({
         ref={containerRef}
         onScroll={(e) => {
           if (onScroll) onScroll(e);
-          // Internal logic for header sync is already handled by the scroll listener in useEffect
         }}
       >
+        {/* Shared Background Grid Layer */}
+        <TimelineGridBackground
+          timeRange={timeRange}
+          cellWidth={CELL_WIDTH}
+          calendar={calendar}
+          viewMode={viewMode}
+          totalHeight={flattenedItems.length * 32}
+          timelineWidth={timeRange.length * CELL_WIDTH}
+          leftOffset={nameOffset}
+        />
+
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
+          ref={svgRef}
           className="absolute inset-0 pointer-events-none z-10"
           style={{
             minHeight: flattenedItems.length * 32,
@@ -566,110 +388,60 @@ export const GanttChart = ({
             </marker>
           </defs>
           {/* Existing Dependencies */}
-          {dependencyLines.map(({ key, d, fromId, toId }) => {
-            return (
-              <path
-                key={key}
-                d={d}
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                className="text-gray-400 hover:text-red-500 hover:stroke-[3] transition-all cursor-pointer pointer-events-auto"
-                style={{ pointerEvents: 'stroke' }}
-                onMouseDown={(e) => {
-                  // Prevent starting a draw-range when clicking or dragging from a dependency line
-                  e.stopPropagation();
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm('Delete this dependency?')) {
-                    removeDependency(fromId, toId);
-                  }
-                }}
-              />
-            );
-          })}
+          <GanttDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="arrowhead"
+          />
+
+          {/* Existing Dependencies of the Task Being Dragged (moves with the bar) */}
+          <DraggedDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="arrowhead"
+          />
 
           {/* Dragging Line */}
-          {dragState?.mode === 'dependency' && mousePos && (
-            (() => {
-              const startIdx = flattenedItems.findIndex(i => i.id === dragState.taskId);
-              if (startIdx === -1) return null;
-
-              const task = tasks[dragState.taskId];
-              const endDateStr = task.planEndDate || task.endDate;
-              if (!endDateStr) return null;
-              const taskEnd = new Date(endDateStr);
-              const { timelineStart, pixelsPerDay } = timelineMetrics;
-
-              const diffDays = differenceInDays(taskEnd, timelineStart);
-              const startX = (diffDays + 1) * pixelsPerDay;
-              const startY = startIdx * 32 + 5;
-
-              return (
-                <line
-                  x1={startX}
-                  y1={startY}
-                  x2={mousePos.x}
-                  y2={mousePos.y}
-                  stroke="#3b82f6"
-                  strokeWidth="2"
-                  strokeDasharray="4"
-                />
-              );
-            })()
-          )}
+          <DraggingDependencyLine
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+          />
         </svg>
 
-        {flattenedItems.map(({ id, task, depth, wbsNumber }) => {
-          const isHovered = hoveredTaskId === id;
+        <TimelineContext.Provider value={timelineContextValue}>
+          {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
+            const isHovered = hoveredTaskId === id;
           const isSelected = selectedTaskIds.includes(id);
 
           return (
             <div
               key={id}
-              className={clsx(
-                "flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150",
-                isSelected && isHovered && "bg-blue-100",
-                isSelected && !isHovered && "bg-blue-50",
-                !isSelected && isHovered && "bg-gray-50",
-                !isSelected && !isHovered && "hover:bg-gray-50"
-              )}
+              className="flex border-b border-gray-100 h-8 relative z-auto transition-colors duration-150 bg-transparent gantt-row-optimized"
               style={{ width: nameOffset + timeRange.length * CELL_WIDTH }}
               onMouseEnter={() => onHoverTaskChange?.(id)}
               onMouseLeave={() => onHoverTaskChange?.(null)}
             >
               {showNames && (
                 <div
-                  onClick={(e) => {
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return; // Only left click
+
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button')) {
+                      return;
+                    }
+
                     const isMulti = e.ctrlKey || e.metaKey;
                     const isRange = e.shiftKey;
-                    
-                    if (isRange) {
-                      const targetAnchor = selectedTaskIds.length > 0 ? selectedTaskIds[selectedTaskIds.length - 1] : id;
-                      const flattenedIds = flattenedItems.map(item => item.id);
-                      const startIdx = flattenedIds.indexOf(targetAnchor);
-                      const endIdx = flattenedIds.indexOf(id);
-                      if (startIdx !== -1 && endIdx !== -1) {
-                        const min = Math.min(startIdx, endIdx);
-                        const max = Math.max(startIdx, endIdx);
-                        setSelectedTaskIds(flattenedIds.slice(min, max + 1));
-                        setFocusedTaskId(id);
-                        return;
+
+                    if (target.tagName === 'INPUT') {
+                      const isReadOnly = target.hasAttribute('readonly');
+                      if (isMulti || isRange || isReadOnly) {
+                        e.preventDefault();
                       }
                     }
-                    
-                    if (isMulti) {
-                      if (selectedTaskIds.includes(id)) {
-                        setSelectedTaskIds(selectedTaskIds.filter(sid => sid !== id));
-                      } else {
-                        setSelectedTaskIds([...selectedTaskIds, id]);
-                      }
-                    } else {
-                      setSelectedTaskIds([id]);
-                    }
-                    setFocusedTaskId(id);
+
+                    handleSelectionChange(id, isMulti, isRange);
                   }}
                   className={clsx(
                     "flex-shrink-0 border-r border-gray-300 h-full sticky left-0 z-40 flex items-center text-xs truncate transition-colors duration-150 select-none cursor-pointer",
@@ -680,359 +452,37 @@ export const GanttChart = ({
                   )}
                   style={{ 
                     width: NAME_COLUMN_WIDTH,
-                    paddingLeft: `${depth * 20 + 8}px`
                   }}
                 >
-                  {/* Collapse/Expand Chevron */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCollapse(id);
-                    }}
-                    className={clsx(
-                      "p-0.5 rounded hover:bg-gray-200 text-gray-400 mr-1 flex-shrink-0 transition-colors",
-                      task.children.length === 0 && "invisible"
-                    )}
-                  >
-                    {task.isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </button>
-
-                  {/* WBS Number */}
-                  <span className="text-xs text-gray-500 font-mono mr-2 min-w-[24px] text-right select-none flex-shrink-0">
-                    {wbsNumber}
-                  </span>
-
-                  {/* Title */}
-                  <span className="truncate font-medium text-gray-800 flex-1">
-                    {task.title || <span className="text-gray-400 italic">Untitled Task</span>}
-                  </span>
+                  <TaskRow
+                    taskId={id}
+                    task={task}
+                    depth={depth}
+                    wbsNumber={wbsNumber}
+                    prevId={flattenedItems[index - 1]?.id}
+                    nextId={flattenedItems[index + 1]?.id}
+                    isSelected={isSelected}
+                    isHovered={isHovered}
+                    onSelectionChange={handleSelectionChange}
+                    visibleColumns={visibleColumns}
+                    disableHoverHandlers
+                    suppressBorder
+                  />
                 </div>
               )}
-              {/* Bars Area */}
-              <div
-                className={clsx(
-                  "relative flex pointer-events-auto h-full flex-1",
-                  task.children.length > 0 ? "cursor-default" : "cursor-crosshair"
-                )}
-                onMouseDown={(e) => {
-                  if (e.button !== 0 || task.children.length > 0) return;
-
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left; // relative to row
-                  // Calculate date from X
-                  const daysOffset = Math.floor((x / (timeRange.length * CELL_WIDTH)) * timelineMetrics.totalDays);
-                  const clickedDate = addDays(timelineMetrics.timelineStart, daysOffset);
-
-                  setDragState({
-                    taskId: id,
-                    mode: 'draw-range',
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    initialStartDate: clickedDate,
-                    initialEndDate: clickedDate,
-                    currentStartDate: clickedDate,
-                    currentEndDate: clickedDate
-                  });
-                }}
-              >
-                {/* Grid Background */}
-                <div className="absolute inset-0 flex pointer-events-none">
-                  {timeRange.map(date => {
-                    const isWknd = viewMode === 'Day' && !isWorkDay(date, calendar);
-                    return (
-                      <div
-                        key={date.toISOString()}
-                        className={clsx(
-                          "flex-shrink-0 border-r border-gray-100 h-full",
-                          isWknd && "bg-gray-100/50"
-                        )}
-                        style={{ width: CELL_WIDTH }}
-                      />
-                    );
-                  })}
-                </div>
-
-                {/* Drawing Preview Box */}
-                {dragState?.taskId === id && dragState?.mode === 'draw-range' && (
-                  (() => {
-                    const s = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentStartDate : dragState.currentEndDate;
-                    const e = dragState.currentStartDate < dragState.currentEndDate ? dragState.currentEndDate : dragState.currentStartDate;
-
-                    const { timelineStart, pixelsPerDay } = timelineMetrics;
-                    const diffDays = differenceInDays(s, timelineStart);
-                    const offset = diffDays * pixelsPerDay;
-                    const daySpan = differenceInDays(e, s) + 1;
-                    const width = daySpan * pixelsPerDay;
-
-                    return (
-                      <div
-                        className="absolute top-1.5 h-5 border-2 border-dashed border-blue-500 bg-blue-100/30 z-30 pointer-events-none"
-                        style={{ left: offset, width: Math.max(0, width - 2) }}
-                      />
-                    );
-                  })()
-                )}
-
-                {/* Task Bar - Z-30 */}
-                {(() => {
-                  const hasPlan = !!(task.planStartDate && task.planEndDate);
-                  const hasActual = !!(task.startDate && task.endDate);
-                  if (!hasPlan && !hasActual) return null;
-
-                  const isParent = task.children.length > 0;
-                  const { timelineStart, pixelsPerDay } = timelineMetrics;
-
-                  // 1. Plan Bar Metrics
-                  const isDraggingPlan = dragState?.taskId === id && !baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                  const planStart = isDraggingPlan ? dragState.currentStartDate : (task.planStartDate ? new Date(task.planStartDate) : null);
-                  const planEnd = isDraggingPlan ? (dragState.currentEndDate === null ? null : dragState.currentEndDate) : (task.planEndDate ? new Date(task.planEndDate) : null);
-                  const planDiffDays = planStart ? differenceInDays(planStart, timelineStart) : 0;
-                  const planOffset = planDiffDays * pixelsPerDay;
-                  const planDaySpan = (planStart && planEnd) ? differenceInDays(planEnd, planStart) + 1 : 0;
-                  const planWidth = planDaySpan * pixelsPerDay;
-
-                  // 2. Actual Bar Metrics
-                  const isDraggingActual = dragState?.taskId === id && baselineLocked && dragState?.mode !== 'dependency' && dragState?.mode !== 'draw-range';
-                  const taskStart = isDraggingActual ? dragState.currentStartDate : (task.startDate ? new Date(task.startDate) : null);
-                  const taskEnd = isDraggingActual ? dragState.currentEndDate : (task.endDate ? new Date(task.endDate) : null);
-                  const diffDays = taskStart ? differenceInDays(taskStart, timelineMetrics.timelineStart) : 0;
-                  const offset = diffDays * pixelsPerDay;
-                  const daySpan = (taskStart && taskEnd) ? differenceInDays(taskEnd, taskStart) + 1 : 0;
-                  const width = daySpan * pixelsPerDay;
-
-                  return (
-                    <>
-                      {/* Plan Bar (Baseline) */}
-                      {hasPlan && planWidth > 0 && (
-                        <div
-                          ref={el => {
-                            if (el) {
-                              taskBarRefs.current.set(id, el);
-                            } else {
-                              taskBarRefs.current.delete(id);
-                            }
-                          }}
-                          data-task-id={id}
-                          className={clsx(
-                            "absolute text-[9px] flex items-center shadow-sm group z-20 transition-all",
-                            isParent
-                              ? "top-[3px] h-2.5 bg-slate-700/40 cursor-default rounded-sm"
-                              : [
-                                  "top-[3px] h-3 rounded text-[8px] px-1 text-blue-700/80 bg-blue-100 border border-blue-300 font-medium select-none",
-                                  baselineLocked ? "cursor-default" : [
-                                    "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
-                                    isDraggingPlan && "bg-blue-600 text-white cursor-grabbing h-[14px]"
-                                  ]
-                                ]
-                          )}
-                          style={{ left: planOffset, width: Math.max(0, planWidth - 2) }}
-                          title={`Plan: ${task.title} (${format(planStart!, 'yyyy-MM-dd')} - ${format(planEnd!, 'yyyy-MM-dd')})`}
-                          onMouseDown={(e) => {
-                            if (baselineLocked || e.button !== 0 || isParent) return;
-                            e.stopPropagation();
-                            const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                            const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                            setDragState({
-                              taskId: id,
-                              mode: 'move',
-                              startX: e.clientX,
-                              startY: e.clientY,
-                              initialStartDate: new Date(planStartStr),
-                              initialEndDate: new Date(planEndStr),
-                              currentStartDate: new Date(planStartStr),
-                              currentEndDate: new Date(planEndStr),
-                            });
-                          }}
-                        >
-                          {/* Downward hanging bracket triangles for parent tasks */}
-                          {isParent && (
-                            <>
-                              <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
-                              <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
-                            </>
-                          )}
-
-                          {/* Left Resize Handle */}
-                          {!isParent && !baselineLocked && (
-                            <div
-                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                                const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'resize-left',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: new Date(planStartStr),
-                                  initialEndDate: new Date(planEndStr),
-                                  currentStartDate: new Date(planStartStr),
-                                  currentEndDate: new Date(planEndStr),
-                                });
-                              }}
-                            />
-                          )}
-
-                          {/* Right Resize Handle */}
-                          {!isParent && !baselineLocked && (
-                            <div
-                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                                const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'resize-right',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: new Date(planStartStr),
-                                  initialEndDate: new Date(planEndStr),
-                                  currentStartDate: new Date(planStartStr),
-                                  currentEndDate: new Date(planEndStr),
-                                });
-                              }}
-                            />
-                          )}
-
-                          {/* Dependency Handle */}
-                          {!isParent && !baselineLocked && (
-                            <div
-                              className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center group-hover:opacity-100"
-                              title="Drag to create dependency"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                const planStartStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                                const planEndStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'dependency',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: new Date(planStartStr),
-                                  initialEndDate: new Date(planEndStr),
-                                  currentStartDate: new Date(planStartStr),
-                                  currentEndDate: new Date(planEndStr),
-                                });
-                              }}
-                            >
-                              <span className="text-blue-500 text-[10px] font-bold">+</span>
-                            </div>
-                          )}
-
-                          {!isParent && !baselineLocked && (
-                            <span className="px-1 truncate pointer-events-none text-blue-800">
-                              {task.title}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Actual Bar (Forecast - only displayed when baselineLocked is true and dates are not null) */}
-                      {baselineLocked && taskStart && taskEnd && width > 0 && (
-                        <div
-                          data-task-id={id}
-                          className={clsx(
-                            "absolute text-[8px] flex items-center shadow-sm group z-30 transition-all",
-                            isParent
-                              ? "top-[18px] h-2 cursor-default rounded-sm"
-                              : [
-                                  "top-[17px] h-2.5 rounded text-amber-950 cursor-pointer hover:shadow-sm",
-                                  isDraggingActual && "cursor-grabbing border-amber-600 shadow-md"
-                                ]
-                          )}
-                          style={{
-                            left: offset,
-                            width: Math.max(0, width - 2),
-                            background: isParent
-                              ? `linear-gradient(to right, #475569 ${task.progress}%, #ffffff ${task.progress}%)`
-                              : `linear-gradient(to right, #f59e0b ${task.progress}%, #ffffff ${task.progress}%)`,
-                            border: isParent
-                              ? '1px solid #475569'
-                              : '1px solid #d97706',
-                          }}
-                          title={`Actual: ${task.title} (${task.progress}%) (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
-                          onMouseDown={(e) => {
-                            if (e.button !== 0 || isParent) return;
-                            e.stopPropagation();
-                            setDragState({
-                              taskId: id,
-                              mode: 'move',
-                              startX: e.clientX,
-                              startY: e.clientY,
-                              initialStartDate: taskStart,
-                              initialEndDate: taskEnd,
-                              currentStartDate: taskStart,
-                              currentEndDate: taskEnd,
-                            });
-                          }}
-                        >
-                          {/* Downward hanging bracket triangles for parent tasks */}
-                          {isParent && (
-                            <>
-                              <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
-                              <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
-                            </>
-                          )}
-
-                          {/* Left Resize Handle */}
-                          {!isParent && (
-                            <div
-                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'resize-left',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: taskStart,
-                                  initialEndDate: taskEnd,
-                                  currentStartDate: taskStart,
-                                  currentEndDate: taskEnd,
-                                });
-                              }}
-                            />
-                          )}
-
-                          {/* Right Resize Handle */}
-                          {!isParent && (
-                            <div
-                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setDragState({
-                                  taskId: id,
-                                  mode: 'resize-right',
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  initialStartDate: taskStart,
-                                  initialEndDate: taskEnd,
-                                  currentStartDate: taskStart,
-                                  currentEndDate: taskEnd,
-                                });
-                              }}
-                            />
-                          )}
-
-                          <span className={clsx("px-1 truncate pointer-events-none text-[8px] leading-none", isParent ? "text-slate-800 font-semibold" : "text-amber-950 font-semibold")}>
-                            {task.title}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+                {/* Bars Area */}
+                <GanttTimelineRow
+                  taskId={id}
+                  task={task}
+                  timelineMetrics={timelineMetrics}
+                  baselineLocked={baselineLocked}
+                  taskBarRefs={taskBarRefs}
+                  timelineWidth={timeRange.length * CELL_WIDTH}
+                />
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </TimelineContext.Provider>
       </div>
     </div>
   );

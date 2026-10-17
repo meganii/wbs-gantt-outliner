@@ -65,21 +65,21 @@ export async function buildExcelExportFile({
 
   // 3. Define Columns — show both Plan and Actual date groups
   const fixedColumns = [
-    { header: 'WBS No.', key: 'wbsNumber', width: 10 },
-    { header: 'Task Name', key: 'wbs', width: 40 },
-    { header: 'Description', key: 'description', width: 40 },
-    { header: 'Assignee', key: 'assignee', width: 15 },
-    { header: 'Deliverables', key: 'deliverables', width: 25 },
-    { header: 'Status', key: 'status', width: 15 },
-    { header: 'Progress', key: 'progress', width: 10 },
+    { header: 'WBS番号', key: 'wbsNumber', width: 10 },
+    { header: 'タスク名', key: 'wbs', width: 40 },
+    { header: '説明', key: 'description', width: 40 },
+    { header: '担当者', key: 'assignee', width: 15 },
+    { header: '成果物', key: 'deliverables', width: 25 },
+    { header: 'ステータス', key: 'status', width: 15 },
+    { header: '進捗率', key: 'progress', width: 10 },
     // Plan date columns (予定)
-    { header: 'Plan Start', key: 'planStartDate', width: 12 },
-    { header: 'Plan End', key: 'planEndDate', width: 12 },
-    { header: 'Plan Dur.', key: 'planDuration', width: 10 },
+    { header: '予定開始日', key: 'planStartDate', width: 12 },
+    { header: '予定終了日', key: 'planEndDate', width: 12 },
+    { header: '予定期間', key: 'planDuration', width: 10 },
     // Actual date columns (実績・見込)
-    { header: 'Act. Start', key: 'actStartDate', width: 12 },
-    { header: 'Act. End', key: 'actEndDate', width: 12 },
-    { header: 'Act. Dur.', key: 'actDuration', width: 10 },
+    { header: '実績開始日', key: 'actStartDate', width: 12 },
+    { header: '実績終了日', key: 'actEndDate', width: 12 },
+    { header: '実績期間', key: 'actDuration', width: 10 },
   ];
 
   // Date columns for Gantt area
