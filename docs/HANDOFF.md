@@ -4,6 +4,21 @@
 
 ## 現在の状態
 
+- **テキスト列の複数行ペースト / Excel ライクな一括入力** (October 17, 2026, 未コミット):
+  - 背景/要望: タスク名だけでなく説明・担当者・成果物も複数行対応したい。さらに「列の特定行を複数選択して貼り付けると全行が同一値になる」など Excel ライクな操作を期待する。
+  - 仕様（ユーザー確認済み）: 対象は **タスク名 / 説明 / 担当者 / 成果物** の 4 列。貼り付け先 = **フォーカス中の列 × 選択行（視覚順）**。選択が 1 行ならその行を起点に下へ伸ばす。真の矩形（行×列）選択とセル範囲コピーは今回スコープ外。
+    - 値 1 個 × 選択複数行 → 選択行すべてに同一値
+    - 値 N 個 × 選択複数行 → 選択行へ順に割り当て（余った行は変更しない）
+    - 値 N 個 × 選択 1 行（タスク名）→ 従来どおり新規タスクを一括登録
+    - 値 N 個 × 選択 1 行（他列）→ その行から下へ N 行に充填（既存行のみ）
+    - 値 1 個 × 選択 1 行 → 通常の貼り付け（現在セルのみ）
+  - `src/utils/cellPastePlan.ts`（新規・純粋関数）: 上記ルールで `{ targetIds, values }` を返す。既定動作に任せる場合は `null`。
+  - `src/utils/cellPaste.ts`（新規）: `getVisualTaskOrder()`（`flattenTree` で視覚順）/ `isMultiRowSelection()` / `handleTextCellPaste()`。ストアは購読せずイベント時に `getState()` から読む。
+  - `useTaskStore.setTaskFieldValues(ids, field, values)`（新規）: 同一値 or 配列を **1 回の `set`** で反映（Undo 1 エントリ）。値が 1 個なら全行、複数なら順に対応。対応する値が無い行は変更しない。
+  - `TaskTextCell` に `onPaste` を追加。`TaskOutlineCell` は「複数行選択中は一括反映（`handleTextCellPaste`）、単一選択 + 複数行は従来どおり新規タスク作成」に分岐。
+  - テスト: `cellPastePlan`(8) / `setTaskFieldValues`(6) / テキスト列・タスク名の貼り付け(5) を新規追加。
+  - 検証: `npm run lint` 0 / `npm test -- --run` **242 件（28ファイル）** / `npm run build` 通過。
+  - 補足: `selectedTaskIds` はクリック順なので、充填・割り当ては `flattenTree` の視覚順に並べ直して行う。表示されていない（折りたたみ中の）選択行は対象外。
 - **複数行ペーストによるタスクの一括登録** (October 17, 2026, 未コミット):
   - 背景/要望: コピーした複数行テキストから複数タスクを一度に登録したい。従来はタスク名が単一行 `<input>` のため、複数行を貼ると改行が潰れて 1 行に連結されるだけだった（paste を扱うコードはリポジトリに存在しなかった）。
   - 仕様（ユーザー確認済み）: タスク名セル（`TaskOutlineCell`）に直接貼り付け。1 行は通常の貼り付け、複数行なら一括登録。行頭インデントで階層化（既存上限 4 階層にクランプ）。選択行の直後に兄弟として貼り付け順に挿入。空行はスキップ。Excel のタブ区切りは 1 列目のみタスク名に採用（モードは自動判定）。
@@ -265,7 +280,7 @@
 
 ## 直近の検証結果 (October 17, 2026 / JSON インポートのバリデーション強化後)
 
-- `npm test -- --run` : **223テスト全件合格** (25ファイル。複数行ペースト一括登録のテスト 26 件追加で 197 → 223。内訳: `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5) ほか。以前の JSON インポート検証に伴う `validateProjectState`(25) / `projectConfig`(7) / `useNotificationStore`(3) / `ToastContainer`(5) / `useProjectFileHandlers`(5) を含む)
+- `npm test -- --run` : **242テスト全件合格** (28ファイル。テキスト列の複数行ペースト / 一括入力のテスト 19 件追加で 223 → 242。内訳: `cellPastePlan`(8) / `setTaskFieldValues`(6) / テキスト列・タスク名の貼り付け(5) ほか。複数行ペースト一括登録の `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5)、JSON インポート検証の `validateProjectState`(25) 等を含む)
 - `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
