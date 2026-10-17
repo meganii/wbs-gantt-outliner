@@ -11,6 +11,7 @@ import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
+import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
@@ -341,6 +342,13 @@ export const GanttChart = ({
           </defs>
           {/* Existing Dependencies */}
           <GanttDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="arrowhead"
+          />
+
+          {/* Existing Dependencies of the Task Being Dragged (moves with the bar) */}
+          <DraggedDependencyLines
             flattenedItems={flattenedItems}
             timelineMetrics={timelineMetrics}
             markerId="arrowhead"

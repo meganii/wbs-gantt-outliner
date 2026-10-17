@@ -33,6 +33,23 @@ npm run bench
 - 計測窓には、最後のイベントのコミットを含めるための 120ms の待機が含まれる。
 - 読み取り専用の操作（ホバー / バードラッグ / 依存ハンドルのドラッグ）は 3 回実行して集計。
 
+### ハーネスの改訂（Step 2 時点）
+
+Step 2 の効果（ドラッグ中 mousemove のコスト削減）を測るため、ハーネスを次のように改訂しました。
+
+- **バー位置の取得を修正**: 旧実装は `scrollLeft` を手計算で調整していたため、確定後の再計測で
+  対象バーが画面外（viewport 1600px に対し x≈1839）に外れ、`mouse.down` がバーに当たらず
+  **ドラッグが始まっていない計測が混ざっていた**。`locator.scrollIntoViewIfNeeded()` +
+  `boundingBox()` に置き換え、`mouse.down` 直後に `.cursor-grabbing` の存在を確認して
+  ドラッグが始まったことを検証するようにしました（始まらなければテストが失敗します）。
+- **ドラッグ計測を 3 分割**: `drag bar (30 moves)`（全体）/ `drag mousemove only (30 moves, in-page)` /
+  `drag commit (mouseup)`。`mouseup` の確定コミット（1,000 タスクで 450ms 前後の longtask）が
+  ドラッグ中のコストを覆い隠すためです。
+- **`in-page` はページ内で合成 `mousemove` を 30 回送出**します。`page.mouse.move` は 1 回ごとに
+  CDP 往復待ちが入るため、30 moves の大半がプロトコル待ちになりアプリ側の差が埋もれます。
+  合成イベントでは毎回 macrotask を 1 つ挟んで React の再描画を発生させ、その区間の実時間を測ります。
+  5 回実行して集計（再現性: 例 1,000 タスクで 341.7ms / 340.2ms）。
+
 ## Step 0 の計測結果（2026-10-17, 改善前）
 
 環境: Playwright 1.64.1 / Chromium (headless) / viewport 1600x900 / macOS (Apple Silicon)。
@@ -84,4 +101,39 @@ blur / Enter で確定する方式へ変更（Escape で取り消し）。タイ
 確定は 1 回だけになったため main-thread ブロックは約 1/3.4。残る 423ms は
 「確定 1 回あたりの全ツリー再描画（`flattenTree` + タイムライン再計算 + 全行再描画）」で、
 これは購読粒度の集約（HANDOFF の P1 / D7）側の課題。
+
+### Step 2: 依存線レイヤーの分離（P2）
+
+`useGanttDependencies` は `dragState`（mousemove のたびに新オブジェクトになる）を購読していたため、
+ドラッグ中は 1 mousemove ごとに全依存線（1,000 タスクで 225 本）を再計算し、
+`GanttDependencyLines`（`memo` なし）が再レンダーしていました。
+
+変更:
+
+- `useGanttDependencies` の購読を `dragState` 全体 → **ドラッグ中タスク ID（primitive）** に変更。
+  日付（`currentStartDate` / `currentEndDate`）の変化では再計算しない。
+  静的レイヤーはドラッグ中タスクに接続する線を描画しない。
+- `GanttDependencyLines` を `memo` 化（親のホバー等で再レンダーされない）。
+- `useDraggedDependencyLines` / `DraggedDependencyLines` を新設。ドラッグ中タスクに接続する線
+  （自身の `dependencies` と、自身に依存しているタスク）**だけ**を毎 mousemove 描画する。
+  線は非インタラクティブ（ドラッグ中の誤クリックで依存が消えないようにするため）。
+- `IntegratedView` / `GanttChart` の SVG に `DraggedDependencyLines` を追加。
+- 回帰テスト `src/components/DependencyLinesDrag.test.tsx`（2 件）:
+  ドラッグ中も依存線がちょうど 1 本描画されバーに追従すること、静的線がホバーで変化しないこと。
+
+計測結果（改訂ハーネス、1 操作あたり）:
+
+| シナリオ | Before | After |
+|---|---|---|
+| drag mousemove only (30 moves, in-page) / 1,000 タスク | 405.9ms / 425.4ms | **341.7ms / 340.2ms** |
+| drag mousemove only (30 moves, in-page) / 100 タスク | 153.4ms / 152.1ms | 147.8ms / 148.3ms |
+| drag bar (30 moves) の longtask / 1,000 タスク | 420〜440ms | 482〜497ms（支配項は確定コミットで変化なし） |
+| drag commit (mouseup) / 1,000 タスク | 445〜456ms | 452〜500ms（変化なし） |
+
+ドラッグ中のコストは 1,000 タスクで約 18%（30 moves あたり約 75ms ≒ 1 move 約 2.5ms）減少しました。
+100 タスクでは依存線が 18 本しかないため差は小さい（約 3%）です。
+
+一方、`drag bar (30 moves)` 全体の longtask は `mouseup` の確定コミット
+（`endDragUpdate` → 全ツリー再描画で 450ms 前後）が支配しており、Step 2 では変わりません。
+これは「購読粒度の集約」（HANDOFF の P1 / D7）側の課題で、今回の対象外です。
 

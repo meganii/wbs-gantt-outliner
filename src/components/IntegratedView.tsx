@@ -15,6 +15,7 @@ import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
+import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 
 // Import custom hooks
@@ -294,6 +295,11 @@ export const IntegratedView = ({
             </marker>
           </defs>
           <GanttDependencyLines
+            flattenedItems={flattenedItems}
+            timelineMetrics={timelineMetrics}
+            markerId="integrated-arrowhead"
+          />
+          <DraggedDependencyLines
             flattenedItems={flattenedItems}
             timelineMetrics={timelineMetrics}
             markerId="integrated-arrowhead"

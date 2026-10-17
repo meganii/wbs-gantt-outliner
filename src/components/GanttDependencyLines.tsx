@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { useGanttDependencies } from '../hooks/useGanttDependencies';
 import type { FlattenedItem } from '../utils/tree';
@@ -9,7 +10,12 @@ interface GanttDependencyLinesProps {
   markerId: string;
 }
 
-export const GanttDependencyLines = ({
+/**
+ * 静的な依存線レイヤー。
+ * `memo` 化しているため、親（IntegratedView / GanttChart）がホバー等で再レンダーしても、
+ * props（flattenedItems / timelineMetrics）が同一参照なら再レンダーされない。
+ */
+export const GanttDependencyLines = memo(({
   flattenedItems,
   timelineMetrics,
   markerId,
@@ -44,4 +50,6 @@ export const GanttDependencyLines = ({
       })}
     </>
   );
-};
+});
+
+GanttDependencyLines.displayName = 'GanttDependencyLines';
