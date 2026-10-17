@@ -235,6 +235,54 @@
 
 > 描画性能 P1（購読ファンアウト D7 / 依存線 P2 / 入力連鎖 P3 / Context D6）は October 17, 2026 に Step 1〜4 を完了。経緯と実測値は「現在の状態」と `bench/README.md` を参照。
 
+#### 次セッションへの依頼文（優先課題 #2: JSON インポートの実行時バリデーション、コピペ用）
+
+```
+docs/HANDOFF.md を読んで、「次に着手する優先課題」#2（JSON インポートの互換性・異常値バリデーション強化）に着手してください。HANDOFF の「IPC / Electron の申し送り → 将来やるなら #1」が本命としている作業です。
+
+背景（確認済み）:
+- 読み込み経路は src/hooks/useProjectFileHandlers.ts の handleLoad が
+  window.ipcRenderer.invoke('load-file') の戻り値を JSON.parse し、そのまま loadProjectState(data) に
+  渡している（無検証）。electron/main.ts の 'load-file' は「ファイル内容の文字列 | null」を返す。
+- loadProjectState（src/store/useTaskStore.ts）は normalizeProjectState（参照整合の修復）と
+  mergeProjectConfig（既定値補完）を通すが、いずれも「配列・必須フィールドが存在する」前提で動く。
+  具体的に壊れる例:
+  - data.tasks が無い/配列でない → normalizeProjectState の Object.keys / マップで例外。
+  - task.children / task.dependencies が undefined → normalizeProjectState の .filter で TypeError。
+  - 子の循環（A.children に B、B.children に A）→ flattenTree（src/utils/tree.ts）が visited 無しで
+    再帰するため **無限再帰でスタックオーバーフロー（描画でクラッシュ）**。
+  - 不正な日付文字列（'2026-13-45' / 'abc'）は parseISO が Invalid Date を返し、表示・編集・
+    エクスポートで不正値として残る（一部は isValid でガードされるが入力値そのものは素通し）。
+- IPC 境界は lint 対応で unknown 化済みなので、ここで必要なのは「型」ではなく「実行時の検証」です。
+
+進め方:
+1. まず現状の失敗モードを一時テストで再現して報告する（いきなり実装しない）。少なくとも
+   (a) tasks / rootIds の欠落・型違い、(b) タスクの型違い（children / dependencies が undefined、
+   progress が文字列、キーと task.id の不一致）、(c) 不正な日付、(d) 子の循環（親子の循環）、
+   (e) 依存の循環、(f) projectConfig の形（calendar.holidays / workDays が配列でない、
+   viewMode が想定外、columnWidths が数値でない、timelineRange の不正）を切り分ける。
+2. 挙動の方針を提案して確認を取る（「丸ごと拒否してユーザーに通知」か「直せるものは修復して警告」か。
+   現在は console.error のみで UI 通知が無いため、通知先・文言も決める）。
+3. 実装方針の候補: 純粋な検証/正規化関数を新設（例 src/utils/validateProjectState.ts）し、
+   loadProjectState の入口（IPC 経由かどうかに依存しない単一の choke point）で通す。
+   日付は src/utils/date.ts の方針に合わせ、曜日判定は個別実装しない。循環の検出は既存の
+   graph 操作（addDependency の循環判定）を再利用できないか確認する。
+4. テストを追加: 検証関数のユニット、loadProjectState の異常系、
+   src/store/useTaskStore.test.ts の "loadProjectState"（既存）の拡張。正常系（既存の保存 JSON）が
+   今まで通り読めることを必ず確認する。
+5. 各ステップで npm run lint / npx vitest run / npm run test:e2e / npm run build を回し、
+   1 ステップ = 1 コミット。完了したら before/after（再現した失敗 → ガード後の挙動）を報告し、
+   docs/HANDOFF.md を更新する。
+
+壊してはいけないもの（docs/HANDOFF.md「注意点」より）:
+- draw-range は単クリックでも確定する（日セルのクリックで 1 日予定が入る）。「移動ゼロなら commit しない」ガードを再導入しないこと
+- バー/ハンドルの onMouseDown は早期 return 時も stopPropagation を維持し、data-gantt-bar を消さない
+- useRowSortSensors（KeyboardSensor 無効・distance 5）
+- パッケージマネージャは npm（pnpm へ戻さない）
+- 現在 lint 0 / vitest 127 件 (14ファイル) / e2e 5 件 / build 通過。これを維持すること
+- 読み込みの正常系（既存の保存 JSON）の互換性を壊さないこと
+```
+
 ## 設計レビュー結果（October 17, 2026）
 
 「画面描画が遅い」「ドラッグ&ドロップで意図しない動きをする」という課題に対してコードレビューを実施し、疑わしい挙動は一時テストで実測して確認した。以下は確定した所見。
