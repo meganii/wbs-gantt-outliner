@@ -102,6 +102,23 @@ export function parseInputDate(text: string, referenceDateString?: string | null
   return null;
 }
 
+/**
+ * 厳密な `YYYY-MM-DD` 文字列だけを受け付け、正規化した文字列を返す。
+ * それ以外（型違い・別フォーマット・実在しない日付）は null を返す。
+ * 曜日判定はここで個別実装せず、`isValidDate` に委譲する。
+ */
+export function parseIsoDateStrict(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+  return isValidDate(year, month, day) ? formatDateString(year, month, day) : null;
+}
+
 export function formatToShow(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);

@@ -50,6 +50,33 @@ export function collectSubtreeIds(tasks: Record<string, Task>, ids: string[]): S
   return collected;
 }
 
+/**
+ * `startId` から依存関係（dependencies）をたどって `targetId` に到達できるか。
+ * 依存の循環検出・循環依存の切断に使う。visited 管理の反復 DFS なので、
+ * 入力が既に循環していても停止する。
+ */
+export function hasDependencyPath(
+  tasks: Record<string, Task>,
+  startId: string,
+  targetId: string
+): boolean {
+  const visited = new Set<string>();
+  const stack: string[] = [startId];
+
+  while (stack.length > 0) {
+    const currentId = stack.pop()!;
+    if (currentId === targetId) return true;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const task = tasks[currentId];
+    if (!task) continue;
+    task.dependencies.forEach((depId) => stack.push(depId));
+  }
+
+  return false;
+}
+
 export function deleteTasksAndCleanup(state: TaskGraphState, ids: string[]): TaskGraphState {
   const idsToDelete = collectSubtreeIds(state.tasks, ids);
   if (idsToDelete.size === 0) {

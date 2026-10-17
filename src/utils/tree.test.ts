@@ -40,4 +40,15 @@ describe('flattenTree', () => {
     const flattened = flattenTree({}, []);
     expect(flattened).toEqual([]);
   });
+
+  it('should terminate (not stack overflow) on a cyclic parent/child reference', () => {
+    // 参照整合が壊れたデータ（親子の循環）でも無限再帰しないこと
+    const cyclic: Record<string, Task> = {
+      a: { id: 'a', title: 'A', children: ['b'], parentId: null, isCollapsed: false, startDate: '', endDate: '', duration: 1, progress: 0, dependencies: [] },
+      b: { id: 'b', title: 'B', children: ['a'], parentId: 'a', isCollapsed: false, startDate: '', endDate: '', duration: 1, progress: 0, dependencies: [] },
+    };
+    const flattened = flattenTree(cyclic, ['a']);
+    // a -> b までで止まり、各タスクは一度だけ現れる
+    expect(flattened.map((item) => item.id)).toEqual(['a', 'b']);
+  });
 });

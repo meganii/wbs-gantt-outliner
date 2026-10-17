@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount, formatToShow, formatToEdit, parseInputDate } from './date';
+import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount, formatToShow, formatToEdit, parseInputDate, parseIsoDateStrict } from './date';
 
 
 describe('date utils', () => {
@@ -159,6 +159,29 @@ describe('date utils', () => {
         expect(parseInputDate('13/10')).toBeNull();
         expect(parseInputDate('invalid')).toBeNull();
         expect(parseInputDate('')).toBeNull();
+      });
+    });
+
+    describe('parseIsoDateStrict', () => {
+      it('should accept strict YYYY-MM-DD dates', () => {
+        expect(parseIsoDateStrict('2026-06-10')).toBe('2026-06-10');
+        expect(parseIsoDateStrict('2024-02-29')).toBe('2024-02-29'); // leap year
+      });
+
+      it('should reject non-strings and other formats', () => {
+        expect(parseIsoDateStrict(20260610)).toBeNull();
+        expect(parseIsoDateStrict('2026/06/10')).toBeNull();
+        expect(parseIsoDateStrict('2026-6-5')).toBeNull();
+        expect(parseIsoDateStrict('abc')).toBeNull();
+        expect(parseIsoDateStrict('')).toBeNull();
+        expect(parseIsoDateStrict(null)).toBeNull();
+        expect(parseIsoDateStrict(undefined)).toBeNull();
+      });
+
+      it('should reject non-existent dates', () => {
+        expect(parseIsoDateStrict('2026-13-45')).toBeNull();
+        expect(parseIsoDateStrict('2026-02-30')).toBeNull();
+        expect(parseIsoDateStrict('2025-02-29')).toBeNull(); // not a leap year
       });
     });
   });

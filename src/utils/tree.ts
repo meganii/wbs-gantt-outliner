@@ -12,19 +12,25 @@ export function flattenTree(
   rootIds: string[],
   depth = 0,
   result: FlattenedItem[] = [],
-  parentWbs = ''
+  parentWbs = '',
+  visited: Set<string> = new Set()
 ): FlattenedItem[] {
   rootIds.forEach((id, index) => {
     const task = tasks[id];
     if (!task) return;
-    
+
+    // 参照整合が壊れたデータ（親子の循環など）で無限再帰しないための防御。
+    // 正しいツリーでは各タスクは一度しか現れないため挙動は変わらない。
+    if (visited.has(id)) return;
+    visited.add(id);
+
     // Calculate WBS: if parentWbs is empty, use '1', '2'. Else '1.1', '1.2'
     const currentWbs = parentWbs ? `${parentWbs}.${index + 1}` : `${index + 1}`;
     
     result.push({ id, depth, task, wbsNumber: currentWbs });
     
     if (!task.isCollapsed && task.children.length > 0) {
-      flattenTree(tasks, task.children, depth + 1, result, currentWbs);
+      flattenTree(tasks, task.children, depth + 1, result, currentWbs, visited);
     }
   });
   return result;
@@ -39,18 +45,22 @@ export function flattenTreeAll(
   rootIds: string[],
   depth = 0,
   result: FlattenedItem[] = [],
-  parentWbs = ''
+  parentWbs = '',
+  visited: Set<string> = new Set()
 ): FlattenedItem[] {
   rootIds.forEach((id, index) => {
     const task = tasks[id];
     if (!task) return;
+
+    if (visited.has(id)) return;
+    visited.add(id);
 
     const currentWbs = parentWbs ? `${parentWbs}.${index + 1}` : `${index + 1}`;
 
     result.push({ id, depth, task, wbsNumber: currentWbs });
 
     if (task.children.length > 0) {
-      flattenTreeAll(tasks, task.children, depth + 1, result, currentWbs);
+      flattenTreeAll(tasks, task.children, depth + 1, result, currentWbs, visited);
     }
   });
   return result;

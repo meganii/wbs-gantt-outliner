@@ -14,6 +14,7 @@ import {
   reorderTaskInGraph,
   moveTaskInGraph,
   getTaskDepth,
+  hasDependencyPath,
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
 
@@ -434,28 +435,7 @@ const taskStore = create<TaskStoreState>()(
           return {};
         }
 
-        const checkCycle = (
-          currentId: string,
-          targetId: string,
-          visited: Set<string> = new Set()
-        ): boolean => {
-          if (currentId === targetId) {
-            return true;
-          }
-          if (visited.has(currentId)) {
-            return false;
-          }
-          visited.add(currentId);
-
-          const task = state.tasks[currentId];
-          if (!task) {
-            return false;
-          }
-
-          return task.dependencies.some((depId) => checkCycle(depId, targetId, visited));
-        };
-
-        if (checkCycle(fromId, toId)) {
+        if (hasDependencyPath(state.tasks, fromId, toId)) {
           console.warn('Cycle detected, cannot add dependency');
           return {};
         }
