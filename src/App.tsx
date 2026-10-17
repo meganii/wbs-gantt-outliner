@@ -4,6 +4,7 @@ import { GanttChart } from './components/GanttChart';
 import { IntegratedView } from './components/IntegratedView';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog';
 import { AppHeader } from './components/AppHeader';
+import { ToastContainer } from './components/ToastContainer';
 import { useTaskStore } from './store/useTaskStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIpcSwitchView } from './hooks/useIpcSwitchView';
@@ -90,6 +91,8 @@ function App() {
         isOpen={isProjectSettingsOpen}
         onClose={() => setIsProjectSettingsOpen(false)}
       />
+
+      <ToastContainer />
     </div>
   );
 }

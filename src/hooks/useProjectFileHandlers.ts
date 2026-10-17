@@ -1,4 +1,5 @@
 import { loadProjectState, useTaskStore } from '../store/useTaskStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 
 /**
  * ipcRenderer 経由のファイル操作（保存・読込・Excel エクスポート）を提供するフック。
@@ -9,6 +10,7 @@ export function useProjectFileHandlers() {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
   const projectConfig = useTaskStore((state) => state.projectConfig);
+  const notify = useNotificationStore((state) => state.notify);
 
   const handleSave = async () => {
     const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
@@ -26,17 +28,32 @@ export function useProjectFileHandlers() {
       parsed = JSON.parse(content);
     } catch (e) {
       console.error('Failed to parse project file', e);
+      notify({
+        level: 'error',
+        message: '読み込みに失敗しました: JSON を解析できませんでした',
+      });
       return;
     }
 
     const result = loadProjectState(parsed);
     if (!result.ok) {
       console.error('Failed to load project file', result.error);
+      notify({
+        level: 'error',
+        message: `読み込みに失敗しました: ${result.error}`,
+      });
       return;
     }
 
     if (result.warnings.length > 0) {
       console.warn('Project file loaded with repairs', result.warnings);
+      notify({
+        level: 'warning',
+        message: `読み込みました（警告 ${result.warnings.length} 件）`,
+        details: result.warnings,
+      });
+    } else {
+      notify({ level: 'info', message: 'プロジェクトを読み込みました' });
     }
   };
 
