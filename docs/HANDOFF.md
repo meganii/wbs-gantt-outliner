@@ -4,6 +4,16 @@
 
 ## 現在の状態
 
+- **JSON インポートの実行時バリデーション強化（優先課題 #2 / IPC 申し送り #1）** (October 17, 2026):
+  - 背景: `useProjectFileHandlers.handleLoad` が `JSON.parse` の結果を無検証で `loadProjectState` に渡しており、壊れたファイルで (a) 例外（`tasks` 欠落 / `rootIds` 欠落 / `children` が `undefined` / トップレベル `null`）、(b) 無通知のデータ消失（`tasks` が配列 / 親子の循環で `rootIds=[]`）、(c) 描画クラッシュ（ルートから到達可能な親子循環で `flattenTree` が無限再帰 → `RangeError: Maximum call stack size exceeded`）、(d) 型・値の残留（`progress` が文字列 / 不正日付 / 不正 `columnWidths`・`timelineRange`）が起きていた。一時テストで全 14 ケースを再現して確認済み（実装前に報告済み）。
+  - **方針（ユーザー確認済み）**: 修復優先＋警告。直せる異常値はすべて直して読み込み `warnings` に要約する。どうしても読めない場合（非オブジェクト / `tasks` 不正 / 有効タスク 0 件）だけ拒否してストアを一切変更しない。不正な日付文字列は `null` にクリアする。
+  - **`src/utils/validateProjectState.ts`（新規）**: 未知の値を検証・正規化する純粋関数。tasks を `id` 基準で引き直し、children / dependencies の「存在しない・自己・重複」参照を除去、多重親を先着 1 つに絞り、親子の循環と依存の循環を反復 DFS で切断して森（閉路なし・単一親）にする。`projectConfig` は `mergeProjectConfig` に委譲。
+  - **`src/utils/projectConfig.ts`**: `mergeProjectConfig(projectConfig, warnings?)` に拡張し、`columnWidths` の非数値（`"wide"` 等）を既定値へ、`timelineRange` の不正値（型違い・実在しない日付・`start > end`）を無効化するよう検証を追加。
+  - **`loadProjectState`（単一の choke point）**: シグネチャを `(input: unknown)` に変更し `{ ok, warnings, error? }` を返す。IPC 経由かどうかに依存せず、成功時のみ `setState` + undo 履歴クリア。
+  - **トースト通知**: `src/store/useNotificationStore.ts`（新規）＋ `src/components/ToastContainer.tsx`（新規）を追加し、画面右上に「成功 / 修復警告（詳細付き）/ エラー」を表示。info/warning は自動消滅（5s / 12s）、error は手動で閉じるまで残る。これまで console だけで UI 通知が無かった点を解消。`App.tsx` にマウント。
+  - **防御の多層化**: `flattenTree` / `flattenTreeAll` に `visited` ガードを追加（万一すり抜けても無限再帰しない）。`addDependency` にインラインだった循環判定を純粋関数 `hasDependencyPath` として `taskStoreUtils.ts` に抽出し、検証側と共用。
+  - **注意**: `loadProjectState` の戻り値を使わない呼び出し（既存テスト含む）はそのまま動く（成功時のみストア更新）。読み込みの正常系（既存の保存 JSON）の互換性はユニットテストで確認済み。
+  - 検証: lint 0 / vitest **178 件（19ファイル）** / e2e 5 / build 通過。
 - **デバッグ用テストの整理（非干渉テストへの昇格 / 不要な E2E の削除）** (October 17, 2026):
   - `src/store/verify_bug.test.ts`（デバッグ名の3件）を **`src/store/updateTaskIsolation.test.ts`** に再編。同期・ロックの一般仕様は `useTaskStore.test.ts`「Baseline Plan and Actual Date Synchronization & Locking」が担うため重複分は落とし、**「あるタスクの更新で無関係な兄弟タスクが変わらない」相互非干渉の主張だけ**を残した（過去の「無関係なタスクが動く」パターンC退行の再発防止。他テストでは未カバーだった観点）。セットアップも `initialState` リセット＋`getTemporalState().clear()` の標準作法に統一。
   - `e2e/reproduce-bug.spec.ts` を **削除**。実質のアサーションが「Task B の予定開始セルが `06/05` のまま」1点のみで、バーの x 座標は画面外（-4533）を測っており「ホバーでスナップバック」の検証が成立していなかった。`page.on('console')` / `console.log` / `waitForTimeout` のデバッグノイズ付きで、意図した不変条件は上記の非干渉テストと 6/7 の `TaskRow task` prop + `TimelineContext` 修正で構造的に担保済み。E2E は 6 → 5 件。
@@ -209,9 +219,9 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 17, 2026 / P1 変更領域の回帰ハードニング後)
+## 直近の検証結果 (October 17, 2026 / JSON インポートのバリデーション強化後)
 
-- `npm test -- --run` : **127テスト全件合格** (14ファイル。P1 の各 Step の回帰テストに加え、回帰ハードニングで15件追加。`verify_bug.test.ts` を非干渉テスト `updateTaskIsolation.test.ts`（3件）へ再編)
+- `npm test -- --run` : **178テスト全件合格** (19ファイル。JSON インポートの検証に伴い、`validateProjectState`(25) / `projectConfig`(7) / `useNotificationStore`(3) / `ToastContainer`(5) / `useProjectFileHandlers`(5) と既存テストの拡張で 127 → 178 に増加)
 - `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
@@ -225,63 +235,13 @@
 1. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
    - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
-2. **JSON インポートの互換性・異常値バリデーション強化**
-   - インポート処理の入り口にスキーマバリデーションを導入し、破損データや不正なフォーマットの日付、循環依存が含まれている場合のガードを強化する。
-   - IPC 境界（`window.ipcRenderer.invoke`）は lint 対応で `unknown` 化済みなので、ここに入れるのは**型ではなく実行時の検証**になる。詳細は下記「IPC / Electron の申し送り」を参照。
-3. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
+2. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
+   - 旧 #2「JSON インポートの互換性・異常値バリデーション強化」は October 17, 2026 に完了（上記「現在の状態」参照）。
    - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（過去に D1 の非対称を生んだ二重化の解消）。
    - D9: 行高 `32` の定数化（`useGanttDependencies` 以外は未対応）、未使用 `taskBarRefs` の削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
    - D10: zundo の `partialize` と `equality` のズレ。「データ変更時だけ履歴化し、その時点の選択/フォーカスを一緒に保存する」意図的な設計とも読めるため、まずバグか仕様かを切り分ける。
 
 > 描画性能 P1（購読ファンアウト D7 / 依存線 P2 / 入力連鎖 P3 / Context D6）は October 17, 2026 に Step 1〜4 を完了。経緯と実測値は「現在の状態」と `bench/README.md` を参照。
-
-#### 次セッションへの依頼文（優先課題 #2: JSON インポートの実行時バリデーション、コピペ用）
-
-```
-docs/HANDOFF.md を読んで、「次に着手する優先課題」#2（JSON インポートの互換性・異常値バリデーション強化）に着手してください。HANDOFF の「IPC / Electron の申し送り → 将来やるなら #1」が本命としている作業です。
-
-背景（確認済み）:
-- 読み込み経路は src/hooks/useProjectFileHandlers.ts の handleLoad が
-  window.ipcRenderer.invoke('load-file') の戻り値を JSON.parse し、そのまま loadProjectState(data) に
-  渡している（無検証）。electron/main.ts の 'load-file' は「ファイル内容の文字列 | null」を返す。
-- loadProjectState（src/store/useTaskStore.ts）は normalizeProjectState（参照整合の修復）と
-  mergeProjectConfig（既定値補完）を通すが、いずれも「配列・必須フィールドが存在する」前提で動く。
-  具体的に壊れる例:
-  - data.tasks が無い/配列でない → normalizeProjectState の Object.keys / マップで例外。
-  - task.children / task.dependencies が undefined → normalizeProjectState の .filter で TypeError。
-  - 子の循環（A.children に B、B.children に A）→ flattenTree（src/utils/tree.ts）が visited 無しで
-    再帰するため **無限再帰でスタックオーバーフロー（描画でクラッシュ）**。
-  - 不正な日付文字列（'2026-13-45' / 'abc'）は parseISO が Invalid Date を返し、表示・編集・
-    エクスポートで不正値として残る（一部は isValid でガードされるが入力値そのものは素通し）。
-- IPC 境界は lint 対応で unknown 化済みなので、ここで必要なのは「型」ではなく「実行時の検証」です。
-
-進め方:
-1. まず現状の失敗モードを一時テストで再現して報告する（いきなり実装しない）。少なくとも
-   (a) tasks / rootIds の欠落・型違い、(b) タスクの型違い（children / dependencies が undefined、
-   progress が文字列、キーと task.id の不一致）、(c) 不正な日付、(d) 子の循環（親子の循環）、
-   (e) 依存の循環、(f) projectConfig の形（calendar.holidays / workDays が配列でない、
-   viewMode が想定外、columnWidths が数値でない、timelineRange の不正）を切り分ける。
-2. 挙動の方針を提案して確認を取る（「丸ごと拒否してユーザーに通知」か「直せるものは修復して警告」か。
-   現在は console.error のみで UI 通知が無いため、通知先・文言も決める）。
-3. 実装方針の候補: 純粋な検証/正規化関数を新設（例 src/utils/validateProjectState.ts）し、
-   loadProjectState の入口（IPC 経由かどうかに依存しない単一の choke point）で通す。
-   日付は src/utils/date.ts の方針に合わせ、曜日判定は個別実装しない。循環の検出は既存の
-   graph 操作（addDependency の循環判定）を再利用できないか確認する。
-4. テストを追加: 検証関数のユニット、loadProjectState の異常系、
-   src/store/useTaskStore.test.ts の "loadProjectState"（既存）の拡張。正常系（既存の保存 JSON）が
-   今まで通り読めることを必ず確認する。
-5. 各ステップで npm run lint / npx vitest run / npm run test:e2e / npm run build を回し、
-   1 ステップ = 1 コミット。完了したら before/after（再現した失敗 → ガード後の挙動）を報告し、
-   docs/HANDOFF.md を更新する。
-
-壊してはいけないもの（docs/HANDOFF.md「注意点」より）:
-- draw-range は単クリックでも確定する（日セルのクリックで 1 日予定が入る）。「移動ゼロなら commit しない」ガードを再導入しないこと
-- バー/ハンドルの onMouseDown は早期 return 時も stopPropagation を維持し、data-gantt-bar を消さない
-- useRowSortSensors（KeyboardSensor 無効・distance 5）
-- パッケージマネージャは npm（pnpm へ戻さない）
-- 現在 lint 0 / vitest 127 件 (14ファイル) / e2e 5 件 / build 通過。これを維持すること
-- 読み込みの正常系（既存の保存 JSON）の互換性を壊さないこと
-```
 
 ## 設計レビュー結果（October 17, 2026）
 
@@ -319,6 +279,7 @@ docs/HANDOFF.md を読んで、「次に着手する優先課題」#2（JSON イ
 - `npm run lint` は **0件で通過する**。`eslint.config.js` の `globalIgnores` で `dist` / `dist-electron` / `out` / `coverage` / `test-results` 等の生成物を除外し、`_` 接頭辞の未使用引数・変数も許可済み。CI や検証フローに lint を組み込む場合は、この 0 件状態を維持すること。
 - **eslint-plugin-react-hooks v7 の recommended は error レベルで強力**（`set-state-in-effect` / `set-state-in-render` / `refs` / `purity` 等）。store の値をローカル state に同期する箇所は `useEffect` 内の `setState` ではなく、**レンダー中に前回値と比較して state を調整するパターン**（`if (prev !== current) { setPrev(current); setLocal(current); }`）で実装する。ref への書き込みは effect 内でのみ行うこと。
 - 営業日計算は `src/utils/date.ts` を経由して一貫させること。曜日判定を個別実装しないこと。
+- **JSON の読み込みは `loadProjectState`（`src/store/useTaskStore.ts`）が唯一の入口**。入力は `src/utils/validateProjectState.ts` で実行時検証・正規化してから `setState` する（読み込めない入力ではストアを変更しない）。保存フォーマット（`Task` / `ProjectConfig`）を変えるときは、この検証・正規化と `mergeProjectConfig` の互換を必ず確認すること。読み込み結果は `ToastContainer`（右上）で通知する。
 - `useGanttDrag` の中で `updateTask` や `addDependency` を直接叩いており、コンポーネントからの依存を最小限に抑えています。
 - **セルはストアを購読しない**（P1 Step 4-A）。必要なデータは `TaskRow` が 1 回購読して props で配り、操作は `useTaskStore.getState()` をイベント時に呼ぶ。「自分がフォーカス/選択されているか」だけを返す boolean selector は残す（`selectedTaskIds` / `focusedTaskId` を行の props にすると選択のたびに全行が再レンダーされる）。新しいセルを足すときは `memo(..., cellPropsEqual)`（関数 props を比較対象から外す）に従うこと。
 - **`SortableContext items` は `useStableFlattenedIds` で内容安定化**する（P1 Step 4-B）。ID 列の内容が同じなら配列参照を据え置き、`React.memo` では止まらない context 経由の全行再レンダーを防ぐ。`useGanttTimeline` の `timeRange` / `timelineMetrics` も値（epoch ms / Date の時刻）依存にしてあり、日付範囲が変わらない編集では参照が変わらない。
@@ -336,7 +297,7 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 - **ただしこれは終着点ではない。** Electron の context isolation チュートリアルは `send: ipcRenderer.send` のような汎用露出を **❌ Bad code** と明記し、「IPC メッセージごとに 1 メソッドを用意する」形を推奨している。現在の汎用 `invoke` / `send` / `on` の露出はこの ❌ 例に近く、`unknown` 化は「設計を変えずに型を誠実にした」中間段階にあたる。
 
 ### 将来やるなら（優先順）
-1. **`load-file` で読み込んだ JSON の実行時バリデーション**（＝上記「次に着手する優先課題」#2）。**型は実行時の安全性を一切保証しない**（Electron メンテナも "fake type safety" と明言）ので、ここが本命。`unknown` 化によって「検証すべき境界」がコード上で明示されたことが今回の最大の収穫。
+1. ~~**`load-file` で読み込んだ JSON の実行時バリデーション**~~ ✅ **対応済み (October 17, 2026)**: `src/utils/validateProjectState.ts` を新設し、`loadProjectState` の入口で実行時検証・正規化するようにした（詳細は「現在の状態」参照）。`unknown` 化によって「検証すべき境界」がコード上で明示されたことが最大の収穫で、そこに実行時検証を入れた形。
 2. **preload が Electron の `event` オブジェクトを renderer に通している。** `on` の実装が `listener(event, ...args)` となっており、公式の「`event` を露出するな、`callback(...args)` に詰め替えろ」という警告から逸脱している（`useIpcSwitchView` 側は `_event` として未使用だが、renderer には到達する）。`(...args) => callback(...args)` に変えるだけで解消できる。
 3. **チャンネル型マップ化、または名前付きメソッド化。** 対象チャンネルは `save-file` / `load-file` / `export-excel` / `switch-view` の 4 つ。チャンネル 1〜5 個なら依存ゼロの「共有チャンネルマップ + 型付きラッパー」が適切とされる。名前付きメソッド化（`window.api.saveProject(data)` 等）まで行けば公式の推奨形になる。影響範囲は preload / main / renderer / テストに跨るため、**lint 対応とは別コミットで実施すること**。
 4. **`webPreferences` に `sandbox: true` を明示。** 現在は `contextIsolation: true` のみ指定（`nodeIntegration` は未指定＝既定 false、`sandbox` は未指定＝既定依存）。なお `dangerouslySetInnerHTML` / `eval` / `window.open` の類は不使用でリモートコンテンツも読み込まないため、**汎用 `invoke` 露出の実害は現状かなり小さい**（優先度は低め）。
@@ -355,6 +316,8 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 - `src/store/updateTaskIsolation.test.ts`（`updateTask` の相互非干渉テスト。旧 `verify_bug.test.ts` の再編）
 - `src/components/TimelineHeader.tsx` (新規 2段ヘッダーコンポーネント)
 - `src/hooks/useGanttTimeline.ts` (タスクデータ駆動の日付範囲ロジック)
+- `src/utils/validateProjectState.ts` / `src/utils/validateProjectState.test.ts`（JSON インポートの実行時検証・正規化。`loadProjectState` の choke point）
+- `src/store/useNotificationStore.ts` / `src/components/ToastContainer.tsx`（画面右上のトースト通知。読み込み結果の警告・エラー表示）
 - `src/renderer.d.ts` / `electron/preload.ts` / `src/hooks/useProjectFileHandlers.ts` (IPC 境界。上記「IPC / Electron の申し送り」参照)
 - `eslint.config.js` (lint 0 件を維持するための ignores とルール設定)
 
