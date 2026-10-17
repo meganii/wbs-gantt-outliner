@@ -4,6 +4,41 @@
 
 ## 現在の状態
 
+- **統合表示の列ヘッダー高さがタイムラインと揃っていない問題の修正** (October 17, 2026, branch `feature/ui-refresh`):
+  - 症状: 統合表示で左ペインの列名ヘッダーが 40px、右のタイムライン 2 段ヘッダーが 56px で、境界で高さがずれて見えていた（ガントチャートは両方 56px）。`TaskTableHeader` に `height` prop はあったが、統合表示が渡していなかった（既定 40px）。
+  - 修正: `TimelineHeader.tsx` に高さの唯一の定義元 `TIMELINE_GROUP_ROW_HEIGHT`(20) / `TIMELINE_DETAIL_ROW_HEIGHT`(36) / `TIMELINE_HEADER_HEIGHT`(56) を追加。`GanttChart` のローカル定数と統合表示の `h-[56px]` ハードコードを廃止して同定数を参照。統合表示の `TaskTableHeader` に `height={TIMELINE_HEADER_HEIGHT}` を渡し、左ペインとタイムラインのヘッダー高さを一致させた。
+  - 回帰テスト: `src/components/Phase2Regression.test.tsx` に「ヘッダー高さの整合」3 件（統合表示の列ヘッダー＝タイムライン切り出し領域／ガントのヘッダー／2 段ヘッダーの合計＝グループ行＋詳細行）を追加。
+  - 検証: `npm run lint` 0 / `npx vitest run` **197 件（22ファイル）** / `npm run test:e2e` **5 件** / `npm run build` 通過。`npm run shots` のスクリーンショットと実ブラウザ実測でヘッダー高さが揃うことを確認（統合表示: 左ヘッダー 56px ＝ タイムライン ヘッダー 56px / ガント: ヘッダー帯 56px ＝ 左列 56px）。
+  - 補足: 統合表示の左ペイン境界の下罫線は `border-line`（左）と `border-gray-300`（右）で色が異なる（高さとは別の軽微な不整合。今回は未修正）。
+  - **開発メモ（この環境で Playwright を動かす）**: `npx playwright install chromium` は `ubuntu20.04-arm64` 非対応で失敗する。回避策として Chrome for Testing の arm64 ビルド（`chrome-linux-arm64` と `chrome-headless-shell-linux-arm64`）を取得し、Playwright が期待するパス（`~/.cache/ms-playwright/chromium-1248/chrome-linux-arm64/chrome` と `chromium_headless_shell-1248/chrome-headless-shell-linux-arm64/chrome-headless-shell`）へ配置すると `npm run shots` / `npm run test:e2e` が動く。OS 依存ライブラリは `libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libgtk-3-0 libnss3 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libpango-1.0-0 libcairo2 libasound2 libvulkan1` 等を apt で導入。コンテナには日本語フォントが無いためスクリーンショットの日本語は豆腐（□）になるが、レイアウト確認には支障なし。
+- **UI 刷新 Phase 0〜2（モダン・クリーン化）完了** (October 17, 2026):
+  - 背景: `docs/UI_REVIEW.md` の総点検に基づき、3 ビュー（WBS / 統合表示 / ガントチャート）の UI を一般的なタスク管理ツール相当へ刷新。Phase 0（破損修正）/ Phase 1（土台＋ヘッダー/サブバー/ステータスバー/言語統一）/ Phase 2（ガント表現）を実装。
+  - **Phase 0（破損修正）**:
+    - P0-1 日付セルの文字重なり: `TaskDateCell` / `TaskPlanDateCell` の local state をストア値の表示形式で初期化し placeholder を空に（透明 input の placeholder と Overlay Span の重なりを解消）。
+    - P0-2 統合表示の列欠落: `ProjectConfig.integratedColumns`（既定 `COMPACT_COLUMNS` = taskName/status/progress/planDuration/duration）を新設。`useOutlinerResize` に minWidth を渡し、列が隠れて到達不能にならないよう自動フィット。
+    - P0-3 トースト: 右上の操作系と重ならないよう右下（`bottom-9 right-4`）へ移動。
+    - 列表示メニューを `src/components/ColumnVisibilityMenu.tsx` に共通化（列ヘッダー右クリック / サブバー「表示項目」の両方から）。
+  - **Phase 1（土台）**:
+    - `tailwind.config.js` にトークン（`fontFamily.sans` 日本語スタック / `colors.brand` / `colors.line` / `boxShadow.xs・pop`）。`src/index.css` を刷新（html/body/#root の高さ、`body overflow:hidden`、`:focus-visible` リング、`.thin-scrollbar`）。
+    - `AppHeader.tsx` を再設計（ブランド + ビュー切替セグメント + 元に戻す/やり直す + 基準計画固定ピル + プロジェクトメニュー + 保存/読込/エクスポート）。`SubToolbar.tsx`（ズーム 日/週/月/年・今日・すべて展開/折りたたむ・表示項目）と `StatusBar.tsx`（タスク数/選択数/ズーム/祝日数）を新設し App に組み込み、旧 "Ready" フッターを置換。
+    - 各ビューのフローティング `Day/Week/Month/Year` `<select>` を撤去（サブバーのセグメントへ集約）。
+    - `ProjectSettingsDialog` を日本語化。`index.html` の title / favicon を設定、Electron 既定ウィンドウを 1440x900（min 1000x640）に。
+    - `todayFocusRequestId` + `requestScrollToToday()` を追加し、統合表示/ガントで「今日」ボタンが今日位置へスクロール。
+    - ヘッダーは `overflow-hidden`（狭い幅で内容がメイン領域へはみ出さないように）を持つため、プロジェクトメニューを `absolute` で置くとヘッダーの高さで切り取られ、ガントチャート等のメイン領域に隠れていた。ボタン位置から座標を求めて `fixed` + `z-[60]` + `no-drag` で描画するよう修正（`AppHeader.test.tsx` で固定）。同じ理由で `ColumnVisibilityMenu` / サブバーの「表示項目」も `z-[60]` に統一（統合表示の列リサイズハンドル z-50 が前面に出ていた）。
+    - WBS ビューで列名ヘッダーが縦スクロールで流れていた問題を修正。`Outliner` のルートが `overflow-x-auto` を持つと（CSS の仕様で縦も auto になる）自身がスクロールコンテナになり、ヘッダーの `sticky top-0` が「実際には動かない Outliner 自身」を基準にしてしまう。ルートの overflow を外して親（App の `overflow-auto`）の縦スクロールに追従させた（横スクロールバーは画面下部に移動）。
+  - **Phase 2（ガント表現）**:
+    - 今日ライン（`TimelineGridBackground` に brand の縦線）＋ヘッダーの今日バッジ（`TimelineHeader`）。
+    - 週末（薄グレー）と祝日（薄アンバー + `title`）を区別。グリッド背景を `min-height:100%` にして行が少なくても全面に描画。
+    - 月グループラベルを sticky（左端固定）化。`position: sticky` はインライン style にし、既存テストの `.sticky.left-0` セレクタと衝突させない。
+    - 選択行のハイライト帯をタイムライン側にも敷く（`GanttTimelineRow` に `isSelected` / `isHovered`）。`.bg-blue-100`・`[title="Drag to create dependency"]`・`data-gantt-bar`（値は plan/actual）は維持。
+    - バーの角丸・枠・影を調整、親バーは丸型。依存線の矢印を拡大し `strokeLinejoin=round`。
+    - ガントのみのビューの左列にステータス・進捗を追加（ヘッダーにもラベル）。
+    - 横スクロール時に、行より下の左ペイン（タスク名列）余白へ日付グリッドが覗く問題を修正。`TimelineGridBackground` を `forwardRef` 化し、依存線 SVG と同じくスクロール量ぶんを `clip-path` で切り落とす。さらに左ペインとタイムラインの境界線をスクロールコンテナの背景（`src/utils/leftPaneDivider.ts`）として描き、行が無い部分でも 1 本の線が途切れないようにした。
+  - テスト: `src/components/Phase2Regression.test.tsx`（5 件）新規 + `src/components/DependencyLayerClip.test.tsx` にグリッド背景のクリップ検証 + `src/components/AppHeader.test.tsx`（プロジェクトメニュー 3 件）+ `Outliner.test.tsx` に列名ヘッダーの sticky 検証を追加。e2e 3 件は「統合表示が既定コンパクト列」になったため、日付入力は WBS ビューで行うよう更新（依存ドラッグは統合表示のまま）。
+  - 検証: `npm run lint` 0 / `npm test -- --run` **194 件（22ファイル）** / `npm run test:e2e` **5 件** / `npm run build` 通過。
+  - 目視確認用ツール: `npm run shots`（`scratch/screenshot.mjs`）。`scratch/sample-project.json` を「読み込み」させて 3 ビュー + 行選択 + 狭い幅 + 設定ダイアログを `scratch/shots/` に撮影する（生成物は `.gitignore` 済み・コミットしない）。dev サーバ（`npm run dev`）を起動してから実行。
+  - 注意: 開発サーバ（vite）が古い Tailwind 設定をキャッシュしていると `brand` 色が反映されず、スクリーンショット確認が誤る。再起動で解消（今回は発生・再起動済み）。
+  - 未着手（Phase 3 候補）: ステータス/進捗セルのピル化、空状態（統合/ガント）、行の右クリックメニュー、検索/フィルタ（P1-5 / P1-7 / P2-6）。
 - **JSON インポートの実行時バリデーション強化（優先課題 #2 / IPC 申し送り #1）** (October 17, 2026):
   - 背景: `useProjectFileHandlers.handleLoad` が `JSON.parse` の結果を無検証で `loadProjectState` に渡しており、壊れたファイルで (a) 例外（`tasks` 欠落 / `rootIds` 欠落 / `children` が `undefined` / トップレベル `null`）、(b) 無通知のデータ消失（`tasks` が配列 / 親子の循環で `rootIds=[]`）、(c) 描画クラッシュ（ルートから到達可能な親子循環で `flattenTree` が無限再帰 → `RangeError: Maximum call stack size exceeded`）、(d) 型・値の残留（`progress` が文字列 / 不正日付 / 不正 `columnWidths`・`timelineRange`）が起きていた。一時テストで全 14 ケースを再現して確認済み（実装前に報告済み）。
   - **方針（ユーザー確認済み）**: 修復優先＋警告。直せる異常値はすべて直して読み込み `warnings` に要約する。どうしても読めない場合（非オブジェクト / `tasks` 不正 / 有効タスク 0 件）だけ拒否してストアを一切変更しない。不正な日付文字列は `null` にクリアする。

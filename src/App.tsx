@@ -4,12 +4,15 @@ import { GanttChart } from './components/GanttChart';
 import { IntegratedView } from './components/IntegratedView';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog';
 import { AppHeader } from './components/AppHeader';
+import { SubToolbar } from './components/SubToolbar';
+import { StatusBar } from './components/StatusBar';
 import { ToastContainer } from './components/ToastContainer';
 import { useTaskStore } from './store/useTaskStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIpcSwitchView } from './hooks/useIpcSwitchView';
 import { useOutlinerResize } from './hooks/useOutlinerResize';
 import { flattenTree } from './utils/tree';
+import { COMPACT_COLUMNS } from './utils/projectConfig';
 
 function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
@@ -23,6 +26,14 @@ function App() {
 
   const { outlinerWidth, startResizing } = useOutlinerResize({
     columnWidths: projectConfig.columnWidths,
+    minWidth: useMemo(
+      () =>
+        (projectConfig.integratedColumns ?? COMPACT_COLUMNS).reduce(
+          (sum, columnId) => sum + projectConfig.columnWidths[columnId],
+          0
+        ),
+      [projectConfig.integratedColumns, projectConfig.columnWidths]
+    ),
   });
 
   // Keyboard Shortcuts for Undo/Redo & View Switches
@@ -45,6 +56,8 @@ function App() {
         setView={setView}
         onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
       />
+
+      <SubToolbar view={view} />
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden min-h-0">
@@ -72,7 +85,6 @@ function App() {
         {view === 'gantt' && (
           <div className="flex-1 relative overflow-hidden w-full min-h-0 min-w-0">
             <GanttChart
-              showSidebar
               showNames
               flattenedItems={visibleItems}
               hoveredTaskId={hoveredTaskId}
@@ -83,9 +95,7 @@ function App() {
       </main>
 
       {/* Status Bar */}
-      <footer className="h-6 bg-gray-100 border-t border-gray-300 flex items-center px-2 text-[10px] text-gray-500 select-none">
-        <span>Ready</span>
-      </footer>
+      <StatusBar view={view} />
 
       <ProjectSettingsDialog
         isOpen={isProjectSettingsOpen}

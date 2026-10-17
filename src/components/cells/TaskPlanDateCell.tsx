@@ -35,11 +35,12 @@ export const TaskPlanDateCell = memo(({
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
 
-  const [localStart, setLocalStart] = useState('');
-  const [localEnd, setLocalEnd] = useState('');
+  // 初期値はストア値の表示形式で初期化する（TaskDateCell と同じ理由）。
+  const [localStart, setLocalStart] = useState(() => formatToShow(planStart));
+  const [localEnd, setLocalEnd] = useState(() => formatToShow(planEnd));
 
-  const localStartRef = useRef('');
-  const localEndRef = useRef('');
+  const localStartRef = useRef(formatToShow(planStart));
+  const localEndRef = useRef(formatToShow(planEnd));
 
   const escapedStartRef = useRef(false);
   const escapedEndRef = useRef(false);
@@ -233,7 +234,7 @@ export const TaskPlanDateCell = memo(({
           ref={startDateRef}
           type="text"
           value={localStart}
-          placeholder={isReadOnly ? "" : "yyyy/mm/dd"}
+          placeholder=""
           readOnly={isReadOnly}
           tabIndex={isReadOnly ? -1 : undefined}
           onFocus={() => {
@@ -276,7 +277,7 @@ export const TaskPlanDateCell = memo(({
           ref={endDateRef}
           type="text"
           value={localEnd}
-          placeholder={isReadOnly ? "" : "yyyy/mm/dd"}
+          placeholder=""
           readOnly={isReadOnly}
           tabIndex={isReadOnly ? -1 : undefined}
           onFocus={() => {

@@ -15,6 +15,10 @@ export interface GanttTimelineRowProps {
   baselineLocked: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   timelineWidth: number;
+  /** 選択中の行かどうか（タイムライン側にもハイライト帯を敷く）。 */
+  isSelected?: boolean;
+  /** ホバー中の行かどうか。 */
+  isHovered?: boolean;
 }
 
 export const GanttTimelineRow = memo(({
@@ -24,6 +28,8 @@ export const GanttTimelineRow = memo(({
   baselineLocked,
   taskBarRefs,
   timelineWidth,
+  isSelected = false,
+  isHovered = false,
 }: GanttTimelineRowProps) => {
   const isParent = task.children.length > 0;
 
@@ -75,6 +81,17 @@ export const GanttTimelineRow = memo(({
         });
       }}
     >
+      {/* Task Bar */}
+      {(isSelected || isHovered) && (
+        <div
+          aria-hidden="true"
+          className={clsx(
+            'absolute inset-0 pointer-events-none',
+            isSelected ? 'bg-brand-500/[0.08]' : 'bg-slate-500/[0.04]'
+          )}
+        />
+      )}
+
       {/* Task Bar */}
       {isDragging && dragMode === 'draw-range' && (() => {
         const start = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentStartDate! : dragCurrentEndDate!;
@@ -133,16 +150,16 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
-                data-gantt-bar=""
+                data-gantt-bar="plan"
                 className={clsx(
-                  "absolute text-[9px] flex items-center shadow-sm group z-20 transition-[background-color,color,height,opacity,box-shadow] duration-150",
+                  "absolute text-[9px] flex items-center shadow-sm group z-20 transition-[background-color,color,box-shadow] duration-150",
                   isParent
-                    ? "top-[3px] h-2.5 bg-slate-700/40 cursor-default rounded-sm"
+                    ? "top-[4px] h-2.5 bg-slate-400/70 cursor-default rounded-full border border-slate-500/50"
                     : [
-                        "top-[3px] h-3 rounded text-[8px] px-1 text-blue-700/80 bg-blue-100 border border-blue-300 font-medium select-none",
+                        "top-[3px] h-3.5 rounded-md text-[8px] px-1.5 text-blue-800 bg-blue-100 border border-blue-300 font-medium select-none",
                         baselineLocked ? "cursor-default" : [
-                          "cursor-pointer hover:bg-blue-600 hover:text-white hover:h-[14px]",
-                          isDraggingPlan && "bg-blue-600 text-white cursor-grabbing h-[14px]"
+                          "cursor-pointer hover:bg-brand-600 hover:text-white hover:border-brand-700",
+                          isDraggingPlan && "bg-brand-600 text-white border-brand-700 cursor-grabbing"
                         ]
                       ]
                 )}
@@ -171,8 +188,8 @@ export const GanttTimelineRow = memo(({
                 {/* Downward hanging bracket triangles for parent tasks */}
                 {isParent && (
                   <>
-                    <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
-                    <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-700/40 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
+                    <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500/70 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
+                    <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500/70 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
                   </>
                 )}
 
@@ -249,7 +266,7 @@ export const GanttTimelineRow = memo(({
                 )}
 
                 {!isParent && !baselineLocked && (
-                  <span className="px-1 truncate pointer-events-none text-blue-800">
+                  <span className="px-1 truncate pointer-events-none">
                     {task.title}
                   </span>
                 )}
@@ -268,7 +285,7 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
-                data-gantt-bar=""
+                data-gantt-bar="actual"
                 className={clsx(
                   "absolute text-[8px] flex items-center shadow-sm group z-30 transition-[background-color,color,opacity,box-shadow] duration-150",
                   isParent

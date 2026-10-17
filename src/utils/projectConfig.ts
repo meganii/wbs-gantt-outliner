@@ -37,6 +37,18 @@ const COLUMN_WIDTH_KEYS = Object.keys(
   } satisfies Record<keyof ProjectConfig['columnWidths'], number>
 ) as (keyof ProjectConfig['columnWidths'])[];
 
+/**
+ * 統合表示ビューの既定列。
+ * 日付は右のタイムラインで分かるため、左ペインはコンパクトに保つ
+ * （10 列すべてを出すと左ペインが画面幅を占有し、列が隠れて操作できなくなる）。
+ */
+export const COMPACT_COLUMNS: ColumnId[] = [
+  'taskName',
+  'status',
+  'progress',
+  'planDuration',
+  'duration',
+];
 
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   calendar: {
@@ -69,6 +81,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     'duration',
     'date',
   ],
+  integratedColumns: COMPACT_COLUMNS,
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -131,6 +144,21 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     warnings?.push('表示カラム設定(visibleColumns)が不正なため既定値に戻しました');
   }
 
+  // 統合表示の列: 未設定は既定のコンパクト列。不正な値は既定へ戻す。
+  const inputIntegratedCols = config?.integratedColumns;
+  let nextIntegratedColumns: ColumnId[] = COMPACT_COLUMNS;
+  if (Array.isArray(inputIntegratedCols)) {
+    const validCols = inputIntegratedCols.filter((col): col is ColumnId =>
+      typeof col === 'string' && COLUMN_IDS.includes(col as ColumnId)
+    );
+    if (!validCols.includes('taskName')) {
+      validCols.unshift('taskName');
+    }
+    nextIntegratedColumns = validCols;
+  } else if (inputIntegratedCols !== undefined) {
+    warnings?.push('統合表示の表示カラム設定(integratedColumns)が不正なため既定値に戻しました');
+  }
+
   // 列幅: 正の有限数のみ受け付け、それ以外は既定値へ戻す
   const nextColumnWidths = { ...DEFAULT_PROJECT_CONFIG.columnWidths };
   let invalidWidthCount = 0;
@@ -173,6 +201,7 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     columnWidths: nextColumnWidths,
     baselineLocked: nextBaselineLocked,
     visibleColumns: nextVisibleColumns,
+    integratedColumns: nextIntegratedColumns,
     ...(nextTimelineRange ? { timelineRange: nextTimelineRange } : {}),
   };
 }

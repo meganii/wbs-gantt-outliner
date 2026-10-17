@@ -8,20 +8,18 @@ import clsx from 'clsx';
 import { TaskRow } from './TaskRow';
 import type { ColumnId } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
-import { TimelineHeader } from './TimelineHeader';
+import { TimelineHeader, TIMELINE_HEADER_HEIGHT } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
+import { leftPaneDividerStyle } from '../utils/leftPaneDivider';
 
 // Import custom hooks
 import { useGanttTimeline, TimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
 
-const HEADER_HEIGHT = 56;
-
 interface GanttChartProps {
-  showSidebar?: boolean;
   showNames?: boolean;
   flattenedItems?: FlattenedItem[];
   hoveredTaskId?: string | null;
@@ -31,7 +29,6 @@ interface GanttChartProps {
 }
 
 export const GanttChart = ({
-  showSidebar = false,
   showNames = false,
   flattenedItems: flattenedItemsProp,
   hoveredTaskId = null,
@@ -39,8 +36,6 @@ export const GanttChart = ({
   scrollRef,
   onScroll
 }: GanttChartProps) => {
-  const setViewMode = useTaskStore(state => state.setViewMode);
-  
   const selectedTaskIds = useTaskStore(state => state.selectedTaskIds);
   const setSelectedTaskIds = useTaskStore(state => state.setSelectedTaskIds);
   const focusedTaskId = useTaskStore(state => state.focusedTaskId);
@@ -53,7 +48,7 @@ export const GanttChart = ({
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
 
-  const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
+  const visibleColumns = useMemo((): ColumnId[] => ['taskName', 'status', 'progress'], []);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -72,7 +67,10 @@ export const GanttChart = ({
   const anchorIdRef = useRef<string | null>(null);
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const NAME_COLUMN_WIDTH = columnWidths.taskName;
+  // ガント表示の左列はタスク名に加えてステータス・進捗も表示する
+  // （統合表示と情報量を揃え、スケジュールと状態を同時に把握できるようにする）。
+  const NAME_COLUMN_WIDTH =
+    columnWidths.taskName + columnWidths.status + columnWidths.progress;
   const nameOffset = showNames ? NAME_COLUMN_WIDTH : 0;
 
   // Use custom timeline hook
@@ -88,6 +86,7 @@ export const GanttChart = ({
   const containerRef = scrollRef || internalContainerRef;
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   // Use custom drag interaction hook
   useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
@@ -152,6 +151,12 @@ export const GanttChart = ({
         svgRef.current.style.clipPath =
           container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
       }
+      // 日付グリッド背景も同じ量だけ切り落とす。切らないと、行より下の
+      // 左列（タスク名/ステータス/進捗）の余白にタイムラインの罫線が覗く。
+      if (gridRef.current) {
+        gridRef.current.style.clipPath =
+          container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
+      }
     };
 
     handleScroll();
@@ -174,6 +179,22 @@ export const GanttChart = ({
       }
     }
   }, [containerRef, viewMode, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
+
+  // サブツールバーの「今日」ボタン押下で今日の位置へスクロールする
+  const todayFocusRequestId = useTaskStore((state) => state.todayFocusRequestId);
+  const lastTodayFocusRef = useRef(todayFocusRequestId);
+  useLayoutEffect(() => {
+    if (lastTodayFocusRef.current === todayFocusRequestId) return;
+    lastTodayFocusRef.current = todayFocusRequestId;
+
+    const container = containerRef.current;
+    if (!container || !timelineMetrics.pixelsPerDay) return;
+    const today = new Date();
+    const diffDays = differenceInDays(today, timelineMetrics.timelineStart);
+    const scrollPos = diffDays * timelineMetrics.pixelsPerDay;
+    const timelineViewportWidth = Math.max(0, container.clientWidth - nameOffset);
+    container.scrollLeft = Math.max(0, scrollPos - timelineViewportWidth / 2);
+  }, [containerRef, todayFocusRequestId, timelineMetrics.pixelsPerDay, timelineMetrics.timelineStart, nameOffset]);
 
   // Scroll Anchoring: カレンダー自動拡張・縮小時に表示日付位置を維持する
   const lastTimelineStartRef = useRef<Date | null>(null);
@@ -295,21 +316,38 @@ export const GanttChart = ({
       {/* Timeline Header */}
       <div
         className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden"
-        style={{ height: HEADER_HEIGHT }}
+        style={{ height: TIMELINE_HEADER_HEIGHT }}
         ref={headerRef}
       >
         {showNames && (
           <div
-            className="flex-shrink-0 border-r border-gray-300 p-2 pl-4 font-bold text-xs sticky left-0 z-40 bg-gray-100 flex items-center relative group"
+            className="flex-shrink-0 sticky left-0 z-40 bg-slate-50 border-r border-line-strong flex items-stretch text-[11px] font-semibold text-slate-500 relative group"
             style={{ width: NAME_COLUMN_WIDTH }}
           >
-            タスク名
             <div
-              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 z-50 group-hover:opacity-50"
+              className="flex items-center pl-4 pr-2"
+              style={{ width: columnWidths.taskName }}
+            >
+              タスク名
+            </div>
+            <div
+              className="flex items-center justify-center border-l border-line"
+              style={{ width: columnWidths.status }}
+            >
+              ステータス
+            </div>
+            <div
+              className="flex items-center justify-center border-l border-line"
+              style={{ width: columnWidths.progress }}
+            >
+              進捗率
+            </div>
+            <div
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-brand-400 opacity-0 hover:opacity-100 z-50 group-hover:opacity-50"
               onMouseDown={(e) => {
                 e.preventDefault();
                 const startX = e.clientX;
-                const startWidth = NAME_COLUMN_WIDTH;
+                const startWidth = columnWidths.taskName;
 
                 const onMouseMove = (moveEvent: MouseEvent) => {
                   const delta = moveEvent.clientX - startX;
@@ -335,40 +373,27 @@ export const GanttChart = ({
           viewMode={viewMode}
           calendar={calendar}
         />
-
-        {/* Toggle Selector on the right */}
-        {showSidebar && (
-          <div className="sticky right-0 top-0 h-full bg-gray-100/90 backdrop-blur-sm border-l border-gray-300 px-3 flex items-center z-40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-            <select
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as 'Day' | 'Week' | 'Month' | 'Year')}
-              className="text-xs p-1.5 border border-gray-300 rounded bg-white font-medium text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all"
-            >
-              <option value="Day">Day</option>
-              <option value="Week">Week</option>
-              <option value="Month">Month</option>
-              <option value="Year">Year</option>
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Gantt Rows */}
       <div
         className="flex-1 relative overflow-auto min-h-0 min-w-0"
         ref={containerRef}
+        style={leftPaneDividerStyle(nameOffset)}
         onScroll={(e) => {
           if (onScroll) onScroll(e);
         }}
       >
         {/* Shared Background Grid Layer */}
         <TimelineGridBackground
+          ref={gridRef}
           timeRange={timeRange}
           cellWidth={CELL_WIDTH}
           calendar={calendar}
           viewMode={viewMode}
           totalHeight={flattenedItems.length * 32}
           timelineWidth={timeRange.length * CELL_WIDTH}
+          pixelsPerDay={timelineMetrics.pixelsPerDay}
           leftOffset={nameOffset}
         />
 
@@ -383,8 +408,8 @@ export const GanttChart = ({
           }}
         >
           <defs>
-            <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-              <polygon points="0 0, 6 2, 0 4" fill="currentColor" className="text-gray-400" />
+            <marker id="arrowhead" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+              <polygon points="0 0, 7 2.5, 0 5" fill="currentColor" className="text-slate-400" />
             </marker>
           </defs>
           {/* Existing Dependencies */}
@@ -478,6 +503,8 @@ export const GanttChart = ({
                   baselineLocked={baselineLocked}
                   taskBarRefs={taskBarRefs}
                   timelineWidth={timeRange.length * CELL_WIDTH}
+                  isSelected={isSelected}
+                  isHovered={isHovered}
                 />
               </div>
             );

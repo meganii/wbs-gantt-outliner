@@ -19,9 +19,9 @@ test.describe('Baseline Lock E2E Tests', () => {
     const taskIdA = await titleInputs.nth(1).getAttribute('data-task-id');
     expect(taskIdA).not.toBeNull();
 
-    // 3. Select 'Integrated' view to see both plan and actual date columns in Outliner
-    const integratedTab = page.locator('button:has-text("統合表示")');
-    await integratedTab.click();
+    // 3. Select 'WBS' view: 統合表示は既定でコンパクトな列のみのため、
+    //    予定/実績の日付列を持つ WBS で日付を編集する
+    await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
 
     // 4. Set Initial Plan Dates (baseline lock is OFF by default)

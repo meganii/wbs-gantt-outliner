@@ -9,9 +9,9 @@ test.describe('Parent Task Roll-up E2E Tests', () => {
     const titleInputs = page.locator('input[data-field="title"]');
     await expect(titleInputs.first()).toBeVisible();
 
-    // 3. Select 'Integrated' view to see both plan and actual date columns in Outliner
-    const integratedTab = page.locator('button:has-text("統合表示")');
-    await integratedTab.click();
+    // 3. Select 'WBS' view to see both plan and actual date columns in the Outliner
+    //    （統合表示は既定でコンパクトな列のみのため、日付列を持つ WBS を使う）
+    await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
 
     // 4. Focus first task (Project Root) and press Enter to spawn a new task (Parent Task)

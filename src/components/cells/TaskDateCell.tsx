@@ -32,11 +32,13 @@ export const TaskDateCell = memo(({
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);
 
-  const [localStart, setLocalStart] = useState('');
-  const [localEnd, setLocalEnd] = useState('');
+  // 初期値はストア値の表示形式で初期化する。空文字で開始すると、透明化した input の
+  // placeholder（yyyy/mm/dd）が Overlay Span と重なって見える（文字重なりの原因）。
+  const [localStart, setLocalStart] = useState(() => formatToShow(startValue));
+  const [localEnd, setLocalEnd] = useState(() => formatToShow(endValue));
 
-  const localStartRef = useRef('');
-  const localEndRef = useRef('');
+  const localStartRef = useRef(formatToShow(startValue));
+  const localEndRef = useRef(formatToShow(endValue));
 
   const escapedStartRef = useRef(false);
   const escapedEndRef = useRef(false);
@@ -232,7 +234,7 @@ export const TaskDateCell = memo(({
           ref={startDateRef}
           type="text"
           value={localStart}
-          placeholder={isReadOnly ? "" : "yyyy/mm/dd"}
+          placeholder=""
           readOnly={isReadOnly}
           tabIndex={isReadOnly ? -1 : undefined}
           onFocus={() => {
@@ -275,7 +277,7 @@ export const TaskDateCell = memo(({
           ref={endDateRef}
           type="text"
           value={localEnd}
-          placeholder={isReadOnly ? "" : "yyyy/mm/dd"}
+          placeholder=""
           readOnly={isReadOnly}
           tabIndex={isReadOnly ? -1 : undefined}
           onFocus={() => {

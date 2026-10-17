@@ -55,7 +55,10 @@ export interface ProjectConfig {
     start: string; // ISO date YYYY-MM-DD
     end: string;   // ISO date YYYY-MM-DD
   };
+  /** WBS（詳細テーブル）ビューで表示する列 */
   visibleColumns?: ColumnId[];
+  /** 統合表示ビューの左ペインで表示する列（未設定時は既定のコンパクト列） */
+  integratedColumns?: ColumnId[];
 }
 
 export type TaskFocusableField =
@@ -98,6 +101,8 @@ export interface TaskStoreState {
   selectedTaskIds: string[];
   dragState: GanttDragState | null;
   mousePos: { x: number; y: number } | null;
+  /** 「今日へ移動」ボタンの押下ごとに増えるカウンタ（タイムラインのスクロール要求） */
+  todayFocusRequestId: number;
 
   setFocusedTaskId: (id: string | null) => void;
   setFocusedTaskCell: (id: string | null, field: TaskFocusableField | null) => void;
@@ -120,6 +125,8 @@ export interface TaskStoreState {
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
   setBaselineLocked: (baselineLocked: boolean) => void;
   setVisibleColumns: (columns: ColumnId[]) => void;
+  setIntegratedColumns: (columns: ColumnId[]) => void;
   setDragState: (dragState: GanttDragState | null) => void;
   setMousePos: (mousePos: { x: number; y: number } | null) => void;
+  requestScrollToToday: () => void;
 }
