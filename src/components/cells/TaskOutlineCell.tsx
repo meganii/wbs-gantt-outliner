@@ -3,6 +3,8 @@ import { useTaskStore } from '../../store/useTaskStore';
 import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useTaskCellKeyboard, getEffectiveTaskIds } from '../../hooks/useTaskCellKeyboard';
+import { parseTaskPaste } from '../../utils/parseTaskPaste';
+import { handleTextCellPaste, isMultiRowSelection } from '../../utils/cellPaste';
 import { cellPropsEqual } from './cellPropsEqual';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { ProjectConfig, Task } from '../../types';
@@ -116,6 +118,46 @@ export const TaskOutlineCell = memo(({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (isComposing.current) {
+      return;
+    }
+
+    const text = e.clipboardData.getData('text/plain');
+    if (!text) {
+      return;
+    }
+
+    // 複数行選択中は、選択行へ一括反映する（値 1 個なら同一値、複数なら順に割り当て）。
+    if (isMultiRowSelection(taskId)) {
+      handleTextCellPaste(e, taskId, 'title');
+      return;
+    }
+
+    // 単一選択で 1 行の貼り付けは通常の貼り付けに任せる。
+    if (!/[\r\n]/.test(text)) {
+      return;
+    }
+
+    const parsed = parseTaskPaste(text);
+    if (parsed.length === 0) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // 貼り付け先セルが空なら 1 行目をそのセルに使い、残りを直後に追加する。
+    // 空でなければ編集中の値を確定したうえで、全行を直後に追加する。
+    let items = parsed;
+    let referenceTitle = localTitle !== task.title ? localTitle : undefined;
+    if (localTitle.trim() === '' && parsed[0].depth === 0) {
+      referenceTitle = parsed[0].title;
+      items = parsed.slice(1);
+    }
+
+    useTaskStore.getState().addTasks(items, taskId, 'after', { referenceTitle });
+  };
+
   return (
     <div
       className="flex items-center flex-1 h-full"
@@ -179,6 +221,7 @@ export const TaskOutlineCell = memo(({
         onBlur={commitValue}
         onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'title')}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onCompositionStart={() => {
           isComposing.current = true;
         }}

@@ -49,6 +49,29 @@ const initialTask: Task = {
   planDuration: 1,
 };
 
+/** 階層の最大深さ（0 始まり。level 4 まで）。addTask の depth 判定と揃える。 */
+const MAX_TASK_DEPTH = 3;
+
+/** 新規タスクの既定値（addTask / addTasks で共通）。 */
+function createBlankTask(id: string, title = ''): Task {
+  return {
+    id,
+    parentId: null,
+    title,
+    startDate: null,
+    endDate: null,
+    duration: 1,
+    progress: 0,
+    status: '',
+    isCollapsed: false,
+    children: [],
+    dependencies: [],
+    planStartDate: null,
+    planEndDate: null,
+    planDuration: 1,
+  };
+}
+
 const taskStore = create<TaskStoreState>()(
   temporal(
     (set) => ({
@@ -70,22 +93,7 @@ const taskStore = create<TaskStoreState>()(
 
       addTask: (targetId?, position = 'after') => {
         const newId = uuidv4();
-        const newTask: Task = {
-          id: newId,
-          parentId: null,
-          title: '',
-          startDate: null,
-          endDate: null,
-          duration: 1,
-          progress: 0,
-          status: '',
-          isCollapsed: false,
-          children: [],
-          dependencies: [],
-          planStartDate: null,
-          planEndDate: null,
-          planDuration: 1,
-        };
+        const newTask: Task = createBlankTask(newId);
 
         set((state) => {
           const tasks = { ...state.tasks };
@@ -170,6 +178,146 @@ const taskStore = create<TaskStoreState>()(
           return { tasks, focusedTaskId: newId, focusedTaskField: 'title', selectedTaskIds: [newId] };
         });
       },
+
+      addTasks: (items, referenceTaskId, position = 'after', options) => {
+        const newIds: string[] = [];
+        const referenceTitle = options?.referenceTitle;
+        const hasItems = items.length > 0;
+        const hasReferenceTitle = referenceTitle !== undefined;
+
+        if (!hasItems && !hasReferenceTitle) {
+          return newIds;
+        }
+
+        // set は戻り値を返せないため、ID は先に確定させて戻り値にする。
+        const plannedItems = items.map((item) => ({ ...item, id: uuidv4() }));
+        plannedItems.forEach((item) => newIds.push(item.id));
+
+        set((state) => {
+          const tasks = { ...state.tasks };
+          const rootIds = [...state.rootIds];
+
+          // 貼り付け先セルのタイトルも同じ set で確定させ、Undo を 1 操作にまとめる。
+          if (hasReferenceTitle && referenceTaskId && tasks[referenceTaskId]) {
+            tasks[referenceTaskId] = { ...tasks[referenceTaskId], title: referenceTitle };
+          }
+
+          if (!hasItems) {
+            return { tasks };
+          }
+
+          const reference = referenceTaskId ? tasks[referenceTaskId] : undefined;
+          const rootParentId =
+            position === 'inside'
+              ? reference
+                ? reference.id
+                : null
+              : reference
+                ? reference.parentId
+                : null;
+          const baseDepth = rootParentId ? getTaskDepth(tasks, rootParentId) : -1;
+
+          // afterId が見つからなければ末尾へ追加する。
+          const insertChild = (
+            parentId: string | null,
+            afterId: string | null,
+            childId: string
+          ) => {
+            if (parentId === null) {
+              const idx = afterId ? rootIds.indexOf(afterId) : -1;
+              if (idx !== -1) rootIds.splice(idx + 1, 0, childId);
+              else rootIds.push(childId);
+              return;
+            }
+
+            const parent = tasks[parentId];
+            if (!parent) {
+              rootIds.push(childId);
+              tasks[childId] = { ...tasks[childId], parentId: null };
+              return;
+            }
+
+            const siblings = [...parent.children];
+            const idx = afterId ? siblings.indexOf(afterId) : -1;
+            if (idx !== -1) siblings.splice(idx + 1, 0, childId);
+            else siblings.push(childId);
+            tasks[parentId] = { ...parent, children: siblings, isCollapsed: false };
+          };
+
+          // 同階層の最後のノード。afterId と親の解決に使う。
+          const lastIdAtDepth: Record<number, string> = {};
+          if (reference) {
+            lastIdAtDepth[baseDepth + 1] = reference.id;
+          }
+          let prevDepth = baseDepth;
+
+          plannedItems.forEach((item) => {
+            const desiredDepth = baseDepth + 1 + Math.max(0, item.depth);
+            // 前の行より 1 段ずつしか深くならない。深さ上限もクランプする。
+            const effectiveDepth = Math.max(
+              baseDepth + 1,
+              Math.min(desiredDepth, prevDepth + 1, MAX_TASK_DEPTH)
+            );
+
+            const parentId =
+              effectiveDepth - 1 <= baseDepth
+                ? rootParentId
+                : lastIdAtDepth[effectiveDepth - 1] ?? rootParentId;
+
+            const afterId = lastIdAtDepth[effectiveDepth] ?? null;
+
+            tasks[item.id] = { ...createBlankTask(item.id, item.title), parentId };
+            insertChild(parentId, afterId, item.id);
+
+            // より深い階層の記録は使わなくなるため捨てる。
+            Object.keys(lastIdAtDepth).forEach((key) => {
+              if (Number(key) > effectiveDepth) {
+                delete lastIdAtDepth[Number(key)];
+              }
+            });
+            lastIdAtDepth[effectiveDepth] = item.id;
+            prevDepth = effectiveDepth;
+          });
+
+          return {
+            tasks,
+            rootIds,
+            focusedTaskId: newIds[0] ?? state.focusedTaskId,
+            focusedTaskField: 'title',
+            selectedTaskIds: newIds,
+          };
+        });
+
+        return newIds;
+      },
+
+      setTaskFieldValues: (ids, field, values) => set((state) => {
+        const list = Array.isArray(values) ? values : [values];
+        if (ids.length === 0 || list.length === 0) {
+          return {};
+        }
+
+        const tasks = { ...state.tasks };
+        let changed = false;
+
+        ids.forEach((id, index) => {
+          const task = tasks[id];
+          if (!task) {
+            return;
+          }
+
+          // 値が 1 個なら全行に同一値、複数なら順番に対応させる。
+          const value = list.length === 1 ? list[0] : list[index];
+          if (value === undefined || (task[field] ?? '') === value) {
+            return;
+          }
+
+          tasks[id] = { ...task, [field]: value };
+          changed = true;
+        });
+
+        return changed ? { tasks } : {};
+      }),
 
       updateTask: (id, updates) => set((state) => {
         const oldTask = state.tasks[id];

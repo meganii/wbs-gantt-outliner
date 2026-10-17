@@ -1,6 +1,7 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
+import { handleTextCellPaste } from '../../utils/cellPaste';
 import { cellPropsEqual } from './cellPropsEqual';
 import type { ProjectConfig, Task } from '../../types';
 
@@ -79,6 +80,13 @@ export const TaskTextCell = memo(({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (isComposing.current) {
+      return;
+    }
+    handleTextCellPaste(e, taskId, field);
+  };
+
   const width = columnWidths[field];
 
   return (
@@ -99,6 +107,7 @@ export const TaskTextCell = memo(({
         style={{ backgroundColor: 'transparent' }}
         className="w-full bg-transparent border-none outline-none text-xs text-gray-600 placeholder-gray-300 truncate"
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onCompositionStart={() => {
           isComposing.current = true;
         }}
