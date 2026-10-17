@@ -77,6 +77,11 @@ export interface GanttDragState {
   mode: 'move' | 'resize-left' | 'resize-right' | 'dependency' | 'draw-range';
   startX: number;
   startY: number;
+  /**
+   * draw-range の基準となるタイムライン領域の左端(px)。
+   * 起点・終点をどちらも「カーソル下の日セル」で決めるために保持する。
+   */
+  timelineLeft?: number;
   initialStartDate: Date;
   initialEndDate: Date;
   currentStartDate: Date;

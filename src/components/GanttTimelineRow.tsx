@@ -47,6 +47,16 @@ export const GanttTimelineRow = memo(({
           return;
         }
 
+        // バーやハンドル上の操作は draw-range の対象外。
+        // （バー側でも stopPropagation しているが、取りこぼしに備えて要素でも判定する）
+        const target = e.target as Element | null;
+        if (target?.closest?.('[data-gantt-bar]')) {
+          return;
+        }
+        if (timelineMetrics.pixelsPerDay <= 0) {
+          return;
+        }
+
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const daysOffset = Math.floor(x / timelineMetrics.pixelsPerDay);
@@ -57,6 +67,7 @@ export const GanttTimelineRow = memo(({
           mode: 'draw-range',
           startX: e.clientX,
           startY: e.clientY,
+          timelineLeft: rect.left,
           initialStartDate: clickedDate,
           initialEndDate: clickedDate,
           currentStartDate: clickedDate,
@@ -122,6 +133,7 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
+                data-gantt-bar=""
                 className={clsx(
                   "absolute text-[9px] flex items-center shadow-sm group z-20 transition-[background-color,color,height,opacity,box-shadow] duration-150",
                   isParent
@@ -137,8 +149,11 @@ export const GanttTimelineRow = memo(({
                 style={{ left: planOffset, width: Math.max(0, planWidth - 2) }}
                 title={`Plan: ${task.title} (${format(planStart!, 'yyyy-MM-dd')} - ${format(planEnd!, 'yyyy-MM-dd')})`}
                 onMouseDown={(e) => {
-                  if (baselineLocked || e.button !== 0 || isParent) return;
+                  // バー上のクリック/ドラッグを行の draw-range に伝播させない。
+                  // （ベースライン固定中や親タスクではバーを動かせないが、
+                  //   伝播させると行の draw-range が発火して日付が書き換わってしまう）
                   e.stopPropagation();
+                  if (baselineLocked || e.button !== 0 || isParent) return;
                   const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
                   const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
                   setDragState({
@@ -253,6 +268,7 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
+                data-gantt-bar=""
                 className={clsx(
                   "absolute text-[8px] flex items-center shadow-sm group z-30 transition-[background-color,color,opacity,box-shadow] duration-150",
                   isParent
@@ -274,8 +290,8 @@ export const GanttTimelineRow = memo(({
                 }}
                 title={`Actual: ${task.title} (${task.progress}%) (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
                 onMouseDown={(e) => {
-                  if (e.button !== 0 || isParent) return;
                   e.stopPropagation();
+                  if (e.button !== 0 || isParent) return;
                   setDragState({
                     taskId,
                     mode: 'move',

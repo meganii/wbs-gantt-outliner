@@ -4,6 +4,13 @@
 
 ## 現在の状態
 
+- **ガント操作で「意図しない日付変更」が起きるバグの修正（設計レビューの P0 対応）** (October 17, 2026):
+  - コードレビューと実測（一時テストで再現）により、**タイムライン余白の単クリック（移動量ゼロ）で予定日が書き換わる**／**ベースライン固定中に予定バーを単クリックすると実績日が書き換わる**という2件のデータ破壊バグを確認し、修正した。
+  - `src/hooks/useGanttDrag.ts` の `draw-range`（範囲ドラッグ）確定処理に、`move` と同じ「開始時の値と現在値が同一なら確定しない」ガードを追加。移動のない単クリックでは日付を書き換えない。
+  - `src/components/GanttTimelineRow.tsx` の予定バー／実績バーの `onMouseDown` を、早期 return する場合（`baselineLocked` / 親タスク）も含めて**常に `stopPropagation()`** する形に変更。親行の `draw-range` に伝播して日付が書き換わる経路を根絶した。加えて行側でも `[data-gantt-bar]` 上のイベントを無視する二重ガードを入れた（バーには `data-gantt-bar` を付与）。
+  - `draw-range` の終点も「カーソル下の日セル（floor）」で求めるよう統一（起点と同じ基準）。起点となるタイムライン左端は `GanttDragState.timelineLeft` としてドラッグ状態に保存する。これでドラッグ中のハイライトと確定結果が一致する（従来は終点だけ `round(deltaX/pixelsPerDay)` で1日ずれることがあった）。
+  - 行の並べ替え（dnd-kit）のセンサーを `src/hooks/useRowSortSensors.ts`（新規）に集約し、**KeyboardSensor を無効化 + PointerSensor に 5px の移動しきい値**を設定。ホバー時のみ表示される `opacity-0` のドラッグハンドルにフォーカスが残った状態で Enter/Space を押すと「キーボードドラッグ開始」と「タスク確定/追加」が衝突していた問題を解消。
+  - 回帰テストを新規追加（`src/components/GanttDragGuards.test.tsx` 5件）: 単クリックで日付不変 / ロック中の予定バークリックで不変 / ロック中の実績バークリックで不変 / 実ドラッグでは確定する / センサー構成（KeyboardSensor 無効・distance 5）。
 - **ESLint 違反の全件解消（49件 → 0件）** (October 17, 2026):
   - 生成物が lint 対象に混入していた問題を `eslint.config.js` の `globalIgnores` 拡張で解消（`dist` のみだったのを `dist-electron` / `out` / `coverage` / `playwright-report` / `test-results` / `blob-report` まで追加）。これで 12 件が消えた。
   - `react-hooks/set-state-in-effect` (10件) は、`useEffect` 内で store の値をローカル state に同期していた箇所を、**レンダー中に前回値と比較して state を調整する** React 公式パターンへ置換（`App.tsx`, `ProjectSettingsDialog.tsx`, `TaskOutlineCell`, `TaskTextCell`, `TaskStatusCell`, `TaskProgressCell`, `TaskDateCell`, `TaskPlanDateCell`）。`TaskDateCell` / `TaskPlanDateCell` の commit ハンドラが参照するミラー用 ref は、setState を伴わない effect 内でのみ更新するよう分離した。
@@ -146,7 +153,7 @@
 
 ## 直近の検証結果 (October 17, 2026 / npm 移行後に再検証)
 
-- `npm test -- --run` : **91テスト全件合格** (8ファイル)
+- `npm test -- --run` : **96テスト全件合格** (9ファイル。P0 修正の回帰テスト5件を追加)
 - `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
@@ -161,9 +168,44 @@
 2. **JSON インポートの互換性・異常値バリデーション強化**
    - インポート処理の入り口にスキーマバリデーションを導入し、破損データや不正なフォーマットの日付、循環依存が含まれている場合のガードを強化する。
    - IPC 境界（`window.ipcRenderer.invoke`）は lint 対応で `unknown` 化済みなので、ここに入れるのは**型ではなく実行時の検証**になる。詳細は下記「IPC / Electron の申し送り」を参照。
+3. **描画性能の改善（設計レビューの P1）** — 詳細は下記「設計レビュー結果」を参照
+   - **購読ファンアウト**: セル10種が各自 `useTaskStore` を購読しており、1行あたり約79購読（セル8ファイル合計で `useTaskStore((` が61箇所）。zustand は更新のたびに全購読者の selector を実行するため、1,000行では1更新あたり約79,000回走る。行で1回だけ購読し props で配る構成に変える。
+   - **ホバーでの全行再レンダー**: `IntegratedView` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトのため、ホバーのたびに全行の `RowContainer` が再レンダーされる（context 経由の再レンダーは `memo` では止まらない）。value を `useMemo` 化するか、「静的メトリクス」と「動的な値」を別 context に分割する。
+   - **ドラッグ中の依存線全再計算**: `useGanttDependencies` が `dragState` を `useMemo` 依存に含み、`GanttDependencyLines` も `memo` 化されていないため、ドラッグ中は毎 mousemove で全依存線を再計算＋再レンダーする。静的線とドラッグ中のみの線を分離して `memo` 化する。
+   - **高頻度更新の O(N) 連鎖**: ガントの duration セルが `onChange`（1文字ごと）で `updateTask` を呼び、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を毎文字起こす。commit-on-blur / 短い debounce にする。
+   - 併せて P2（保守性）: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合、`ROW_HEIGHT = 32` の定数化、未使用の `taskBarRefs` の削除、zundo の `partialize` と `equality` の揃え、デバッグ用テストの去就決定。
+
+## 設計レビュー結果（October 17, 2026）
+
+「画面描画が遅い」「ドラッグ&ドロップで意図しない動きをする」という課題に対してコードレビューを実施し、疑わしい挙動は一時テストで実測して確認した。以下は確定した所見。
+
+### 確認済みの不具合（D1・D2 は実測で再現）
+
+| # | 内容 | 状態 |
+|---|---|---|
+| D1 | タイムライン余白を単クリック（移動ゼロ）すると予定日が書き換わる（実測: 予定 2026-05-25〜26 → 2026-05-18〜18 / duration 2→1） | **修正済み** |
+| D2 | ベースライン固定中に予定バーを単クリックすると実績日が書き換わる（早期 return で `stopPropagation` していなかった） | **修正済み** |
+| D3 | Month/Year ビューでは単クリックが月/年スナップで「1か月/1年」を上書き（D1 の帰結） | **修正済み**（D1 のガードで解消） |
+| D4 | `draw-range` の終点だけ丸めが `round(delta)` で、起点の `floor(absolute)` と1日ずれる | **修正済み**（終点も floor に統一） |
+| D5 | dnd-kit の KeyboardSensor が既定で有効。非表示グリップにフォーカスが残ると Enter/Space がキーボードドラッグ開始になり、Enter=新規タスクと衝突 | **修正済み**（センサー集約） |
+| D6 | `TimelineContext` の value が毎レンダー新規 → ホバーのたびに全行 `RowContainer` が再レンダー | 未対応（優先課題 #3） |
+| D7 | `selectedTaskIds.includes(id)` を行ごと、`flattenedIds.indexOf` を選択のたびに実行（O(N·M)） | 未対応（優先課題 #3） |
+| D8 | `updateTask` / `endDragUpdate` / `addDependency` のロジック二重化（D1 の非対称を生む土壌） | 未対応（優先課題 #3） |
+| D9 | 未使用の `taskBarRefs`、行高 `32` の散在、デバッグ用テストの混在 | 未対応（優先課題 #3） |
+| D10 | zundo の `partialize` と `equality` の不一致（undo で古い選択/フォーカスが復元され得る） | 未対応（優先課題 #3） |
+
+### 性能（「重い」）の構造的原因
+
+- **P1 購読ファンアウト**: 1行あたり約79購読（セル8ファイル合計で `useTaskStore((` が61箇所）× 行数。ドラッグ中は `setDragState` が mousemove ごとに走るため、1,000行では selector が毎秒500万回規模で実行される。再レンダーは1行でも通知コストは O(N)（未対応）。
+- **P2 依存線の毎フレーム全再計算**: `useGanttDependencies` が `dragState` を依存に含む。HANDOFF の「ドラッグ中の計算量 O(N)→O(1)」は、依存線の再計算と購読通知については成立していない（未対応）。
+- **P3 高頻度更新の O(N) 連鎖**: duration セルの1文字ごとの `updateTask` が、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を引き起こす（未対応）。
+- 一方で「変更された行だけ再レンダーする」設計（`React.memo` + カスタム比較 + タスク単位のオブジェクト同一性維持）は妥当で、実際に機能している。データモデル・純粋関数へのロジック集約・セル分割も方向性は良い。問題は入力ガードの欠落（P0・修正済み）と、購読粒度・派生計算の更新戦略（P1・未対応）。
 
 ## 注意点
 
+- **ガントの `draw-range`（タイムライン余白をドラッグして範囲指定）は「移動のない単クリックでは確定しない」**。`useGanttDrag.ts` の確定処理にある「開始時と現在値が同一なら commit しない」ガードを緩めないこと（緩めると単クリックで日付が壊れる）。
+- **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで日付が書き換わる（ベースライン固定中は実績日が壊れる）。
+- **行の並べ替え（dnd-kit）のセンサーは `src/hooks/useRowSortSensors.ts` に集約**している。KeyboardSensor を復活させないこと（Enter はタスク確定/追加に割り当て済みで衝突する）。PointerSensor の `distance: 5` も、微小なクリックで並べ替えが始まらないためのしきい値なので外さないこと。
 - パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
 - npm 11 は install script を既定で実行しない。install script を持つ依存を追加した場合は `npm install-scripts approve <pkg>` で承認する（`package.json` の `allowScripts` に記録される）。現在は `esbuild` と `electron-winstaller` のみ承認済み。
 - `npm run lint` は **0件で通過する**。`eslint.config.js` の `globalIgnores` で `dist` / `dist-electron` / `out` / `coverage` / `test-results` 等の生成物を除外し、`_` 接頭辞の未使用引数・変数も許可済み。CI や検証フローに lint を組み込む場合は、この 0 件状態を維持すること。
@@ -194,6 +236,9 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 - `src/store/useTaskStore.ts`
 - `src/store/taskStoreUtils.ts`
 - `src/store/useTaskStore.test.ts`
+- `src/hooks/useGanttDrag.ts` / `src/components/GanttTimelineRow.tsx`（P0 で修正したガント操作のガード。上記「注意点」参照）
+- `src/hooks/useRowSortSensors.ts`（行並べ替えのセンサー設定）
+- `src/components/GanttDragGuards.test.tsx`（P0 回帰テスト）
 - `src/components/TimelineHeader.tsx` (新規 2段ヘッダーコンポーネント)
 - `src/hooks/useGanttTimeline.ts` (タスクデータ駆動の日付範囲ロジック)
 - `src/renderer.d.ts` / `electron/preload.ts` / `src/hooks/useProjectFileHandlers.ts` (IPC 境界。上記「IPC / Electron の申し送り」参照)

@@ -20,6 +20,7 @@ import { DraggingDependencyLine } from './DraggingDependencyLine';
 // Import custom hooks
 import { useGanttTimeline, TimelineContext, useTimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
+import { useRowSortSensors } from '../hooks/useRowSortSensors';
 
 interface RowContainerProps {
   id: string;
@@ -199,6 +200,8 @@ export const IntegratedView = ({
     }
   };
 
+  const sensors = useRowSortSensors();
+
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     if (range) {
       const targetAnchor =
@@ -302,7 +305,7 @@ export const IntegratedView = ({
         </svg>
 
         <TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>
-          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
               {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => {
                 const isHovered = hoveredTaskId === id;

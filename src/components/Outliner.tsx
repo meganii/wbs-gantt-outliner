@@ -8,6 +8,7 @@ import { flattenTree, type FlattenedItem } from '../utils/tree';
 import { TaskTableHeader } from './TaskTableHeader';
 import { useOutlinerKeyboard } from '../hooks/useOutlinerKeyboard';
 import { useTaskSelection } from '../hooks/useTaskSelection';
+import { useRowSortSensors } from '../hooks/useRowSortSensors';
 import type { ColumnId } from '../types';
 
 interface OutlinerProps {
@@ -59,6 +60,7 @@ export const Outliner = ({
 
   useOutlinerKeyboard();
   const { selectedTaskIds, handleSelectionChange } = useTaskSelection(flattenedIds);
+  const sensors = useRowSortSensors();
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -72,7 +74,7 @@ export const Outliner = ({
       <div className="min-w-full w-min">
         <TaskTableHeader visibleColumns={visibleColumns} />
       <div className="pb-4 w-max">
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={flattenedIds} strategy={verticalListSortingStrategy}>
             {flattenedItems.map(({ id, task, depth, wbsNumber }, index) => (
               <TaskRow

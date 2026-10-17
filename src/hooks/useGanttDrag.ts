@@ -61,7 +61,15 @@ export const useGanttDrag = (
           newDragState.currentEndDate = newEnd;
         }
       } else if (currentDragState.mode === 'draw-range') {
-        newDragState.currentEndDate = addDays(currentDragState.initialStartDate, deltaDays);
+        // 終点も「カーソル下の日セル」で決める（起点と同じ基準）。
+        // これにより、ドラッグ中のハイライトと確定結果が一致する。
+        const { timelineLeft } = currentDragState;
+        if (pixelsPerDay > 0 && typeof timelineLeft === 'number') {
+          const daysOffset = Math.floor((e.clientX - timelineLeft) / pixelsPerDay);
+          newDragState.currentEndDate = addDays(timelineMetrics.timelineStart, daysOffset);
+        } else {
+          newDragState.currentEndDate = addDays(currentDragState.initialStartDate, deltaDays);
+        }
       }
 
       state.setDragState(newDragState);
@@ -89,7 +97,25 @@ export const useGanttDrag = (
         state.setDragState(null);
         state.setMousePos(null);
       } else if (currentDragState.mode === 'draw-range') {
-        const { taskId, currentStartDate, currentEndDate } = currentDragState;
+        const {
+          taskId,
+          currentStartDate,
+          currentEndDate,
+          initialStartDate,
+          initialEndDate,
+        } = currentDragState;
+
+        // 移動のない単クリックでは日付を書き換えない。
+        // draw-range は実際にドラッグしたときだけ確定する。
+        if (
+          currentStartDate.getTime() === initialStartDate.getTime() &&
+          currentEndDate.getTime() === initialEndDate.getTime()
+        ) {
+          state.setDragState(null);
+          state.setMousePos(null);
+          return;
+        }
+
         let start = currentStartDate < currentEndDate ? currentStartDate : currentEndDate;
         let end = currentStartDate < currentEndDate ? currentEndDate : currentStartDate;
 
