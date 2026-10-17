@@ -216,6 +216,36 @@
 
 各ステップで `npm run lint` / `npx vitest --run` / `npm run test:e2e` / `npm run build` を回し、個別コミットにする（P0 修正 `55da44a` と同様）。
 
+#### 次セッションへの依頼文（Step 4、コピペ用）
+
+```
+docs/HANDOFF.md を読んで、描画性能 P1 の Step 4（セル購読の集約 / HANDOFF の P1・D7）に着手してください。
+
+前提:
+- Step 1〜3 は完了済み（duration の確定タイミング / 依存線の分離 / TimelineContext の useMemo 化）。
+  コミットは 34a0268（Step 0）cfaff36（Step 1）7f7a56a（Step 2）644d242（Step 3）。
+- 現在の計測は bench/README.md が正。1,000 タスクで残る支配要因は「確定 1 回あたりの全ツリー再描画」
+  （duration 確定 398〜425ms / タイトル確定 863〜1,079ms / ドラッグ確定 452〜500ms）。加えてタスクデータを
+  変えない setMousePos だけでも 20 moves で最長 100ms 前後のブロックが残る（購読ファンアウト）。
+
+進め方:
+1. 先に計測して支配要因を分解する（いきなり実装しない）。npm run bench の結果をもとに、確定時に
+   何が効いているか（flattenTree / useGanttTimeline の再計算 / 全行再描画 / selector の実行回数）を
+   切り分け、結果を報告してから実装方針を確認する。
+2. 実装は「セル1つずつ購読を集約」し、都度テストを回す。focusedTaskId / selectedTaskIds を行の props に
+   渡すと選択のたびに全行再レンダーになるため、各セルには「自分がフォーカス/選択されているか」を返す
+   boolean の安価な selector を残すこと。
+3. 各ステップで npm run lint / npx vitest --run / npm run test:e2e / npm run build を回し、1 ステップ = 1 コミット。
+   計測前後の数値を bench/README.md に追記し、docs/HANDOFF.md を更新する。
+4. 完了したら改善結果（before/after の数値つき）をまとめて報告する。
+
+壊してはいけないもの（docs/HANDOFF.md「注意点」より）:
+- useGanttDrag の draw-range ガード（移動ゼロの単クリックでは確定しない）
+- バー/ハンドルの onMouseDown は早期 return 時も stopPropagation を維持し、data-gantt-bar を消さない
+- useRowSortSensors（KeyboardSensor 無効・distance 5）
+- 現在 lint 0 / vitest 105 件 / e2e 6 件でグリーン。これを維持すること。
+```
+
 ## 設計レビュー結果（October 17, 2026）
 
 「画面描画が遅い」「ドラッグ&ドロップで意図しない動きをする」という課題に対してコードレビューを実施し、疑わしい挙動は一時テストで実測して確認した。以下は確定した所見。
