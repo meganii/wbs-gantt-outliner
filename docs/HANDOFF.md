@@ -13,7 +13,7 @@
   - **トースト通知**: `src/store/useNotificationStore.ts`（新規）＋ `src/components/ToastContainer.tsx`（新規）を追加し、画面右上に「成功 / 修復警告（詳細付き）/ エラー」を表示。info/warning は自動消滅（5s / 12s）、error は手動で閉じるまで残る。これまで console だけで UI 通知が無かった点を解消。`App.tsx` にマウント。
   - **防御の多層化**: `flattenTree` / `flattenTreeAll` に `visited` ガードを追加（万一すり抜けても無限再帰しない）。`addDependency` にインラインだった循環判定を純粋関数 `hasDependencyPath` として `taskStoreUtils.ts` に抽出し、検証側と共用。
   - **注意**: `loadProjectState` の戻り値を使わない呼び出し（既存テスト含む）はそのまま動く（成功時のみストア更新）。読み込みの正常系（既存の保存 JSON）の互換性はユニットテストで確認済み。
-  - 検証: lint 0 / vitest **178 件（19ファイル）** / e2e 5 / build 通過。
+  - 検証: lint 0 / vitest **178 件（19ファイル）** / e2e 5 / build / **`npm run package`（electron-forge。`out/wbs-gantt-outliner-darwin-arm64/wbs-gantt-outliner.app` を生成、389MB）通過**。マージ前の最終ゲートまで緑。
 - **デバッグ用テストの整理（非干渉テストへの昇格 / 不要な E2E の削除）** (October 17, 2026):
   - `src/store/verify_bug.test.ts`（デバッグ名の3件）を **`src/store/updateTaskIsolation.test.ts`** に再編。同期・ロックの一般仕様は `useTaskStore.test.ts`「Baseline Plan and Actual Date Synchronization & Locking」が担うため重複分は落とし、**「あるタスクの更新で無関係な兄弟タスクが変わらない」相互非干渉の主張だけ**を残した（過去の「無関係なタスクが動く」パターンC退行の再発防止。他テストでは未カバーだった観点）。セットアップも `initialState` リセット＋`getTemporalState().clear()` の標準作法に統一。
   - `e2e/reproduce-bug.spec.ts` を **削除**。実質のアサーションが「Task B の予定開始セルが `06/05` のまま」1点のみで、バーの x 座標は画面外（-4533）を測っており「ホバーでスナップバック」の検証が成立していなかった。`page.on('console')` / `console.log` / `waitForTimeout` のデバッグノイズ付きで、意図した不変条件は上記の非干渉テストと 6/7 の `TaskRow task` prop + `TimelineContext` 修正で構造的に担保済み。E2E は 6 → 5 件。
