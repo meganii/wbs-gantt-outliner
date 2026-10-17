@@ -18,6 +18,9 @@ export interface Task {
   planDuration?: number;         // Workdays (Plan / Baseline)
 }
 
+/** 複数行ペースト / 一括入力の対象になるテキスト列。 */
+export type PasteTextField = 'title' | 'description' | 'assignee' | 'deliverables';
+
 export type ColumnId =
   | 'taskName'
   | 'description'
@@ -120,6 +123,16 @@ export interface TaskStoreState {
     position?: 'after' | 'inside',
     options?: { referenceTitle?: string }
   ) => string[];
+  /**
+   * 複数のタスクの同一フィールドへ、まとめて値をセットする。
+   * values が 1 要素なら全行に同一値、複数要素なら ids の順に対応させる
+   * （対応する値が無い行は変更しない）。1 回の set で反映する。
+   */
+  setTaskFieldValues: (
+    ids: string[],
+    field: PasteTextField,
+    values: string[] | string
+  ) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;

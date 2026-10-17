@@ -291,6 +291,34 @@ const taskStore = create<TaskStoreState>()(
         return newIds;
       },
 
+      setTaskFieldValues: (ids, field, values) => set((state) => {
+        const list = Array.isArray(values) ? values : [values];
+        if (ids.length === 0 || list.length === 0) {
+          return {};
+        }
+
+        const tasks = { ...state.tasks };
+        let changed = false;
+
+        ids.forEach((id, index) => {
+          const task = tasks[id];
+          if (!task) {
+            return;
+          }
+
+          // 値が 1 個なら全行に同一値、複数なら順番に対応させる。
+          const value = list.length === 1 ? list[0] : list[index];
+          if (value === undefined || (task[field] ?? '') === value) {
+            return;
+          }
+
+          tasks[id] = { ...task, [field]: value };
+          changed = true;
+        });
+
+        return changed ? { tasks } : {};
+      }),
+
       updateTask: (id, updates) => set((state) => {
         const oldTask = state.tasks[id];
         if (!oldTask) {

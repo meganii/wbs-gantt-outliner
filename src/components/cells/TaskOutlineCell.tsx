@@ -4,6 +4,7 @@ import { ChevronRight, ChevronDown, GripVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { useTaskCellKeyboard, getEffectiveTaskIds } from '../../hooks/useTaskCellKeyboard';
 import { parseTaskPaste } from '../../utils/parseTaskPaste';
+import { handleTextCellPaste, isMultiRowSelection } from '../../utils/cellPaste';
 import { cellPropsEqual } from './cellPropsEqual';
 import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { ProjectConfig, Task } from '../../types';
@@ -123,8 +124,18 @@ export const TaskOutlineCell = memo(({
     }
 
     const text = e.clipboardData.getData('text/plain');
-    // 単一行は通常の貼り付けに任せる（複数行のときだけ一括登録する）
-    if (!text || !/[\r\n]/.test(text)) {
+    if (!text) {
+      return;
+    }
+
+    // 複数行選択中は、選択行へ一括反映する（値 1 個なら同一値、複数なら順に割り当て）。
+    if (isMultiRowSelection(taskId)) {
+      handleTextCellPaste(e, taskId, 'title');
+      return;
+    }
+
+    // 単一選択で 1 行の貼り付けは通常の貼り付けに任せる。
+    if (!/[\r\n]/.test(text)) {
       return;
     }
 
