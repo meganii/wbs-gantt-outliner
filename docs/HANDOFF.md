@@ -4,6 +4,12 @@
 
 ## 現在の状態
 
+- **依存線が左のタスク名カラムに重なる問題の修正** (October 17, 2026):
+  - 症状: 横スクロール時に依存線（SVG レイヤー）が左のタスク名カラム（sticky）の上に描画される。
+  - 原因: `index.css` の `.gantt-row-optimized { content-visibility: auto }` は **paint containment を伴い、行をスタッキングコンテキスト化**する。そのため行内で `z-40` を付けた名前カラムは行のコンテキストに閉じ込められ、兄弟である依存線 SVG（`z-10`）より前面に描画できない（DOM/レイヤ順では SVG が上になる）。横スクロールで SVG が名前カラムの下へ潜り込むと、線が名前カラムに重なって見えていた。`content-visibility` 導入時からの潜在バグで、スタッキングの前提（名前カラム z-40 > SVG z-10）と containment が矛盾していた。
+  - 修正: `IntegratedView` / `GanttChart` のスクロールハンドラで、依存線 SVG を `clip-path: inset(0 0 0 <scrollLeft>px)` により左から切り落とす（スクロールしていないときはクリップ解除）。`z-index` を下げて行の裏に回す案は、行の timeline 領域がポインタイベントを奪い、依存線クリック（削除）が行の draw-range に化けるため不採用。クリップなら描画だけでなく当たり判定も切れ、既存の操作性を維持できる。
+  - 回帰テスト `src/components/DependencyLayerClip.test.tsx`（新規・2件）: スクロール量に応じた `clipPath` の付与/解除（IntegratedView / GanttChart）。
+  - 検証: Playwright で 1,000px 相当スクロール時に名前カラム領域へ描画される依存線サンプルが 0 件になることを確認。`npm test -- --run` **112 件合格** / `npm run test:e2e` 6 件合格 / `npm run lint` 0 件 / `npm run build` 通過。
 - **Shift + 矢印 / Shift + クリックの範囲選択が不安定になる退行の修正** (October 17, 2026):
   - 症状: WBS（Outliner / IntegratedView）で 2 行目を選択して Shift+↓ しても 1 行しか選択されない、起点が失われて複数行を選べない。
   - 原因: **P1 Step 4-A（`c69f567`）** でセルを `React.memo` + `cellPropsEqual`（関数 props を無視）でメモ化した一方、選択ハンドラ（`handleSelectionChange`）は `anchorId` / `selectedTaskIds` / `focusedTaskId` をクロージャから読んでいた。セルは再レンダーされないため**古いクロージャを保持し続け**、Shift 操作時にアンカーが解決できずフォールバックして `endIdx` の行だけ（または `indexOf === -1` で 1 行だけ）選択されていた。関数 props を無視する最適化と「ハンドラがクロージャ変数を読む」設計の不整合。

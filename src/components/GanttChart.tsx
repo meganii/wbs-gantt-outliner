@@ -78,6 +78,7 @@ export const GanttChart = ({
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = scrollRef || internalContainerRef;
   const headerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   // Use custom drag interaction hook
   useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
@@ -123,8 +124,17 @@ export const GanttChart = ({
       if (headerRef.current) {
         headerRef.current.scrollLeft = container.scrollLeft;
       }
+      // 左のタスク名カラム（sticky で画面左端に固定）は、行が
+      // `content-visibility: auto`（paint containment）でスタッキング
+      // コンテキストになるため z-index では依存線より前面にできない。
+      // 横スクロールで名前カラムの下に潜り込んだ分だけ依存線を切り落とす。
+      if (svgRef.current) {
+        svgRef.current.style.clipPath =
+          container.scrollLeft > 0 ? `inset(0 0 0 ${container.scrollLeft}px)` : '';
+      }
     };
 
+    handleScroll();
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
   }, [containerRef]);
@@ -344,6 +354,7 @@ export const GanttChart = ({
 
         {/* SVG Layer for Dependencies - Z-10 */}
         <svg
+          ref={svgRef}
           className="absolute inset-0 pointer-events-none z-10"
           style={{
             minHeight: flattenedItems.length * 32,
