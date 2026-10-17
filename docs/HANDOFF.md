@@ -53,7 +53,7 @@
   - `vite.config.ts` の vitest `exclude` に `bench/**` を追加（Playwright の spec を vitest が拾わないように）。計測結果 `bench/results/` は `.gitignore` 済み。
 - **ガント操作で「意図しない日付変更」が起きるバグの修正（設計レビューの P0 対応）** (October 17, 2026):
   - コードレビューと実測（一時テストで再現）により、**タイムライン余白の単クリック（移動量ゼロ）で予定日が書き換わる**／**ベースライン固定中に予定バーを単クリックすると実績日が書き換わる**という2件のデータ破壊バグを確認し、修正した。
-  - `src/hooks/useGanttDrag.ts` の `draw-range`（範囲ドラッグ）確定処理に、`move` と同じ「開始時の値と現在値が同一なら確定しない」ガードを追加。移動のない単クリックでは日付を書き換えない。
+  - `src/hooks/useGanttDrag.ts` の `draw-range`（範囲ドラッグ）確定処理に、`move` と同じ「開始時の値と現在値が同一なら確定しない」ガードを追加。移動のない単クリックでは日付を書き換えない。**※この D1 のガードは October 17, 2026 にユーザー判断で撤去し、単クリック＝1 日予定の設定に戻した（上記「現在の状態」参照）。この項目は当時の記録として残す。**
   - `src/components/GanttTimelineRow.tsx` の予定バー／実績バーの `onMouseDown` を、早期 return する場合（`baselineLocked` / 親タスク）も含めて**常に `stopPropagation()`** する形に変更。親行の `draw-range` に伝播して日付が書き換わる経路を根絶した。加えて行側でも `[data-gantt-bar]` 上のイベントを無視する二重ガードを入れた（バーには `data-gantt-bar` を付与）。
   - `draw-range` の終点も「カーソル下の日セル（floor）」で求めるよう統一（起点と同じ基準）。起点となるタイムライン左端は `GanttDragState.timelineLeft` としてドラッグ状態に保存する。これでドラッグ中のハイライトと確定結果が一致する（従来は終点だけ `round(deltaX/pixelsPerDay)` で1日ずれることがあった）。
   - 行の並べ替え（dnd-kit）のセンサーを `src/hooks/useRowSortSensors.ts`（新規）に集約し、**KeyboardSensor を無効化 + PointerSensor に 5px の移動しきい値**を設定。ホバー時のみ表示される `opacity-0` のドラッグハンドルにフォーカスが残った状態で Enter/Space を押すと「キーボードドラッグ開始」と「タスク確定/追加」が衝突していた問題を解消。
@@ -263,23 +263,23 @@ docs/HANDOFF.md を読んで、描画性能 P1 の Step 4（セル購読の集�
 4. 完了したら改善結果（before/after の数値つき）をまとめて報告する。
 
 壊してはいけないもの（docs/HANDOFF.md「注意点」より）:
-- useGanttDrag の draw-range ガード（移動ゼロの単クリックでは確定しない）
+- draw-range は単クリックでも確定する（日セルのクリックで 1 日予定が入る）。「移動ゼロなら commit しない」ガードを再導入しないこと
 - バー/ハンドルの onMouseDown は早期 return 時も stopPropagation を維持し、data-gantt-bar を消さない
 - useRowSortSensors（KeyboardSensor 無効・distance 5）
-- 現在 lint 0 / vitest 105 件 / e2e 6 件でグリーン。これを維持すること。
+- 現在 lint 0 / vitest 112 件 / e2e 6 件でグリーン。これを維持すること。
 ```
 
 ## 設計レビュー結果（October 17, 2026）
 
 「画面描画が遅い」「ドラッグ&ドロップで意図しない動きをする」という課題に対してコードレビューを実施し、疑わしい挙動は一時テストで実測して確認した。以下は確定した所見。
 
-### 確認済みの不具合（D1・D2 は実測で再現）
+### 確認済みの不具合（D1 は後に仕様変更で撤回、D2 は実測で再現・修正済み）
 
 | # | 内容 | 状態 |
 |---|---|---|
-| D1 | タイムライン余白を単クリック（移動ゼロ）すると予定日が書き換わる（実測: 予定 2026-05-25〜26 → 2026-05-18〜18 / duration 2→1） | **修正済み** |
-| D2 | ベースライン固定中に予定バーを単クリックすると実績日が書き換わる（早期 return で `stopPropagation` していなかった） | **修正済み** |
-| D3 | Month/Year ビューでは単クリックが月/年スナップで「1か月/1年」を上書き（D1 の帰結） | **修正済み**（D1 のガードで解消） |
+| D1 | タイムライン余白を単クリック（移動量ゼロ）すると予定日が書き換わる（実測: 予定 2026-05-25〜26 → 2026-05-18〜18 / duration 2→1） | **仕様変更で撤回**（October 17, 2026。ユーザー判断で「単クリック＝クリックした日 1 日分の予定を設定」を正とし、ガードを撤去） |
+| D2 | ベースライン固定中に予定バーを単クリックすると実績日が書き換わる（早期 return で `stopPropagation` していなかった） | **修正済み**（バーの `stopPropagation` / `data-gantt-bar` による恒久対応。D1 撤回後も有効） |
+| D3 | Month/Year ビューでは単クリックが月/年スナップで「1か月/1年」を上書き（D1 の帰結） | **現状維持**（D1 のガード撤去に伴い復活。単クリック＝その月/年の範囲を描く挙動。変更するなら別途仕様検討） |
 | D4 | `draw-range` の終点だけ丸めが `round(delta)` で、起点の `floor(absolute)` と1日ずれる | **修正済み**（終点も floor に統一） |
 | D5 | dnd-kit の KeyboardSensor が既定で有効。非表示グリップにフォーカスが残ると Enter/Space がキーボードドラッグ開始になり、Enter=新規タスクと衝突 | **修正済み**（センサー集約） |
 | D6 | `TimelineContext` の value が毎レンダー新規 → ホバーのたびに全行 `RowContainer` が再レンダー | **修正済み**（P1 Step 3 で `useMemo` 化） |
@@ -297,7 +297,7 @@ docs/HANDOFF.md を読んで、描画性能 P1 の Step 4（セル購読の集�
 
 ## 注意点
 
-- **ガントの `draw-range`（タイムライン余白をドラッグして範囲指定）は「移動のない単クリックでは確定しない」**。`useGanttDrag.ts` の確定処理にある「開始時と現在値が同一なら commit しない」ガードを緩めないこと（緩めると単クリックで日付が壊れる）。
+- **ガントの `draw-range`（タイムライン余白をクリック/ドラッグして予定を描く）は、単クリックでも確定する**（クリックした日 1 日分の予定を設定する）。October 17, 2026 にユーザー判断で「移動ゼロなら確定しない」ガードを撤去し、この挙動に戻した。**同じガードを再導入しないこと**（再導入すると日セルの単クリックで予定が反映されなくなる）。バー上のクリックが行の `draw-range` に伝播して日付が壊れる経路は、次項の `stopPropagation` / `data-gantt-bar` で塞ぐ（この 2 つは D1 撤回後も有効）。
 - **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで日付が書き換わる（ベースライン固定中は実績日が壊れる）。
 - **行の並べ替え（dnd-kit）のセンサーは `src/hooks/useRowSortSensors.ts` に集約**している。KeyboardSensor を復活させないこと（Enter はタスク確定/追加に割り当て済みで衝突する）。PointerSensor の `distance: 5` も、微小なクリックで並べ替えが始まらないためのしきい値なので外さないこと。
 - パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
