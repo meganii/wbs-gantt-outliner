@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render } from '@testing-library/react';
 import { GanttChart } from './GanttChart';
 import { IntegratedView } from './IntegratedView';
+import { TIMELINE_HEADER_HEIGHT, TIMELINE_GROUP_ROW_HEIGHT } from './TimelineHeader';
 import { getTemporalState, useTaskStore } from '../store/useTaskStore';
 
 const initialState = useTaskStore.getState();
@@ -109,5 +110,44 @@ describe('Phase 2: ガント表現', () => {
       useTaskStore.getState().requestScrollToToday();
     });
     expect(useTaskStore.getState().todayFocusRequestId).toBe(before + 1);
+  });
+});
+
+describe('ヘッダー高さの整合', () => {
+  beforeEach(reset);
+
+  // 統合表示は左ペイン（列名）とタイムラインのヘッダーが同じ高さでないと、
+  // 切り替え時に列名のベースラインがずれて見える。ガントチャートと揃える。
+  it('統合表示の列ヘッダーとタイムラインのヘッダー高さが一致する', () => {
+    const { container } = render(
+      <IntegratedView outlinerWidth={600} onResizeStart={() => {}} />
+    );
+
+    const tableHeader = container.querySelector<HTMLElement>('div.bg-slate-50.w-max');
+    expect(tableHeader).not.toBeNull();
+    expect(tableHeader!.style.height).toBe(`${TIMELINE_HEADER_HEIGHT}px`);
+
+    const timelineHeader = Array.from(
+      container.querySelectorAll<HTMLElement>('.flex.flex-col.select-none')
+    ).find((el) => el.style.width !== '');
+    const timelineWrapper = timelineHeader!.parentElement as HTMLElement;
+    expect(timelineWrapper.style.height).toBe(`${TIMELINE_HEADER_HEIGHT}px`);
+  });
+
+  it('ガントチャートのヘッダーも同じ高さを使う', () => {
+    const { container } = render(<GanttChart showNames />);
+    const header = container.querySelector<HTMLElement>('.sticky.top-0.bg-gray-100');
+    expect(header).not.toBeNull();
+    expect(header!.style.height).toBe(`${TIMELINE_HEADER_HEIGHT}px`);
+  });
+
+  it('タイムラインの2段ヘッダーの合計＝グループ行＋詳細行', () => {
+    const { container } = render(<GanttChart />);
+    const groupRow = container.querySelector<HTMLElement>('.border-b.border-line.flex');
+    expect(groupRow!.style.height).toBe(`${TIMELINE_GROUP_ROW_HEIGHT}px`);
+    const detailRow = groupRow!.nextElementSibling as HTMLElement;
+    expect(Number.parseInt(groupRow!.style.height) + Number.parseInt(detailRow.style.height)).toBe(
+      TIMELINE_HEADER_HEIGHT
+    );
   });
 });

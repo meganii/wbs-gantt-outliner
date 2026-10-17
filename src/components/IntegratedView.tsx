@@ -13,7 +13,7 @@ import { TaskTableHeader } from './TaskTableHeader';
 import type { ColumnId, Task } from '../types';
 import { COMPACT_COLUMNS } from '../utils/projectConfig';
 import { GanttTimelineRow } from './GanttTimelineRow';
-import { TimelineHeader } from './TimelineHeader';
+import { TimelineHeader, TIMELINE_HEADER_HEIGHT } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
@@ -308,10 +308,11 @@ export const IntegratedView = ({
             visibleColumns={visibleColumns}
             menuColumns={storeVisibleColumns ?? COMPACT_COLUMNS}
             onColumnsChange={setIntegratedColumns}
+            height={TIMELINE_HEADER_HEIGHT}
           />
         </div>
         <div className="flex-1 relative overflow-hidden bg-gray-100 border-b border-gray-300">
-          <div ref={headerRef} className="h-[56px] overflow-hidden">
+          <div ref={headerRef} className="overflow-hidden" style={{ height: TIMELINE_HEADER_HEIGHT }}>
             <TimelineHeader
               timeRange={timeRange}
               cellWidth={cellWidth}

@@ -4,6 +4,15 @@ import clsx from 'clsx';
 import { isHoliday, isWorkDay } from '../utils/date';
 import type { WorkCalendar } from '../types';
 
+/**
+ * タイムライン 2 段ヘッダーの各行の高さと合計。
+ * ガント / 統合表示の左ペイン（列ヘッダー）が同じ高さになるよう、
+ * 各ビューからも参照する（値の二重管理を避ける唯一の定義元）。
+ */
+export const TIMELINE_GROUP_ROW_HEIGHT = 20;
+export const TIMELINE_DETAIL_ROW_HEIGHT = 36;
+export const TIMELINE_HEADER_HEIGHT = TIMELINE_GROUP_ROW_HEIGHT + TIMELINE_DETAIL_ROW_HEIGHT;
+
 interface TimelineHeaderProps {
   timeRange: Date[];
   cellWidth: number;
@@ -89,7 +98,7 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
     <div className="flex flex-col select-none" style={{ width: totalWidth }}>
       {/* ── 上段: グループ行 ── */}
       {showGroupRow && (
-        <div className="flex border-b border-line" style={{ height: 20 }}>
+        <div className="flex border-b border-line" style={{ height: TIMELINE_GROUP_ROW_HEIGHT }}>
           {groupSegments.map((seg) => (
             <div
               key={`${seg.label}-${seg.startIndex}`}
@@ -110,7 +119,7 @@ export const TimelineHeader: React.FC<TimelineHeaderProps> = ({
       {/* ── 下段: 詳細行 ── */}
       <div
         className="flex"
-        style={{ height: showGroupRow ? 36 : 56 }}
+        style={{ height: showGroupRow ? TIMELINE_DETAIL_ROW_HEIGHT : TIMELINE_HEADER_HEIGHT }}
       >
         {timeRange.map((date) => {
           const isWknd = !isWorkDay(date, calendar);

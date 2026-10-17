@@ -4,6 +4,12 @@
 
 ## 現在の状態
 
+- **統合表示の列ヘッダー高さがタイムラインと揃っていない問題の修正** (October 17, 2026, branch `feature/ui-refresh`):
+  - 症状: 統合表示で左ペインの列名ヘッダーが 40px、右のタイムライン 2 段ヘッダーが 56px で、境界で高さがずれて見えていた（ガントチャートは両方 56px）。`TaskTableHeader` に `height` prop はあったが、統合表示が渡していなかった（既定 40px）。
+  - 修正: `TimelineHeader.tsx` に高さの唯一の定義元 `TIMELINE_GROUP_ROW_HEIGHT`(20) / `TIMELINE_DETAIL_ROW_HEIGHT`(36) / `TIMELINE_HEADER_HEIGHT`(56) を追加。`GanttChart` のローカル定数と統合表示の `h-[56px]` ハードコードを廃止して同定数を参照。統合表示の `TaskTableHeader` に `height={TIMELINE_HEADER_HEIGHT}` を渡し、左ペインとタイムラインのヘッダー高さを一致させた。
+  - 回帰テスト: `src/components/Phase2Regression.test.tsx` に「ヘッダー高さの整合」3 件（統合表示の列ヘッダー＝タイムライン切り出し領域／ガントのヘッダー／2 段ヘッダーの合計＝グループ行＋詳細行）を追加。
+  - 検証: `npm run lint` 0 / `npx vitest run` **197 件（22ファイル）** / `npm run build` 通過。
+  - 補足: 統合表示の左ペイン境界の下罫線は `border-line`（左）と `border-gray-300`（右）で色が異なる（高さとは別の軽微な不整合。今回は未修正）。
 - **UI 刷新 Phase 0〜2（モダン・クリーン化）完了** (October 17, 2026):
   - 背景: `docs/UI_REVIEW.md` の総点検に基づき、3 ビュー（WBS / 統合表示 / ガントチャート）の UI を一般的なタスク管理ツール相当へ刷新。Phase 0（破損修正）/ Phase 1（土台＋ヘッダー/サブバー/ステータスバー/言語統一）/ Phase 2（ガント表現）を実装。
   - **Phase 0（破損修正）**:

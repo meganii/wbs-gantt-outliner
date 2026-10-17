@@ -8,7 +8,7 @@ import clsx from 'clsx';
 import { TaskRow } from './TaskRow';
 import type { ColumnId } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
-import { TimelineHeader } from './TimelineHeader';
+import { TimelineHeader, TIMELINE_HEADER_HEIGHT } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
@@ -18,8 +18,6 @@ import { leftPaneDividerStyle } from '../utils/leftPaneDivider';
 // Import custom hooks
 import { useGanttTimeline, TimelineContext } from '../hooks/useGanttTimeline';
 import { useGanttDrag } from '../hooks/useGanttDrag';
-
-const HEADER_HEIGHT = 56;
 
 interface GanttChartProps {
   showNames?: boolean;
@@ -318,7 +316,7 @@ export const GanttChart = ({
       {/* Timeline Header */}
       <div
         className="flex sticky top-0 bg-gray-100 z-10 border-b border-gray-300 overflow-hidden"
-        style={{ height: HEADER_HEIGHT }}
+        style={{ height: TIMELINE_HEADER_HEIGHT }}
         ref={headerRef}
       >
         {showNames && (
