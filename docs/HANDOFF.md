@@ -4,6 +4,9 @@
 
 ## 現在の状態
 
+- **デバッグ用テストの整理（非干渉テストへの昇格 / 不要な E2E の削除）** (October 17, 2026):
+  - `src/store/verify_bug.test.ts`（デバッグ名の3件）を **`src/store/updateTaskIsolation.test.ts`** に再編。同期・ロックの一般仕様は `useTaskStore.test.ts`「Baseline Plan and Actual Date Synchronization & Locking」が担うため重複分は落とし、**「あるタスクの更新で無関係な兄弟タスクが変わらない」相互非干渉の主張だけ**を残した（過去の「無関係なタスクが動く」パターンC退行の再発防止。他テストでは未カバーだった観点）。セットアップも `initialState` リセット＋`getTemporalState().clear()` の標準作法に統一。
+  - `e2e/reproduce-bug.spec.ts` を **削除**。実質のアサーションが「Task B の予定開始セルが `06/05` のまま」1点のみで、バーの x 座標は画面外（-4533）を測っており「ホバーでスナップバック」の検証が成立していなかった。`page.on('console')` / `console.log` / `waitForTimeout` のデバッグノイズ付きで、意図した不変条件は上記の非干渉テストと 6/7 の `TaskRow task` prop + `TimelineContext` 修正で構造的に担保済み。E2E は 6 → 5 件。
 - **P1 変更領域の回帰ハードニング（選択アンカー / フォールバック追従 / 操作マトリクス）** (October 17, 2026):
   - 目的: P1（描画性能）Step 1〜4 が触れた領域（セル memo 化・選択・依存線・ドラッグ・確定・ホバー）を横断的に確認し、壊れやすい挙動をテストで固定する。
   - **修正1: GanttChart の Shift+矢印で範囲が起点から伸びない不整合**。`GanttChart.tsx` の `handleSelectionChange` は範囲選択の起点を「直前の選択末尾（`currentSelected[last]`）」から求めていたため、Shift+↓ を繰り返すと `[A,B]` → `[B,C]` と**後ろにずれて縮む**（Outliner / IntegratedView は `anchorIdRef` で起点保持するため `[A,B]` → `[A,B,C]` と伸びる）。GanttChart にも `anchorIdRef` を導入し、範囲選択以外で起点を更新する形に統一（P1 以前からの不整合だが、同種の退行の温床なので是正）。
@@ -208,13 +211,13 @@
 
 ## 直近の検証結果 (October 17, 2026 / P1 変更領域の回帰ハードニング後)
 
-- `npm test -- --run` : **127テスト全件合格** (14ファイル。P1 Step 1 の回帰テスト7件＋Step 2 の回帰テスト2件＋Step 4-A/4-B 由来の選択2件＋依存線クリップ2件＋回帰ハードニング15件を追加)
-- `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
+- `npm test -- --run` : **127テスト全件合格** (14ファイル。P1 の各 Step の回帰テストに加え、回帰ハードニングで15件追加。`verify_bug.test.ts` を非干渉テスト `updateTaskIsolation.test.ts`（3件）へ再編)
+- `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
 - `npm run lint` : **0件合格** (`eslint.config.js` に生成物の ignores を追加し、ソース側の違反も全件解消。内訳は下記「ESLint 違反の全件解消」参照)
-- テスト件数の内訳注意: `src/store/verify_bug.test.ts` (3件) と `e2e/reproduce-bug.spec.ts` はデバッグ用に追加された検証ファイルで、上記の件数に含まれている（恒久テストへ昇格するか削除するか未決）。
+- デバッグ用テストの整理は October 17, 2026 に完了（下記「現在の状態」参照）。旧 `src/store/verify_bug.test.ts` は非干渉テスト `src/store/updateTaskIsolation.test.ts` に再編、旧 `e2e/reproduce-bug.spec.ts` は削除した。
 
 ## 次に着手する優先課題
 
@@ -229,7 +232,7 @@
    - **ホバーでの全行再レンダー**: `IntegratedView` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトのため、ホバーのたびに全行の `RowContainer` が再レンダーされる（context 経由の再レンダーは `memo` では止まらない）。value を `useMemo` 化するか、「静的メトリクス」と「動的な値」を別 context に分割する。→ **対応済み (October 17, 2026, P1 Step 3)**。
    - **ドラッグ中の依存線全再計算**: `useGanttDependencies` が `dragState` を `useMemo` 依存に含み、`GanttDependencyLines` も `memo` 化されていないため、ドラッグ中は毎 mousemove で全依存線を再計算＋再レンダーする。静的線とドラッグ中のみの線を分離して `memo` 化する。→ **対応済み (October 17, 2026, P1 Step 2)**。
    - **高頻度更新の O(N) 連鎖**: ガントの duration セルが `onChange`（1文字ごと）で `updateTask` を呼び、依存伝播＋親再計算＋`flattenTree`＋タイムライン再計算を毎文字起こす。commit-on-blur / 短い debounce にする。→ **対応済み (October 17, 2026, P1 Step 1)**。
-   - 併せて P2（保守性）: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合、`ROW_HEIGHT = 32` の定数化、未使用の `taskBarRefs` の削除、zundo の `partialize` と `equality` の揃え、デバッグ用テストの去就決定。
+   - 併せて P2（保守性）: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合、`ROW_HEIGHT = 32` の定数化、未使用の `taskBarRefs` の削除、zundo の `partialize` と `equality` の揃え、デバッグ用テストの去就決定（→ **対応済み**: `verify_bug.test.ts` は非干渉テスト `updateTaskIsolation.test.ts` へ昇格、`reproduce-bug.spec.ts` は削除。October 17, 2026）。
 
 #### P1 の実施手順（案）— 上から順に、1ステップ＝1コミット
 
