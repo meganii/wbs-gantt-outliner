@@ -29,6 +29,8 @@
     - 横スクロール時に、行より下の左ペイン（タスク名列）余白へ日付グリッドが覗く問題を修正。`TimelineGridBackground` を `forwardRef` 化し、依存線 SVG と同じくスクロール量ぶんを `clip-path` で切り落とす。さらに左ペインとタイムラインの境界線をスクロールコンテナの背景（`src/utils/leftPaneDivider.ts`）として描き、行が無い部分でも 1 本の線が途切れないようにした。
   - テスト: `src/components/Phase2Regression.test.tsx`（5 件）新規 + `src/components/DependencyLayerClip.test.tsx` にグリッド背景のクリップ検証 + `src/components/AppHeader.test.tsx`（プロジェクトメニュー 3 件）+ `Outliner.test.tsx` に列名ヘッダーの sticky 検証を追加。e2e 3 件は「統合表示が既定コンパクト列」になったため、日付入力は WBS ビューで行うよう更新（依存ドラッグは統合表示のまま）。
   - 検証: `npm run lint` 0 / `npm test -- --run` **194 件（22ファイル）** / `npm run test:e2e` **5 件** / `npm run build` 通過。
+  - 目視確認用ツール: `npm run shots`（`scratch/screenshot.mjs`）。`scratch/sample-project.json` を「読み込み」させて 3 ビュー + 行選択 + 狭い幅 + 設定ダイアログを `scratch/shots/` に撮影する（生成物は `.gitignore` 済み・コミットしない）。dev サーバ（`npm run dev`）を起動してから実行。
+  - 注意: 開発サーバ（vite）が古い Tailwind 設定をキャッシュしていると `brand` 色が反映されず、スクリーンショット確認が誤る。再起動で解消（今回は発生・再起動済み）。
   - 未着手（Phase 3 候補）: ステータス/進捗セルのピル化、空状態（統合/ガント）、行の右クリックメニュー、検索/フィルタ（P1-5 / P1-7 / P2-6）。
 - **JSON インポートの実行時バリデーション強化（優先課題 #2 / IPC 申し送り #1）** (October 17, 2026):
   - 背景: `useProjectFileHandlers.handleLoad` が `JSON.parse` の結果を無検証で `loadProjectState` に渡しており、壊れたファイルで (a) 例外（`tasks` 欠落 / `rootIds` 欠落 / `children` が `undefined` / トップレベル `null`）、(b) 無通知のデータ消失（`tasks` が配列 / 親子の循環で `rootIds=[]`）、(c) 描画クラッシュ（ルートから到達可能な親子循環で `flattenTree` が無限再帰 → `RangeError: Maximum call stack size exceeded`）、(d) 型・値の残留（`progress` が文字列 / 不正日付 / 不正 `columnWidths`・`timelineRange`）が起きていた。一時テストで全 14 ケースを再現して確認済み（実装前に報告済み）。
