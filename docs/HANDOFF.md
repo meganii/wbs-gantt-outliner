@@ -4,6 +4,15 @@
 
 ## 現在の状態
 
+- **複数行ペーストによるタスクの一括登録** (October 17, 2026, 未コミット):
+  - 背景/要望: コピーした複数行テキストから複数タスクを一度に登録したい。従来はタスク名が単一行 `<input>` のため、複数行を貼ると改行が潰れて 1 行に連結されるだけだった（paste を扱うコードはリポジトリに存在しなかった）。
+  - 仕様（ユーザー確認済み）: タスク名セル（`TaskOutlineCell`）に直接貼り付け。1 行は通常の貼り付け、複数行なら一括登録。行頭インデントで階層化（既存上限 4 階層にクランプ）。選択行の直後に兄弟として貼り付け順に挿入。空行はスキップ。Excel のタブ区切りは 1 列目のみタスク名に採用（モードは自動判定）。
+  - `src/utils/parseTaskPaste.ts`（新規・純粋関数）: 改行分割 → 空行除去 → 「内容の後ろにタブがある行があれば列モード」を自動判定 → インデント幅を実測して深さへ写像（単位がタブ/スペース 2/4 のいずれでも可）。
+  - `useTaskStore.addTasks(items, referenceTaskId, position, options)`（新規）: **1 回の `set`** で挿入し、Undo 1 エントリ・再描画 1 回。深さから親子を組み立て、追加後は新規群を選択し先頭をフォーカス。`options.referenceTitle` で参照タスクのタイトルも同じ `set` 内で更新する（貼り付け先が空セルのとき 1 行目を採用し、空タスクの残骸を防ぐ）。`addTask` の新規タスク生成は `createBlankTask()` に共通化。
+  - `TaskOutlineCell`: `onPaste` を追加（IME 中は無視、単一行は素通し、複数行のみ `preventDefault`）。
+  - テスト: `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5) を新規追加。
+  - 検証: `npm run lint` 0 / `npm test -- --run` **223 件（25ファイル）** / `npm run build` 通過。
+  - 補足: タブは「列区切り」と「行頭インデント」を兼ねられないため、列モードのインデントはスペースで表現する（行頭タブは列区切り扱い）。Excel の 2 列目以降は現状読み捨て。将来必要なら貼り付けダイアログ＋プレビュー、列マッピング拡張を検討。
 - **統合表示の列ヘッダー高さがタイムラインと揃っていない問題の修正** (October 17, 2026, branch `feature/ui-refresh`):
   - 症状: 統合表示で左ペインの列名ヘッダーが 40px、右のタイムライン 2 段ヘッダーが 56px で、境界で高さがずれて見えていた（ガントチャートは両方 56px）。`TaskTableHeader` に `height` prop はあったが、統合表示が渡していなかった（既定 40px）。
   - 修正: `TimelineHeader.tsx` に高さの唯一の定義元 `TIMELINE_GROUP_ROW_HEIGHT`(20) / `TIMELINE_DETAIL_ROW_HEIGHT`(36) / `TIMELINE_HEADER_HEIGHT`(56) を追加。`GanttChart` のローカル定数と統合表示の `h-[56px]` ハードコードを廃止して同定数を参照。統合表示の `TaskTableHeader` に `height={TIMELINE_HEADER_HEIGHT}` を渡し、左ペインとタイムラインのヘッダー高さを一致させた。
@@ -256,7 +265,7 @@
 
 ## 直近の検証結果 (October 17, 2026 / JSON インポートのバリデーション強化後)
 
-- `npm test -- --run` : **178テスト全件合格** (19ファイル。JSON インポートの検証に伴い、`validateProjectState`(25) / `projectConfig`(7) / `useNotificationStore`(3) / `ToastContainer`(5) / `useProjectFileHandlers`(5) と既存テストの拡張で 127 → 178 に増加)
+- `npm test -- --run` : **223テスト全件合格** (25ファイル。複数行ペースト一括登録のテスト 26 件追加で 197 → 223。内訳: `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5) ほか。以前の JSON インポート検証に伴う `validateProjectState`(25) / `projectConfig`(7) / `useNotificationStore`(3) / `ToastContainer`(5) / `useProjectFileHandlers`(5) を含む)
 - `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
@@ -340,6 +349,7 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 ## 次の作業で最初に見るとよい場所
 
 - `src/store/useTaskStore.ts`
+- `src/utils/parseTaskPaste.ts` / `src/utils/parseTaskPaste.test.ts`（複数行ペーストのパース。ストアの `addTasks` とセットで扱う）
 - `src/store/taskStoreUtils.ts`
 - `src/store/useTaskStore.test.ts`
 - `src/hooks/useGanttDrag.ts` / `src/components/GanttTimelineRow.tsx`（P0 で修正したガント操作のガード。上記「注意点」参照）
