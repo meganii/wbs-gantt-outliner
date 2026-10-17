@@ -8,8 +8,9 @@
   - 症状: 統合表示で左ペインの列名ヘッダーが 40px、右のタイムライン 2 段ヘッダーが 56px で、境界で高さがずれて見えていた（ガントチャートは両方 56px）。`TaskTableHeader` に `height` prop はあったが、統合表示が渡していなかった（既定 40px）。
   - 修正: `TimelineHeader.tsx` に高さの唯一の定義元 `TIMELINE_GROUP_ROW_HEIGHT`(20) / `TIMELINE_DETAIL_ROW_HEIGHT`(36) / `TIMELINE_HEADER_HEIGHT`(56) を追加。`GanttChart` のローカル定数と統合表示の `h-[56px]` ハードコードを廃止して同定数を参照。統合表示の `TaskTableHeader` に `height={TIMELINE_HEADER_HEIGHT}` を渡し、左ペインとタイムラインのヘッダー高さを一致させた。
   - 回帰テスト: `src/components/Phase2Regression.test.tsx` に「ヘッダー高さの整合」3 件（統合表示の列ヘッダー＝タイムライン切り出し領域／ガントのヘッダー／2 段ヘッダーの合計＝グループ行＋詳細行）を追加。
-  - 検証: `npm run lint` 0 / `npx vitest run` **197 件（22ファイル）** / `npm run build` 通過。
+  - 検証: `npm run lint` 0 / `npx vitest run` **197 件（22ファイル）** / `npm run test:e2e` **5 件** / `npm run build` 通過。`npm run shots` のスクリーンショットと実ブラウザ実測でヘッダー高さが揃うことを確認（統合表示: 左ヘッダー 56px ＝ タイムライン ヘッダー 56px / ガント: ヘッダー帯 56px ＝ 左列 56px）。
   - 補足: 統合表示の左ペイン境界の下罫線は `border-line`（左）と `border-gray-300`（右）で色が異なる（高さとは別の軽微な不整合。今回は未修正）。
+  - **開発メモ（この環境で Playwright を動かす）**: `npx playwright install chromium` は `ubuntu20.04-arm64` 非対応で失敗する。回避策として Chrome for Testing の arm64 ビルド（`chrome-linux-arm64` と `chrome-headless-shell-linux-arm64`）を取得し、Playwright が期待するパス（`~/.cache/ms-playwright/chromium-1248/chrome-linux-arm64/chrome` と `chromium_headless_shell-1248/chrome-headless-shell-linux-arm64/chrome-headless-shell`）へ配置すると `npm run shots` / `npm run test:e2e` が動く。OS 依存ライブラリは `libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libgtk-3-0 libnss3 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libpango-1.0-0 libcairo2 libasound2 libvulkan1` 等を apt で導入。コンテナには日本語フォントが無いためスクリーンショットの日本語は豆腐（□）になるが、レイアウト確認には支障なし。
 - **UI 刷新 Phase 0〜2（モダン・クリーン化）完了** (October 17, 2026):
   - 背景: `docs/UI_REVIEW.md` の総点検に基づき、3 ビュー（WBS / 統合表示 / ガントチャート）の UI を一般的なタスク管理ツール相当へ刷新。Phase 0（破損修正）/ Phase 1（土台＋ヘッダー/サブバー/ステータスバー/言語統一）/ Phase 2（ガント表現）を実装。
   - **Phase 0（破損修正）**:
