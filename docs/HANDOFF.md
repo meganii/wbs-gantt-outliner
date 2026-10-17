@@ -4,6 +4,14 @@
 
 ## 現在の状態
 
+- **P1 変更領域の回帰ハードニング（選択アンカー / フォールバック追従 / 操作マトリクス）** (October 17, 2026):
+  - 目的: P1（描画性能）Step 1〜4 が触れた領域（セル memo 化・選択・依存線・ドラッグ・確定・ホバー）を横断的に確認し、壊れやすい挙動をテストで固定する。
+  - **修正1: GanttChart の Shift+矢印で範囲が起点から伸びない不整合**。`GanttChart.tsx` の `handleSelectionChange` は範囲選択の起点を「直前の選択末尾（`currentSelected[last]`）」から求めていたため、Shift+↓ を繰り返すと `[A,B]` → `[B,C]` と**後ろにずれて縮む**（Outliner / IntegratedView は `anchorIdRef` で起点保持するため `[A,B]` → `[A,B,C]` と伸びる）。GanttChart にも `anchorIdRef` を導入し、範囲選択以外で起点を更新する形に統一（P1 以前からの不整合だが、同種の退行の温床なので是正）。
+  - **修正2: `flattenedItems` 未指定時のフォールバックがタスク変更に追随しない潜在バグ**。`IntegratedView` / `GanttChart` は `flattenedItemsProp ?? flattenTree(getState().tasks, getState().rootIds)` を `useMemo(..., [flattenedItemsProp])` で組んでいたため、**prop を渡さない利用（テスト・単体利用）では初回のツリーが固定**され、以降のタスク編集が反映されなかった（Outliner は `tasks` / `rootIds` を購読しており追随していた）。両ビューで `tasks` / `rootIds` を購読し、依存配列に含める形に統一。App は `visibleItems` を渡しており同じ変化で再レンダーされるため、**本番の再レンダー回数は変わらない**。
+  - **回帰テスト**:
+    - `src/components/InteractionRegression.test.tsx`（新規・14件）: セル編集の確定と派生値同期（期間確定→表示終了日が更新）、Undo で入力欄が戻る、Escape で選択解除、矢印でフォーカス移動、ステータス/進捗の確定とクランプ、複数選択 Delete、Ctrl+クリックのトグル、子の日付編集→親ロールアップの DOM 反映、`flattenedItems` 未指定でもストア変更に追随、依存線クリックで削除、IntegratedView のバー移動確定 / 依存ハンドル生成 / 日セル単クリック＝1 日予定。
+    - `src/components/SelectionRange.test.tsx`（+1件）: GanttChart で Shift+↓ を繰り返しても起点を失わず 3 行へ伸びる。
+  - 検証: `npm test -- --run` **127 件合格** (14ファイル) / `npm run test:e2e` 6 件合格 / `npm run lint` 0 件 / `npm run build` 通過。
 - **依存線が左のタスク名カラムに重なる問題の修正** (October 17, 2026):
   - 症状: 横スクロール時に依存線（SVG レイヤー）が左のタスク名カラム（sticky）の上に描画される。
   - 原因: `index.css` の `.gantt-row-optimized { content-visibility: auto }` は **paint containment を伴い、行をスタッキングコンテキスト化**する。そのため行内で `z-40` を付けた名前カラムは行のコンテキストに閉じ込められ、兄弟である依存線 SVG（`z-10`）より前面に描画できない（DOM/レイヤ順では SVG が上になる）。横スクロールで SVG が名前カラムの下へ潜り込むと、線が名前カラムに重なって見えていた。`content-visibility` 導入時からの潜在バグで、スタッキングの前提（名前カラム z-40 > SVG z-10）と containment が矛盾していた。
@@ -198,9 +206,9 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 17, 2026 / P1 Step 4 適用後)
+## 直近の検証結果 (October 17, 2026 / P1 変更領域の回帰ハードニング後)
 
-- `npm test -- --run` : **105テスト全件合格** (11ファイル。P1 Step 1 の回帰テスト7件＋Step 2 の回帰テスト2件を追加。Step 3・4 は既存分のみ)
+- `npm test -- --run` : **127テスト全件合格** (14ファイル。P1 Step 1 の回帰テスト7件＋Step 2 の回帰テスト2件＋Step 4-A/4-B 由来の選択2件＋依存線クリップ2件＋回帰ハードニング15件を追加)
 - `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
