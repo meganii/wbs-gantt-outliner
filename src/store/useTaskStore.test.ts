@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getTemporalState, loadProjectState, useTaskStore } from './useTaskStore';
 import { act } from '@testing-library/react';
-import type { ProjectConfig } from '../types';
+import type { ProjectConfig, Task } from '../types';
 import { propagateDependencyDates } from './taskStoreUtils';
 
 // To properly test the store, we need to interact with it outside of a React component.
@@ -746,6 +746,49 @@ describe('useTaskStore', () => {
       expect(projectConfig.calendar.holidays).toEqual([]);
       expect(projectConfig.columnWidths.taskName).toBe(320);
       expect(projectConfig.columnWidths.date).toBe(224);
+    });
+
+    it('should reject structurally invalid input without modifying the store', () => {
+      const before = useTaskStore.getState().tasks;
+
+      const missingTasks = loadProjectState({ rootIds: [] });
+      expect(missingTasks.ok).toBe(false);
+
+      const tasksIsArray = loadProjectState({ tasks: [], rootIds: [] });
+      expect(tasksIsArray.ok).toBe(false);
+
+      const nullInput = loadProjectState(null);
+      expect(nullInput.ok).toBe(false);
+
+      // ストアは変更されない（参照が同じ）
+      expect(useTaskStore.getState().tasks).toBe(before);
+    });
+
+    it('should repair broken tasks, break cycles, and report warnings', () => {
+      const brokenA = {
+        id: 'a', parentId: null, title: 'A', startDate: 'abc', endDate: null,
+        duration: 1, progress: '50', status: '', isCollapsed: false,
+        children: ['b'], dependencies: [], planStartDate: '2026-13-45', planEndDate: null,
+      } as unknown as Task;
+      const brokenB = {
+        id: 'b', parentId: 'a', title: 'B', startDate: null, endDate: null,
+        duration: 1, progress: 0, status: '', isCollapsed: false,
+        children: ['a'], dependencies: [], planStartDate: null, planEndDate: null,
+      } as unknown as Task;
+
+      let result: ReturnType<typeof loadProjectState> | undefined;
+      act(() => {
+        result = loadProjectState({ tasks: { a: brokenA, b: brokenB }, rootIds: ['a'] });
+      });
+
+      expect(result?.ok).toBe(true);
+      expect(result?.warnings.length).toBeGreaterThan(0);
+
+      const state = useTaskStore.getState();
+      expect(state.tasks['a'].startDate).toBe(null); // 不正日付は null に
+      expect(state.tasks['a'].progress).toBe(50); // 数値文字列は数値に
+      expect(state.rootIds).toEqual(['a']); // 循環が切れてルートから到達可能
+      expect(state.tasks['b'].parentId).toBe('a');
     });
   });
 

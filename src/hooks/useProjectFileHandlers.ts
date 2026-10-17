@@ -17,13 +17,26 @@ export function useProjectFileHandlers() {
 
   const handleLoad = async () => {
     const content = await window.ipcRenderer.invoke('load-file');
-    if (typeof content === 'string' && content) {
-      try {
-        const data = JSON.parse(content);
-        loadProjectState(data);
-      } catch (e) {
-        console.error('Failed to parse project file', e);
-      }
+    if (typeof content !== 'string' || !content) {
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse project file', e);
+      return;
+    }
+
+    const result = loadProjectState(parsed);
+    if (!result.ok) {
+      console.error('Failed to load project file', result.error);
+      return;
+    }
+
+    if (result.warnings.length > 0) {
+      console.warn('Project file loaded with repairs', result.warnings);
     }
   };
 

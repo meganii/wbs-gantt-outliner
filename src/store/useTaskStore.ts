@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import type { ProjectConfig, Task, TaskStoreState } from '../types';
 import {
   deleteTasksAndCleanup,
-  normalizeProjectState,
   propagateDependencyDates,
   recalculateParentDatesRecursive,
   applyDateCalculations,
@@ -16,7 +15,8 @@ import {
   getTaskDepth,
   hasDependencyPath,
 } from './taskStoreUtils';
-import { DEFAULT_PROJECT_CONFIG, mergeProjectConfig, normalizeHolidayList } from '../utils/projectConfig';
+import { DEFAULT_PROJECT_CONFIG, normalizeHolidayList } from '../utils/projectConfig';
+import { validateProjectState } from '../utils/validateProjectState';
 
 export interface ProjectData {
   tasks: Record<string, Task>;
@@ -541,16 +541,34 @@ export function getTemporalState(): TemporalState<TaskStoreHistoryState> {
   return useTaskStore.temporal.getState();
 }
 
-export function loadProjectState(data: ProjectData): void {
-  const normalized = normalizeProjectState(data.tasks, data.rootIds);
+export interface LoadProjectStateResult {
+  ok: boolean;
+  /** 修復した内容の要約（ok:true のときのみ意味を持つ）。 */
+  warnings: string[];
+  /** 読み込めなかった理由（ok:false のときのみ）。 */
+  error?: string;
+}
+
+/**
+ * プロジェクト状態を読み込む。IPC 経由かどうかに依存しない単一の入口。
+ * 入力は実行時に検証・正規化され、読み込めない場合はストアを変更しない。
+ */
+export function loadProjectState(input: unknown): LoadProjectStateResult {
+  const validation = validateProjectState(input);
+  if (!validation.ok) {
+    return { ok: false, warnings: [], error: validation.error };
+  }
+
   useTaskStore.setState({
     ...useTaskStore.getState(),
-    tasks: normalized.tasks,
-    rootIds: normalized.rootIds,
-    projectConfig: mergeProjectConfig(data.projectConfig),
+    tasks: validation.tasks,
+    rootIds: validation.rootIds,
+    projectConfig: validation.projectConfig,
     focusedTaskId: null,
     focusedTaskField: 'title',
     selectedTaskIds: [],
   });
   getTemporalState().clear();
+
+  return { ok: true, warnings: validation.warnings };
 }
