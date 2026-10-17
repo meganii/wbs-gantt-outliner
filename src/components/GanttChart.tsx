@@ -48,12 +48,16 @@ export const GanttChart = ({
   const setCollapsed = useTaskStore(state => state.setCollapsed);
   const columnWidths = useTaskStore(state => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore(state => state.setColumnWidth);
+  // flattenedItems を prop で受け取らない場合（テストや単体利用）に追随できるよう
+  // tasks / rootIds を購読する（Outliner / IntegratedView と同様）。
+  const tasks = useTaskStore(state => state.tasks);
+  const rootIds = useTaskStore(state => state.rootIds);
 
   const visibleColumns = useMemo((): ColumnId[] => ['taskName'], []);
 
   const flattenedItems = useMemo(
-    () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
-    [flattenedItemsProp]
+    () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
+    [flattenedItemsProp, tasks, rootIds]
   );
   // セルは関数 props を無視してメモ化されるため、古い handleSelectionChange が
   // セルに残っても正しく動くよう、最新の表示順を ref で参照する。
@@ -61,6 +65,11 @@ export const GanttChart = ({
   useEffect(() => {
     flattenedItemsRef.current = flattenedItems;
   }, [flattenedItems]);
+
+  // 範囲選択の起点。Outliner / IntegratedView と同様に ref で保持し、
+  // Shift+矢印を繰り返しても範囲が伸び縮みせず起点から広がるようにする
+  // （直前の選択の末尾を起点にすると、2 回目以降で範囲が後ろにずれる）。
+  const anchorIdRef = useRef<string | null>(null);
 
   const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const NAME_COLUMN_WIDTH = columnWidths.taskName;
@@ -87,11 +96,19 @@ export const GanttChart = ({
 
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     const flattenedIds = flattenedItemsRef.current.map(item => item.id);
-    const { selectedTaskIds: currentSelected, setSelectedTaskIds, setFocusedTaskId } =
-      useTaskStore.getState();
+    const {
+      focusedTaskId,
+      selectedTaskIds: currentSelected,
+      setSelectedTaskIds,
+      setFocusedTaskId,
+    } = useTaskStore.getState();
 
     if (range) {
-      const targetAnchor = currentSelected.length > 0 ? currentSelected[currentSelected.length - 1] : id;
+      // 起点（無ければ現在フォーカス中の行 / 直近の選択末尾）から id まで
+      const targetAnchor =
+        anchorIdRef.current ||
+        focusedTaskId ||
+        (currentSelected.length > 0 ? currentSelected[currentSelected.length - 1] : id);
       const startIdx = flattenedIds.indexOf(targetAnchor);
       const endIdx = flattenedIds.indexOf(id);
       if (startIdx !== -1 && endIdx !== -1) {
@@ -102,6 +119,9 @@ export const GanttChart = ({
         return;
       }
     }
+
+    // 範囲選択以外は起点を更新する
+    anchorIdRef.current = id;
 
     if (multi) {
       if (currentSelected.includes(id)) {

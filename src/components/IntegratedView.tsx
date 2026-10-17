@@ -98,10 +98,15 @@ export const IntegratedView = ({
   const setViewMode = useTaskStore((state) => state.setViewMode);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const selectedTaskIds = useTaskStore((state) => state.selectedTaskIds);
+  // flattenedItems を prop で受け取らない場合（テストや単体利用）はここで
+  // ツリーを組むため、tasks / rootIds の変化を購読する。prop 利用時は App が
+  // 同じ変化で再レンダーするため、二重の再レンダーにはならない。
+  const tasks = useTaskStore((state) => state.tasks);
+  const rootIds = useTaskStore((state) => state.rootIds);
 
   const flattenedItems = useMemo(
-    () => flattenedItemsProp ?? flattenTree(useTaskStore.getState().tasks, useTaskStore.getState().rootIds),
-    [flattenedItemsProp]
+    () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
+    [flattenedItemsProp, tasks, rootIds]
   );
   // SortableContext の items は参照比較で context を配るため、ID 列の内容が同じなら
   // 参照を据え置く（タスクを 1 つ編集しただけで全行が再レンダーされるのを防ぐ）。

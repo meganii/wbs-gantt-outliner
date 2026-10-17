@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render } from '@testing-library/react';
 import { Outliner } from './Outliner';
 import { IntegratedView } from './IntegratedView';
+import { GanttChart } from './GanttChart';
 import { getTemporalState, useTaskStore } from '../store/useTaskStore';
 
 const initialState = useTaskStore.getState();
@@ -116,5 +117,32 @@ describe('Shift+Arrow range selection', () => {
 
     fireEvent.keyDown(secondTitle, { key: 'ArrowDown', shiftKey: true });
     expect(useTaskStore.getState().selectedTaskIds).toEqual([secondId, thirdId]);
+  });
+
+  it('GanttChart: repeated Shift+ArrowDown keeps the anchor and grows', () => {
+    const firstId = useTaskStore.getState().rootIds[0];
+    act(() => {
+      useTaskStore.getState().addTask(firstId, 'after');
+    });
+    const secondId = useTaskStore.getState().rootIds[1];
+    act(() => {
+      useTaskStore.getState().addTask(secondId, 'after');
+    });
+    const thirdId = useTaskStore.getState().rootIds[2];
+
+    const { container } = render(<GanttChart showNames />);
+    const titleInput = (id: string) =>
+      container.querySelector<HTMLInputElement>(
+        `input[data-task-id="${id}"][data-field="title"]`
+      )!;
+
+    fireEvent.focus(titleInput(firstId));
+    fireEvent.mouseDown(titleInput(firstId));
+    fireEvent.keyDown(titleInput(firstId), { key: 'ArrowDown', shiftKey: true });
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([firstId, secondId]);
+
+    // 2 回目も起点を失わず 3 行に伸びる（直前の選択末尾を起点にすると [second, third] に縮む）
+    fireEvent.keyDown(titleInput(secondId), { key: 'ArrowDown', shiftKey: true });
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([firstId, secondId, thirdId]);
   });
 });
