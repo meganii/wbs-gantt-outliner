@@ -4,6 +4,23 @@
 
 ## 現在の状態
 
+- **予定・実績モデル Phase 1（モデルと言葉の整理）実装済み** (October 18, 2026, 未コミット):
+  - 背景/要望: 「予定 / 実績」の使い分けが直感的でない。既定（基準計画固定 OFF）では `plan*` ⇄ `startDate` 等が双方向同期され常に同値になるため実績を記録できず、固定 ON では予定・実績の二重管理と UI 意味反転が発生する。
+  - Oracle Primavera P6 / Microsoft Project の用語と実装を調査（基準計画 = 不変スナップショット、予定 = 現在の見込み、実績 = 開始/終了、総期間 = 実績期間 + 残り期間、進捗率 = 実績 ÷ 総期間、基準日 = データ日）し、3 層モデルへの再設計を **`docs/PLAN_ACTUAL_MODEL.md`** に提案としてまとめた。**Phase 1（このエントリ末尾の「Phase 1 の実装」）まで実装済み**。§8 の未決事項のうち ③〜⑥（残り期間列 / 進捗基準日 / ステータス導出 / 予定編集ロック）は Phase 2 以降。
+  - 主な提案: 「基準計画固定」トグル廃止 → 「基準計画として登録」メニュー、plan⇔actual の双方向同期廃止、`remainingDuration` / `baseline*` の追加、実績期間を導出値化（Phase 2）、旧ファイルの移行規則（`baselineLocked=true` は 基準計画 = 旧 plan / 予定 = 旧 actual に変換、`schemaVersion: 2` を付与）。
+  - 再ベースライン（承認済み計画の変更）は「基準計画を更新」で上書きし、旧基準を `previousBaseline*` へ 1 世代退避して「基準計画を元に戻す」で復帰できる形（`docs/PLAN_ACTUAL_MODEL.md` §5.8）。通常のリスケジュールでは基準計画に触らない、という運用ルールを UI 文言にも明記する方針。
+  - ガントのバーは「予定バー 1 本 + 進捗塗り + 基準計画の薄いグレーバー（非操作・予定バーの下に数 px。案 B 採用 2026-10-18）」に集約する方針（実績専用バーは廃止し、実績は塗り・ツールチップ・任意のマーカーで表現。§5.5）。`taskBarRefs` / 依存線アンカー / drag-range ガードは統合バーへ寄せる。
+  - **Phase 1 の実装**:
+    - `src/types.ts`: `Task` に `remainingDuration` / `baselineStartDate|EndDate|Duration` / `previousBaseline*` を追加（実績は `startDate` / `endDate` であることをコメントで明示）。`ProjectConfig` から `baselineLocked` を削除し `baselineSetAt` / `showBaseline` を追加。ストアは `setBaselineLocked` を削除し `setBaseline('register' | 'update')` / `restoreBaseline` / `clearBaseline` / `setShowBaseline` を追加。
+    - 双方向同期の廃止: `useTaskStore.applyTaskUpdate` を新設して `updateTask` / `endDragUpdate` を集約。予定（`plan*`）の編集は予定のみ、実績（`startDate` / `endDate` / `duration`）の編集は実績のみを変える。依存伝播（`propagateDependencyDates`）と親ロールアップ（`recalculateParentDatesRecursive`）は予定のみを更新し、親の実績は子の実績から別途ロールアップする（`baselineLocked` 分岐は全廃）。
+    - 実績入力の補完規則（Phase 1 の暫定）: 実績開始日が空のまま実績期間 / 実績終了日を入力した場合は、**予定開始日を実績開始日とみなす**（`taskStoreUtils.applyDateCalculations`）。予定側から実績を推測する処理は残していない。
+    - 基準計画: `src/utils/baseline.ts`（スナップショット / 1 世代退避 / 入れ替え / クリアの純粋関数）を新設。`AppHeader` の「基準計画」メニューから 登録 / 更新 / 元に戻す（previous が無ければ disabled）/ 表示・非表示 / 削除 + 登録日時（`baselineSetAt`）を操作。
+    - 旧ファイル移行: `src/utils/planActualMigration.ts` + `validateProjectState`（`schemaVersion < 2` で全タスクを移行）。`baselineLocked === true` は「基準計画 = 旧 `plan*` / 予定 = 旧 `startDate` 等」、それ以外は「予定 = 旧 `plan*`（無ければ実績で補完）/ 実績 = 進捗から復元」で変換し、`schemaVersion: 2` を付与。旧形式を読み込むと警告トーストで通知する。
+    - ガント: 操作対象を **予定バー 1 本**（無ければ実績）に集約し、`progress%` 幅の進捗塗り（`bg-brand-600`）を左端から重ねる。基準計画は予定バーの下に数 px ずらした薄いグレーの非操作ゴースト（`pointer-events-none`、`showBaseline` で出し分け）。実績専用バーは廃止。`data-gantt-bar="plan"` / `taskBarRefs` / drag-range ガードは統合バーへ引き継ぎ、予定・実績列の表示トグル制限（`baselineLocked` による無効化）も撤去した。
+    - **注意（今回踏んだ罠）**: 統合バーに `overflow-hidden` を付けると、バー右外側に置いた依存ハンドル（`-right-6`）がクリップされてクリックが行の `draw-range` に抜け、予定が「クリックした 1 日」に書き換わる（`e2e/dependency-auto-calculation.spec.ts` が検出）。**バーに `overflow-hidden` を付けないこと**（進捗塗りは `rounded-l-*` で角を合わせている）。
+    - Phase 2 送り: `remainingDuration` は型のみ（列・計算は未実装）、実績期間 `duration` は保存フィールドのまま（§5.2 の「導出値化」は残り期間と合わせて実施）。進捗基準日 / ステータス導出 / 差異列は未着手。
+    - 検証: `npm test -- --run` **257 件（29 ファイル）** / `npm run test:e2e` **5 件**（旧 `e2e/baseline-lock.spec.ts` を新モデルの `e2e/baseline.spec.ts` に置換）/ `npm run lint` 0 / `npm run build` 通過。ガントの見え方は DOM 実測（1 本バー + 進捗塗り 60% = 118/198px + 基準計画ゴーストの位置ずれ）と `npm run shots` で確認。
+    - 付随更新: 目視確認用の `scratch/sample-project.json` を v2 形式（`schemaVersion: 2` / `showBaseline: true` / `baselineSetAt` / 進捗に応じた実績 / 「設計」フェーズの基準計画を 3 営業日早くした遅延例）へ更新。旧形式のままだと毎回移行警告が出て、基準計画ゴーストが写らないため。
 - **ヘッダーのラベル整理（「設定」ボタン化 / 保存・読込・出力の 2 文字統一）** (October 18, 2026, 未コミット):
   - 背景/要望: ヘッダーは青基調だが、「基準計画固定」「実績バー」のオレンジは今回対象外（ユーザー判断で変更しない）。一方で「プロジェクト」ボタンが何を意味するか分かりにくく（中身は祝日設定のみ）、ファイル操作（保存 / 読み込み / エクスポート）の語長が揃っていなかった。
   - `AppHeader.tsx`: 「プロジェクト」→ **「設定」**（歯車アイコン `Settings`、`aria-label="設定"`）に変更し、ドロップダウンのメニューは維持（項目は従来どおり「祝日設定」）。将来項目が増えても破綻しない形。
@@ -296,10 +313,16 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 17, 2026 / JSON インポートのバリデーション強化後)
+## 直近の検証結果 (October 18, 2026 / 予定・実績モデル Phase 1 実装後)
 
-- `npm test -- --run` : **242テスト全件合格** (28ファイル。テキスト列の複数行ペースト / 一括入力のテスト 19 件追加で 223 → 242。内訳: `cellPastePlan`(8) / `setTaskFieldValues`(6) / テキスト列・タスク名の貼り付け(5) ほか。複数行ペースト一括登録の `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5)、JSON インポート検証の `validateProjectState`(25) 等を含む)
-- `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
+- `npm test -- --run` : **257テスト全件合格** (29ファイル。Phase 1 で旧「双方向同期 / 基準計画固定」テストを「予定と実績は独立 / 基準計画の登録・更新・復元・削除 / 旧 JSON の移行」に置き換え、`validateProjectState` の移行ケース 3 件と `useProjectFileHandlers` の旧形式読み込み 1 件を追加)
+- `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright / chromium。旧 `e2e/baseline-lock.spec.ts`（基準計画固定の検証）は削除し、新モデルの `e2e/baseline.spec.ts`（予定と実績が独立 / 登録後は基準計画が不変 / 更新後は元に戻せる）に置き換えた)
+- `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
+- `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
+- `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
+- `npm run lint` : **0件合格** (`eslint.config.js` に生成物の ignores を追加し、ソース側の違反も全件解消。内訳は下記「ESLint 違反の全件解消」参照)
+- デバッグ用テストの整理は October 17, 2026 に完了（下記「現在の状態」参照）。旧 `src/store/verify_bug.test.ts` は非干渉テスト `src/store/updateTaskIsolation.test.ts` に再編、旧 `e2e/reproduce-bug.spec.ts` は削除した。
+- 注: 「現在の状態」の各修正エントリに書かれた検証件数（112 / 110 / 106 など）はその修正時点の記録。最新値は上記のとおり。
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
@@ -309,11 +332,17 @@
 
 ## 次に着手する優先課題
 
-1. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+1. **予定・実績モデル Phase 2（進捗と見込みの連動）** — 仕様は `docs/PLAN_ACTUAL_MODEL.md` §5.3 / §7 Phase 2 を正とする
+   - 進捗率 / 残り期間 / 予定期間の整合（予定期間 = 実績期間 + 残り期間、進捗率 = 実績期間 ÷ 予定期間）をストアで実装。1 回の `set` で反映し Undo 1 エントリを維持。
+   - 実績開始日・実績終了日入力時の自動規則（着工時 = 予定開始、完了時 = 予定終了）と、`projectConfig.statusDate`（進捗基準日、既定 = 今日）。
+   - 列の追加（残り期間 = 入力可 / 実績期間 = 表示のみ）。Phase 1 で型だけ追加した `remainingDuration` はここで使う。実績期間 `duration` の導出値化も同時に検討する。
+   - Phase 3（基準計画との差異列・遅延の可視化・Excel 出力）はその後。
+2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
    - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
-2. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
+3. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
    - 旧 #2「JSON インポートの互換性・異常値バリデーション強化」は October 17, 2026 に完了（上記「現在の状態」参照）。
+   - D8 は Phase 1 で一部前進した（`applyTaskUpdate` への集約。`addDependency` は未統合）。
    - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（過去に D1 の非対称を生んだ二重化の解消）。
    - D9: 行高 `32` の定数化（`useGanttDependencies` 以外は未対応）、未使用 `taskBarRefs` の削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
    - D10: zundo の `partialize` と `equality` のズレ。「データ変更時だけ履歴化し、その時点の選択/フォーカスを一緒に保存する」意図的な設計とも読めるため、まずバグか仕様かを切り分ける。
@@ -349,7 +378,7 @@
 ## 注意点
 
 - **ガントの `draw-range`（タイムライン余白をクリック/ドラッグして予定を描く）は、単クリックでも確定する**（クリックした日 1 日分の予定を設定する）。October 17, 2026 にユーザー判断で「移動ゼロなら確定しない」ガードを撤去し、この挙動に戻した。**同じガードを再導入しないこと**（再導入すると日セルの単クリックで予定が反映されなくなる）。バー上のクリックが行の `draw-range` に伝播して日付が壊れる経路は、次項の `stopPropagation` / `data-gantt-bar` で塞ぐ（この 2 つは D1 撤回後も有効）。
-- **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで日付が書き換わる（ベースライン固定中は実績日が壊れる）。
+- **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで予定が「クリックした 1 日」に書き換わる。**あわせてバーに `overflow-hidden` を付けないこと**（バー右外側に置いた依存ハンドルがクリップされ、同じ経路で予定が壊れる。末尾の「予定・実績モデル Phase 1」の注意を参照）。
 - **行の並べ替え（dnd-kit）のセンサーは `src/hooks/useRowSortSensors.ts` に集約**している。KeyboardSensor を復活させないこと（Enter はタスク確定/追加に割り当て済みで衝突する）。PointerSensor の `distance: 5` も、微小なクリックで並べ替えが始まらないためのしきい値なので外さないこと。
 - パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
 - npm 11 は install script を既定で実行しない。install script を持つ依存を追加した場合は `npm install-scripts approve <pkg>` で承認する（`package.json` の `allowScripts` に記録される）。現在は `esbuild` と `electron-winstaller` のみ承認済み。
@@ -382,6 +411,9 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 ## 次の作業で最初に見るとよい場所
 
 - `src/store/useTaskStore.ts`
+- `src/utils/baseline.ts` / `src/utils/planActualMigration.ts`（基準計画の純粋関数 / 旧形式の移行。Phase 1 で新設。触るときは `docs/PLAN_ACTUAL_MODEL.md` §5〜§6 を確認）
+- `src/components/AppHeader.tsx`（「基準計画」メニュー。登録 / 更新 / 元に戻す / 表示 / 削除）
+- `src/components/GanttTimelineRow.tsx`（1 本バー + 進捗塗り + 基準計画ゴースト。`overflow-hidden` を付けない注意は上記「注意点」参照）
 - `src/utils/parseTaskPaste.ts` / `src/utils/parseTaskPaste.test.ts`（複数行ペーストのパース。ストアの `addTasks` とセットで扱う）
 - `src/store/taskStoreUtils.ts`
 - `src/store/useTaskStore.test.ts`
