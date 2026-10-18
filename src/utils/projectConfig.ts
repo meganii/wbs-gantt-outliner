@@ -68,7 +68,8 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     duration: 64,
     date: 224,
   },
-  baselineLocked: false,
+  showBaseline: true,
+  baselineSetAt: null,
   visibleColumns: [
     'taskName',
     'description',
@@ -188,9 +189,14 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     }
   }
 
-  const nextBaselineLocked = typeof config?.baselineLocked === 'boolean'
-    ? config.baselineLocked
-    : DEFAULT_PROJECT_CONFIG.baselineLocked;
+  const nextShowBaseline = typeof config?.showBaseline === 'boolean'
+    ? config.showBaseline
+    : DEFAULT_PROJECT_CONFIG.showBaseline;
+
+  const rawBaselineSetAt = config?.baselineSetAt;
+  const nextBaselineSetAt = typeof rawBaselineSetAt === 'string' && rawBaselineSetAt.trim() !== ''
+    ? rawBaselineSetAt
+    : null;
 
   return {
     calendar: {
@@ -199,7 +205,8 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     },
     viewMode: nextViewMode,
     columnWidths: nextColumnWidths,
-    baselineLocked: nextBaselineLocked,
+    showBaseline: nextShowBaseline,
+    baselineSetAt: nextBaselineSetAt,
     visibleColumns: nextVisibleColumns,
     integratedColumns: nextIntegratedColumns,
     ...(nextTimelineRange ? { timelineRange: nextTimelineRange } : {}),

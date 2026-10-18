@@ -73,9 +73,9 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await page.waitForTimeout(200);
 
     // Locate the dependency handle of Task A plan bar, drag to Task B's plan bar
-    const barA = page.locator(`[data-task-id="${taskIdA}"].bg-blue-100`);
+    const barA = page.locator(`[data-task-id="${taskIdA}"][data-gantt-bar="plan"]`);
     const connectorA = page.locator(`[data-task-id="${taskIdA}"] [title="Drag to create dependency"]`);
-    const barB = page.locator(`[data-task-id="${taskIdB}"].bg-blue-100`);
+    const barB = page.locator(`[data-task-id="${taskIdB}"][data-gantt-bar="plan"]`);
 
     await expect(barA).toBeVisible();
     await expect(connectorA).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
 
     // 5. Create dependency Task B -> Task C
     const connectorB = page.locator(`[data-task-id="${taskIdB}"] [title="Drag to create dependency"]`);
-    const barC = page.locator(`[data-task-id="${taskIdC}"].bg-blue-100`);
+    const barC = page.locator(`[data-task-id="${taskIdC}"][data-gantt-bar="plan"]`);
     await expect(connectorB).toBeVisible();
     await expect(barC).toBeVisible();
 

@@ -109,8 +109,7 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar'],
-  baselineLocked?: boolean
+  calendar: ProjectConfig['calendar']
 ): Record<string, Task> {
   const nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
@@ -153,10 +152,6 @@ export function shiftDescendants(
       ...descTask,
       planStartDate: format(newDescStart, 'yyyy-MM-dd'),
       planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
-      ...(!baselineLocked && {
-        startDate: format(newDescStart, 'yyyy-MM-dd'),
-        endDate: format(newDescEnd, 'yyyy-MM-dd'),
-      }),
     };
   });
 
@@ -166,8 +161,7 @@ export function shiftDescendants(
 export function propagateDependencyDates(
   tasks: Record<string, Task>,
   changedTaskId: string,
-  calendar: ProjectConfig['calendar'],
-  baselineLocked?: boolean
+  calendar: ProjectConfig['calendar']
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   const dependents = Object.values(nextTasks)
@@ -226,7 +220,7 @@ export function propagateDependencyDates(
         const descIds = getDescendantIds(currentId);
 
         // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, baselineLocked);
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -249,11 +243,6 @@ export function propagateDependencyDates(
         planStartDate: format(newStartDate, 'yyyy-MM-dd'),
         planEndDate: format(newEndDate, 'yyyy-MM-dd'),
         planDuration: duration,
-        ...(!baselineLocked && {
-          startDate: format(newStartDate, 'yyyy-MM-dd'),
-          endDate: format(newEndDate, 'yyyy-MM-dd'),
-          duration: duration,
-        }),
       };
 
       if (nextTasks[currentId].parentId) {
@@ -272,7 +261,7 @@ export function propagateDependencyDates(
   // Final pass: Recalculate parent dates for all modified tasks
   parentsToRecalculate.forEach((parentId) => {
     if (nextTasks[parentId]) {
-      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar, baselineLocked);
+      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar);
     }
   });
 
@@ -331,8 +320,7 @@ export function normalizeProjectState(
 export function recalculateParentDatesRecursive(
   tasks: Record<string, Task>,
   parentId: string,
-  calendar: ProjectConfig['calendar'],
-  baselineLocked?: boolean
+  calendar: ProjectConfig['calendar']
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   let currentParentId: string | null = parentId;
@@ -376,10 +364,9 @@ export function recalculateParentDatesRecursive(
         }
       }
 
-      // Sync/Fallback plan date calculations
-      const planStartStr = child.planStartDate || child.startDate;
-      if (planStartStr) {
-        const start = parseISO(planStartStr);
+      // 予定（plan*）は予定のみからロールアップする（実績とは独立）。
+      if (child.planStartDate) {
+        const start = parseISO(child.planStartDate);
         if (isValid(start)) {
           if (!minPlanStartDate || start < minPlanStartDate) {
             minPlanStartDate = start;
@@ -387,9 +374,8 @@ export function recalculateParentDatesRecursive(
         }
       }
 
-      const planEndStr = child.planEndDate || child.endDate;
-      if (planEndStr) {
-        const end = parseISO(planEndStr);
+      if (child.planEndDate) {
+        const end = parseISO(child.planEndDate);
         if (isValid(end)) {
           if (!maxPlanEndDate || end > maxPlanEndDate) {
             maxPlanEndDate = end;
@@ -397,7 +383,7 @@ export function recalculateParentDatesRecursive(
         }
       }
 
-      const childDur = child.duration || 1;
+      const childDur = child.planDuration || child.duration || 1;
       totalDuration += childDur;
       weightedProgressSum += (child.progress || 0) * childDur;
     });
@@ -489,7 +475,7 @@ export function recalculateParentDatesRecursive(
       nextTasks[currentParentId] = updatedParent;
 
       // Propagate dependency dates for this parent
-      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar, baselineLocked);
+      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar);
 
       // Move up to the grandparent
       currentParentId = updatedParent.parentId;
@@ -563,7 +549,7 @@ export function applyDateCalculations(
 
   // 1. Plan Duration Update
   if (nextUpdates.planDuration !== undefined && nextUpdates.planEndDate === undefined) {
-    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate;
     if (startStr) {
       const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.planDuration, calendar);
       nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
@@ -571,7 +557,7 @@ export function applyDateCalculations(
   }
   // 2. Plan Start Date Update
   else if (nextUpdates.planStartDate !== undefined && nextUpdates.planEndDate === undefined) {
-    const duration = nextUpdates.planDuration !== undefined ? nextUpdates.planDuration : (oldTask.planDuration !== undefined ? oldTask.planDuration : oldTask.duration);
+    const duration = nextUpdates.planDuration !== undefined ? nextUpdates.planDuration : (oldTask.planDuration ?? 1);
     const startStr = nextUpdates.planStartDate;
     if (startStr) {
       const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
@@ -580,7 +566,7 @@ export function applyDateCalculations(
   }
   // 3. Plan End Date Update
   else if (nextUpdates.planEndDate !== undefined && nextUpdates.planDuration === undefined) {
-    const startStr = nextUpdates.planStartDate || oldTask.planStartDate || oldTask.startDate;
+    const startStr = nextUpdates.planStartDate || oldTask.planStartDate;
     const endStr = nextUpdates.planEndDate;
     if (startStr && endStr) {
       const start = new Date(startStr);
@@ -593,8 +579,12 @@ export function applyDateCalculations(
 
   // 4. Actual Duration Update
   if (nextUpdates.duration !== undefined && nextUpdates.endDate === undefined) {
-    const startStr = nextUpdates.startDate || oldTask.startDate;
+    // 実績開始日が未入力なら、予定開始日を着工日とみなして実績開始日を補完する。
+    const startStr = nextUpdates.startDate || oldTask.startDate || oldTask.planStartDate;
     if (startStr) {
+      if (!nextUpdates.startDate && !oldTask.startDate) {
+        nextUpdates.startDate = startStr;
+      }
       const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.duration, calendar);
       nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
     }
@@ -610,9 +600,13 @@ export function applyDateCalculations(
   }
   // 6. Actual End Date Update
   else if (nextUpdates.endDate !== undefined && nextUpdates.duration === undefined) {
-    const startStr = nextUpdates.startDate || oldTask.startDate;
+    // ここでも実績開始日が未入力なら予定開始日で補完する。
+    const startStr = nextUpdates.startDate || oldTask.startDate || oldTask.planStartDate;
     const endStr = nextUpdates.endDate;
     if (startStr && endStr) {
+      if (!nextUpdates.startDate && !oldTask.startDate) {
+        nextUpdates.startDate = startStr;
+      }
       const start = new Date(startStr);
       const end = new Date(endStr);
       if (end >= start) {

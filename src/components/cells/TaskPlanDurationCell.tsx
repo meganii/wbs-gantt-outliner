@@ -12,7 +12,6 @@ interface TaskPlanDurationCellProps {
   taskId: string;
   task: Task;
   columnWidths: ColumnWidths;
-  baselineLocked: boolean;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
@@ -22,7 +21,6 @@ export const TaskPlanDurationCell = memo(({
   taskId,
   task,
   columnWidths,
-  baselineLocked,
   prevId,
   nextId,
   onSelectionChange,
@@ -30,7 +28,7 @@ export const TaskPlanDurationCell = memo(({
   const planDurationValue = task.planDuration !== undefined ? task.planDuration : (task.duration ?? 0);
   const storeValue = String(planDurationValue);
   const isParent = task.children.length > 0;
-  const isReadOnly = baselineLocked || isParent;
+  const isReadOnly = isParent;
 
   const inputRef = useRef<HTMLInputElement>(null);
 

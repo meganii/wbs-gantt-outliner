@@ -21,6 +21,13 @@ function makeTask(overrides: Partial<Task> & { id: string }): Task {
   };
 }
 
+/**
+ * 現行形式（schemaVersion: 2）として検証する。
+ * 旧形式からの移行をスキップし、サニタイズ／修復だけを検証したいときに使う。
+ */
+const validateV2 = (input: Record<string, unknown>) =>
+  validateProjectState({ ...input, schemaVersion: 2 });
+
 describe('validateProjectState', () => {
   describe('正常系（互換性）', () => {
     it('accepts a valid project without warnings', () => {
@@ -28,7 +35,7 @@ describe('validateProjectState', () => {
         root: makeTask({ id: 'root', children: ['child'] }),
         child: makeTask({ id: 'child', parentId: 'root' }),
       };
-      const result = validateProjectState({ tasks, rootIds: ['root'] });
+      const result = validateV2({ tasks, rootIds: ['root'] });
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -50,7 +57,7 @@ describe('validateProjectState', () => {
         progress: 30,
         planDuration: 2,
       });
-      const result = validateProjectState({
+      const result = validateV2({
         tasks: { x: task },
         rootIds: ['x'],
         projectConfig: { viewMode: 'Week', columnWidths: { taskName: 320 } },
@@ -78,12 +85,12 @@ describe('validateProjectState', () => {
     });
 
     it('rejects when tasks is missing', () => {
-      const result = validateProjectState({ rootIds: ['x'] });
+      const result = validateV2({ rootIds: ['x'] });
       expect(result.ok).toBe(false);
     });
 
     it('rejects when tasks is an array', () => {
-      const result = validateProjectState({ tasks: [], rootIds: [] });
+      const result = validateV2({ tasks: [], rootIds: [] });
       expect(result.ok).toBe(false);
     });
 
@@ -92,7 +99,7 @@ describe('validateProjectState', () => {
         a: makeTask({ id: 'a', children: ['b'] }),
         b: makeTask({ id: 'b', parentId: 'a' }),
       };
-      const result = validateProjectState({ tasks });
+      const result = validateV2({ tasks });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.rootIds).toEqual(['a']);
@@ -100,7 +107,7 @@ describe('validateProjectState', () => {
 
     it('repairs a non-array rootIds and warns', () => {
       const tasks = { a: makeTask({ id: 'a' }) };
-      const result = validateProjectState({ tasks, rootIds: 'a' });
+      const result = validateV2({ tasks, rootIds: 'a' });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.rootIds).toEqual(['a']);
@@ -111,7 +118,7 @@ describe('validateProjectState', () => {
   describe('(b) タスクの型違い', () => {
     it('repairs missing children / dependencies to empty arrays and warns', () => {
       const broken = { id: 'x', parentId: null, title: 't' } as unknown;
-      const result = validateProjectState({ tasks: { x: broken }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: broken }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].children).toEqual([]);
@@ -121,7 +128,7 @@ describe('validateProjectState', () => {
 
     it('repairs a numeric-string progress', () => {
       const broken = { ...makeTask({ id: 'x' }), progress: '50' } as unknown;
-      const result = validateProjectState({ tasks: { x: broken }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: broken }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].progress).toBe(50);
@@ -129,7 +136,7 @@ describe('validateProjectState', () => {
 
     it('repairs a non-numeric progress and warns', () => {
       const broken = { ...makeTask({ id: 'x' }), progress: 'abc' } as unknown;
-      const result = validateProjectState({ tasks: { x: broken }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: broken }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].progress).toBe(0);
@@ -138,7 +145,7 @@ describe('validateProjectState', () => {
 
     it('re-keys tasks by their id when the record key differs', () => {
       const task = makeTask({ id: 'real' });
-      const result = validateProjectState({ tasks: { wrongKey: task }, rootIds: ['wrongKey'] });
+      const result = validateV2({ tasks: { wrongKey: task }, rootIds: ['wrongKey'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(Object.keys(result.tasks)).toEqual(['real']);
@@ -146,7 +153,7 @@ describe('validateProjectState', () => {
     });
 
     it('drops tasks without a usable id', () => {
-      const result = validateProjectState({
+      const result = validateV2({
         tasks: { ok: makeTask({ id: 'ok' }), bad: { title: 'no id' } },
         rootIds: ['ok'],
       });
@@ -157,7 +164,7 @@ describe('validateProjectState', () => {
     });
 
     it('rejects when every task is unusable but tasks was non-empty', () => {
-      const result = validateProjectState({ tasks: { bad: { title: 'no id' } }, rootIds: [] });
+      const result = validateV2({ tasks: { bad: { title: 'no id' } }, rootIds: [] });
       expect(result.ok).toBe(false);
     });
   });
@@ -171,7 +178,7 @@ describe('validateProjectState', () => {
         planStartDate: '2026-13-45',
         planEndDate: 'not-a-date',
       });
-      const result = validateProjectState({ tasks: { x: task }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: task }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].startDate).toBe(null);
@@ -183,7 +190,7 @@ describe('validateProjectState', () => {
 
     it('keeps valid yyyy-mm-dd dates', () => {
       const task = makeTask({ id: 'x', startDate: '2026-02-28', endDate: '2026-03-01' });
-      const result = validateProjectState({ tasks: { x: task }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: task }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].startDate).toBe('2026-02-28');
@@ -195,7 +202,7 @@ describe('validateProjectState', () => {
     it('breaks a pure A<->B child cycle without losing tasks', () => {
       const a = makeTask({ id: 'A', children: ['B'] });
       const b = makeTask({ id: 'B', children: ['A'] });
-      const result = validateProjectState({ tasks: { A: a, B: b }, rootIds: ['A', 'B'] });
+      const result = validateV2({ tasks: { A: a, B: b }, rootIds: ['A', 'B'] });
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -211,7 +218,7 @@ describe('validateProjectState', () => {
         B: makeTask({ id: 'B', parentId: 'A', children: ['C'] }),
         C: makeTask({ id: 'C', parentId: 'B', children: ['B'] }),
       };
-      const result = validateProjectState({ tasks, rootIds: ['R'] });
+      const result = validateV2({ tasks, rootIds: ['R'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
 
@@ -233,7 +240,7 @@ describe('validateProjectState', () => {
         p2: makeTask({ id: 'p2', children: ['c'] }),
         c: makeTask({ id: 'c' }),
       };
-      const result = validateProjectState({ tasks, rootIds: ['p1', 'p2'] });
+      const result = validateV2({ tasks, rootIds: ['p1', 'p2'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       const parents = [result.tasks['p1'], result.tasks['p2']]
@@ -248,7 +255,7 @@ describe('validateProjectState', () => {
     it('breaks a dependency cycle A <-> B', () => {
       const a = makeTask({ id: 'A', dependencies: ['B'] });
       const b = makeTask({ id: 'B', dependencies: ['A'] });
-      const result = validateProjectState({ tasks: { A: a, B: b }, rootIds: ['A', 'B'] });
+      const result = validateV2({ tasks: { A: a, B: b }, rootIds: ['A', 'B'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       const remaining = [
@@ -267,7 +274,7 @@ describe('validateProjectState', () => {
       const a = makeTask({ id: 'A' });
       const b = makeTask({ id: 'B', dependencies: ['A'] });
       const c = makeTask({ id: 'C', dependencies: ['B'] });
-      const result = validateProjectState({ tasks: { A: a, B: b, C: c }, rootIds: ['A', 'B', 'C'] });
+      const result = validateV2({ tasks: { A: a, B: b, C: c }, rootIds: ['A', 'B', 'C'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['C'].dependencies).toEqual(['B']);
@@ -282,7 +289,7 @@ describe('validateProjectState', () => {
         children: ['ghost', 'x', 'x'],
         dependencies: ['ghost2', 'x', 'x'],
       });
-      const result = validateProjectState({ tasks: { x: task }, rootIds: ['x'] });
+      const result = validateV2({ tasks: { x: task }, rootIds: ['x'] });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.tasks['x'].children).toEqual([]);
@@ -293,7 +300,7 @@ describe('validateProjectState', () => {
 
   describe('(f) projectConfig の形', () => {
     it('repairs bad calendar / viewMode / columnWidths / timelineRange and warns', () => {
-      const result = validateProjectState({
+      const result = validateV2({
         tasks: { x: makeTask({ id: 'x' }) },
         rootIds: ['x'],
         projectConfig: {
@@ -313,13 +320,13 @@ describe('validateProjectState', () => {
       expect(pc.viewMode).toBe('Day');
       expect(pc.columnWidths.taskName).toBe(200);
       expect(pc.timelineRange).toBeUndefined();
-      expect(pc.baselineLocked).toBe(false);
+      expect('baselineLocked' in pc).toBe(false);
       expect(result.warnings.join('\n')).toContain('列幅');
       expect(result.warnings.join('\n')).toContain('timelineRange');
     });
 
     it('keeps a valid timelineRange', () => {
-      const result = validateProjectState({
+      const result = validateV2({
         tasks: { x: makeTask({ id: 'x' }) },
         rootIds: ['x'],
         projectConfig: { timelineRange: { start: '2026-01-01', end: '2026-12-31' } },
@@ -333,7 +340,7 @@ describe('validateProjectState', () => {
     });
 
     it('drops a reversed timelineRange', () => {
-      const result = validateProjectState({
+      const result = validateV2({
         tasks: { x: makeTask({ id: 'x' }) },
         rootIds: ['x'],
         projectConfig: { timelineRange: { start: '2026-12-31', end: '2026-01-01' } },
@@ -341,6 +348,118 @@ describe('validateProjectState', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.projectConfig.timelineRange).toBeUndefined();
+    });
+  });
+
+  describe('旧形式（schemaVersion なし）からの移行', () => {
+    it('既定運用: 予定を引き継ぎ、実績は進捗から復元する', () => {
+      const tasks = {
+        notStarted: makeTask({
+          id: 'notStarted',
+          startDate: '2026-05-25',
+          endDate: '2026-05-27',
+          duration: 3,
+          planStartDate: '2026-05-25',
+          planEndDate: '2026-05-27',
+          planDuration: 3,
+        }),
+        inProgress: makeTask({
+          id: 'inProgress',
+          startDate: '2026-05-25',
+          endDate: '2026-05-27',
+          duration: 3,
+          progress: 40,
+          planStartDate: '2026-05-25',
+          planEndDate: '2026-05-27',
+          planDuration: 3,
+        }),
+        done: makeTask({
+          id: 'done',
+          startDate: '2026-05-25',
+          endDate: '2026-05-27',
+          duration: 3,
+          progress: 100,
+          planStartDate: '2026-05-25',
+          planEndDate: '2026-05-27',
+          planDuration: 3,
+        }),
+      };
+      const result = validateProjectState({ tasks, rootIds: ['notStarted', 'inProgress', 'done'] });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      // 未着工: 予定は引き継がれ、実績は空
+      expect(result.tasks['notStarted'].planStartDate).toBe('2026-05-25');
+      expect(result.tasks['notStarted'].startDate).toBeNull();
+      expect(result.tasks['notStarted'].endDate).toBeNull();
+      expect(result.tasks['notStarted'].duration).toBe(0);
+
+      // 進行中: 実績開始のみ復元（実績終了は未確定）
+      expect(result.tasks['inProgress'].startDate).toBe('2026-05-25');
+      expect(result.tasks['inProgress'].endDate).toBeNull();
+
+      // 完了: 実績開始・終了とも復元
+      expect(result.tasks['done'].startDate).toBe('2026-05-25');
+      expect(result.tasks['done'].endDate).toBe('2026-05-27');
+
+      // 基準計画は未登録
+      expect(result.tasks['done'].baselineStartDate).toBeNull();
+
+      // 移行したことが警告として残る
+      expect(result.warnings.join('\n')).toContain('旧形式');
+    });
+
+    it('基準計画固定 ON: 旧予定を基準計画、旧実績を見込みとして引き継ぐ', () => {
+      const tasks = {
+        x: makeTask({
+          id: 'x',
+          // 旧: 固定していた当初計画
+          planStartDate: '2026-05-11',
+          planEndDate: '2026-05-13',
+          planDuration: 3,
+          // 旧: 更新してきた見込み（= 新予定）
+          startDate: '2026-05-18',
+          endDate: '2026-05-20',
+          duration: 3,
+          progress: 50,
+        }),
+      };
+      const result = validateProjectState({
+        tasks,
+        rootIds: ['x'],
+        projectConfig: { baselineLocked: true },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const task = result.tasks['x'];
+      // 凍結していた当初計画 → 基準計画
+      expect(task.baselineStartDate).toBe('2026-05-11');
+      expect(task.baselineEndDate).toBe('2026-05-13');
+      // 見込み → 予定
+      expect(task.planStartDate).toBe('2026-05-18');
+      expect(task.planEndDate).toBe('2026-05-20');
+      // 進捗から実績を復元
+      expect(task.startDate).toBe('2026-05-18');
+      expect(task.endDate).toBeNull();
+      expect(task.progress).toBe(50);
+    });
+
+    it('schemaVersion: 2 のときは移行しない', () => {
+      const tasks = {
+        x: makeTask({
+          id: 'x',
+          startDate: '2026-05-25',
+          endDate: '2026-05-25',
+          duration: 1,
+          progress: 0,
+        }),
+      };
+      const result = validateProjectState({ tasks, rootIds: ['x'], schemaVersion: 2 });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.tasks['x'].startDate).toBe('2026-05-25');
+      expect(result.warnings.join('\n')).not.toContain('旧形式');
     });
   });
 });

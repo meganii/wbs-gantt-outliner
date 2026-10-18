@@ -65,7 +65,11 @@ describe('cell editing and derived values', () => {
 
     const task = useTaskStore.getState().tasks[id];
     expect(task.duration).toBe(5);
-    expect(task.planEndDate).toBe('2026-05-29');
+    // 実績期間を入力すると、予定開始日を着工日とみなして実績開始日・終了日を導出する
+    expect(task.startDate).toBe('2026-05-25');
+    expect(task.endDate).toBe('2026-05-29');
+    // 予定は書き換えない（独立フィールド）
+    expect(task.planEndDate).toBe('2026-05-26');
 
     const endInput = fieldInput(container, id, 'endDate');
     const span = endInput.parentElement!.querySelector('span')!;
@@ -269,7 +273,7 @@ describe('gantt interaction', () => {
       });
     });
     const { container } = render(<IntegratedWrapper />);
-    const bar = container.querySelector(`[data-gantt-bar][data-task-id="${id}"].bg-blue-100`)!;
+    const bar = container.querySelector(`[data-gantt-bar="plan"][data-task-id="${id}"]`)!;
     expect(bar).not.toBeNull();
     fireEvent.mouseDown(bar, { button: 0, clientX: 200, clientY: 50 });
     fireEvent.mouseMove(window, { clientX: 280, clientY: 50 });
@@ -290,9 +294,9 @@ describe('gantt interaction', () => {
       useTaskStore.getState().updateTask(bId, { planStartDate: '2026-05-27', planEndDate: '2026-05-28' });
     });
     const { container } = render(<IntegratedWrapper />);
-    const barA = container.querySelector(`[data-gantt-bar][data-task-id="${aId}"].bg-blue-100`)!;
+    const barA = container.querySelector(`[data-gantt-bar="plan"][data-task-id="${aId}"]`)!;
     const handle = barA.querySelector('[title="Drag to create dependency"]')!;
-    const barB = container.querySelector(`[data-gantt-bar][data-task-id="${bId}"].bg-blue-100`)!;
+    const barB = container.querySelector(`[data-gantt-bar="plan"][data-task-id="${bId}"]`)!;
     fireEvent.mouseDown(handle, { button: 0, clientX: 300, clientY: 50 });
     fireEvent.mouseMove(window, { clientX: 300, clientY: 82 });
     fireEvent.mouseUp(barB);

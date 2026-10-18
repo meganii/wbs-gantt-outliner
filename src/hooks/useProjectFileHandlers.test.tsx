@@ -44,7 +44,7 @@ describe('useProjectFileHandlers.handleLoad', () => {
   });
 
   it('notifies success when a valid project is loaded', async () => {
-    stubIpc(JSON.stringify({ tasks: { x: validTask() }, rootIds: ['x'] }));
+    stubIpc(JSON.stringify({ tasks: { x: validTask() }, rootIds: ['x'], schemaVersion: 2 }));
 
     const { result } = renderHook(() => useProjectFileHandlers());
     await act(async () => {
@@ -55,6 +55,40 @@ describe('useProjectFileHandlers.handleLoad', () => {
     expect(notifications).toHaveLength(1);
     expect(notifications[0].level).toBe('info');
     expect(useTaskStore.getState().tasks['x'].title).toBe('X');
+  });
+
+  it('migrates a legacy project and notifies a warning', async () => {
+    stubIpc(
+      JSON.stringify({
+        tasks: {
+          x: {
+            ...validTask(),
+            progress: 100,
+            planStartDate: '2026-05-11',
+            planEndDate: '2026-05-11',
+            planDuration: 1,
+          },
+        },
+        rootIds: ['x'],
+        projectConfig: { baselineLocked: true },
+      })
+    );
+
+    const { result } = renderHook(() => useProjectFileHandlers());
+    await act(async () => {
+      await result.current.handleLoad();
+    });
+
+    const notifications = useNotificationStore.getState().notifications;
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].level).toBe('warning');
+
+    const task = useTaskStore.getState().tasks['x'];
+    // 旧「予定」= 基準計画、旧「実績」= 予定として引き継がれる
+    expect(task.baselineStartDate).toBe('2026-05-11');
+    expect(task.planStartDate).toBe('2026-05-25');
+    expect(task.startDate).toBe('2026-05-25');
+    expect(task.endDate).toBe('2026-05-25');
   });
 
   it('notifies a warning with details when the file is repaired', async () => {

@@ -29,7 +29,6 @@ export const Outliner = ({
   const rootIds = useTaskStore((state) => state.rootIds);
   const reorderTask = useTaskStore((state) => state.reorderTask);
   const addTask = useTaskStore((state) => state.addTask);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const flattenedItems = useMemo(() =>
     flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -43,23 +42,16 @@ export const Outliner = ({
   const setVisibleColumns = useTaskStore((state) => state.setVisibleColumns);
 
   const visibleColumns = useMemo((): ColumnId[] => {
-    let cols = storeVisibleColumns;
-    if (!cols) {
-      cols = ['taskName'];
-      if (showDetails) {
-        cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
-      }
-      if (!baselineLocked) {
-        cols.push('planDuration', 'planDate');
-      }
-      cols.push('duration', 'date');
+    if (storeVisibleColumns) {
+      return storeVisibleColumns;
     }
-
-    if (baselineLocked) {
-      return cols.filter((col) => col !== 'planDuration' && col !== 'planDate');
+    const cols: ColumnId[] = ['taskName'];
+    if (showDetails) {
+      cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
     }
+    cols.push('planDuration', 'planDate', 'duration', 'date');
     return cols;
-  }, [storeVisibleColumns, showDetails, baselineLocked]);
+  }, [storeVisibleColumns, showDetails]);
 
   useOutlinerKeyboard();
   const { selectedTaskIds, handleSelectionChange } = useTaskSelection(flattenedIds);

@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns';
+import { addDays, format, isValid, parseISO } from 'date-fns';
 import type { WorkCalendar } from '../types';
 
 export function isHoliday(date: Date, calendar: WorkCalendar): boolean {
@@ -38,6 +38,35 @@ export function getWorkDaysCount(start: Date, end: Date, calendar: WorkCalendar)
     current = addDays(current, 1);
   }
   return count;
+}
+
+/**
+ * 実績期間（稼働日数）を導出する。
+ * 実績開始日が無ければ 0。実績終了日が無い（進行中）場合は開始日の 1 日分。
+ * 終了日が開始日より前の場合は 0。
+ */
+export function getActualDuration(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  calendar: WorkCalendar
+): number {
+  if (!start) return 0;
+  const startDate = parseISO(start);
+  if (!isValid(startDate)) return 0;
+
+  const endDate = end ? parseISO(end) : startDate;
+  if (!isValid(endDate) || endDate < startDate) return 0;
+
+  return getWorkDaysCount(startDate, endDate, calendar);
+}
+
+/** 予定期間（稼働日数）を予定開始日・予定終了日から導出する。開始が無ければ 0。 */
+export function getPlanDuration(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  calendar: WorkCalendar
+): number {
+  return getActualDuration(start, end, calendar);
 }
 
 export function isValidDate(year: number, month: number, day: number): boolean {

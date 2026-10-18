@@ -91,8 +91,6 @@ export const GanttChart = ({
   // Use custom drag interaction hook
   useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
 
-  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
-
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     const flattenedIds = flattenedItemsRef.current.map(item => item.id);
     const {
@@ -500,7 +498,6 @@ export const GanttChart = ({
                   taskId={id}
                   task={task}
                   timelineMetrics={timelineMetrics}
-                  baselineLocked={baselineLocked}
                   taskBarRefs={taskBarRefs}
                   timelineWidth={timeRange.length * CELL_WIDTH}
                   isSelected={isSelected}

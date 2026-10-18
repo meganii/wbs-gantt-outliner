@@ -2,6 +2,7 @@ import type { ProjectConfig, Task } from '../types';
 import { parseIsoDateStrict } from './date';
 import { mergeProjectConfig } from './projectConfig';
 import { hasDependencyPath } from '../store/taskStoreUtils';
+import { CURRENT_SCHEMA_VERSION, migrateLegacyTask } from './planActualMigration';
 
 export interface ProjectStateValidationSuccess {
   ok: true;
@@ -22,7 +23,16 @@ export type ProjectStateValidationResult =
   | ProjectStateValidationSuccess
   | ProjectStateValidationFailure;
 
-const DATE_FIELDS = ['startDate', 'endDate', 'planStartDate', 'planEndDate'] as const;
+const DATE_FIELDS = [
+  'startDate',
+  'endDate',
+  'planStartDate',
+  'planEndDate',
+  'baselineStartDate',
+  'baselineEndDate',
+  'previousBaselineStartDate',
+  'previousBaselineEndDate',
+] as const;
 
 interface RepairCounts {
   droppedTasks: number;
@@ -109,6 +119,10 @@ function sanitizeTask(raw: unknown, counts: RepairCounts): Task | null {
     dependencies: [],
     planStartDate: null,
     planEndDate: null,
+    baselineStartDate: null,
+    baselineEndDate: null,
+    previousBaselineStartDate: null,
+    previousBaselineEndDate: null,
   };
 
   if (typeof raw.title === 'string') {
@@ -157,6 +171,14 @@ function sanitizeTask(raw: unknown, counts: RepairCounts): Task | null {
     if (parsed === null) counts.invalidNumbers += 1;
     else task.planDuration = Math.max(0, parsed);
   }
+
+  (['remainingDuration', 'baselineDuration', 'previousBaselineDuration'] as const).forEach((field) => {
+    const value = raw[field];
+    if (value === undefined || value === null) return;
+    const parsed = coerceFiniteNumber(value);
+    if (parsed === null) counts.invalidNumbers += 1;
+    else task[field] = Math.max(0, parsed);
+  });
 
   if (typeof raw.isCollapsed === 'boolean') {
     task.isCollapsed = raw.isCollapsed;
@@ -218,6 +240,24 @@ export function validateProjectState(input: unknown): ProjectStateValidationResu
 
   if (Object.keys(rawTasks).length > 0 && Object.keys(sanitized).length === 0) {
     return { ok: false, error: '読み込み可能なタスクが 1 件もありませんでした' };
+  }
+
+  // 2. 旧形式（v1: 予定と実績を双方向同期し、トグルで基準計画を固定していた）を
+  //    新しい 3 層モデル（基準計画 / 予定 / 実績）へ移行する。
+  const schemaVersion = typeof input.schemaVersion === 'number' ? input.schemaVersion : 1;
+  if (schemaVersion < CURRENT_SCHEMA_VERSION) {
+    const rawProjectConfig = isRecord(input.projectConfig) ? input.projectConfig : null;
+    const legacyBaselineLocked = rawProjectConfig?.baselineLocked === true;
+    const ids = Object.keys(sanitized);
+    ids.forEach((id) => {
+      sanitized[id] = migrateLegacyTask(sanitized[id], legacyBaselineLocked);
+    });
+    if (ids.length > 0) {
+      warnings.push(`旧形式のデータ ${ids.length} 件を新しい予定/実績モデルへ移行しました`);
+    }
+    if (legacyBaselineLocked) {
+      warnings.push('「基準計画固定」で凍結していた予定を基準計画として引き継ぎました');
+    }
   }
 
   const taskIds = new Set(Object.keys(sanitized));

@@ -28,7 +28,6 @@ export const TaskTableHeader = ({
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
   const setColumnWidth = useTaskStore((state) => state.setColumnWidth);
   const setVisibleColumns = useTaskStore((state) => state.setVisibleColumns);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const menuSource = menuColumns ?? visibleColumns;
   const changeColumns = onColumnsChange ?? setVisibleColumns;
@@ -117,7 +116,6 @@ export const TaskTableHeader = ({
         <ColumnVisibilityMenu
           columns={menuSource}
           onChange={changeColumns}
-          baselineLocked={baselineLocked}
           style={{ top: menu.y, left: menu.x }}
         />
       )}

@@ -64,7 +64,7 @@ describe('Dependency line layers during drag', () => {
     const dInitial = initialLines[0].getAttribute('d');
     expect(dInitial).toBeTruthy();
 
-    const planBarB = container.querySelector(`[data-task-id="${taskBId}"].bg-blue-100`) as HTMLDivElement;
+    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
     expect(planBarB).not.toBeNull();
 
     // 2. B のバーを +2 日（cellWidth=40px 換算で 80px）ドラッグする（mouseUp しない）

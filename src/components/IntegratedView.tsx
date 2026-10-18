@@ -34,7 +34,6 @@ interface RowContainerProps {
   containerStyle: React.CSSProperties;
   outlinerWidth: number;
   currentBgClass: string;
-  baselineLocked: boolean;
   isSelected: boolean;
   isHovered: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
@@ -49,7 +48,6 @@ const RowContainer = ({
   containerStyle,
   outlinerWidth,
   currentBgClass,
-  baselineLocked,
   isSelected,
   isHovered,
   taskBarRefs,
@@ -76,7 +74,6 @@ const RowContainer = ({
         taskId={id}
         task={task}
         timelineMetrics={timelineMetrics}
-        baselineLocked={baselineLocked}
         taskBarRefs={taskBarRefs}
         timelineWidth={timelineWidth}
         isSelected={isSelected}
@@ -132,7 +129,6 @@ export const IntegratedView = ({
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   // Use custom timeline hook
   const {
@@ -147,12 +143,8 @@ export const IntegratedView = ({
   const setIntegratedColumns = useTaskStore((state) => state.setIntegratedColumns);
 
   const visibleColumns = useMemo((): ColumnId[] => {
-    const cols = storeVisibleColumns ?? COMPACT_COLUMNS;
-    if (baselineLocked) {
-      return cols.filter((col) => col !== 'planDuration' && col !== 'planDate');
-    }
-    return cols;
-  }, [storeVisibleColumns, baselineLocked]);
+    return storeVisibleColumns ?? COMPACT_COLUMNS;
+  }, [storeVisibleColumns]);
 
   // Use custom drag interaction hook
   useGanttDrag(outlinerWidth, containerRef, cellWidth, timeRange, timelineMetrics);
@@ -410,7 +402,6 @@ export const IntegratedView = ({
                         containerStyle={containerStyle}
                         outlinerWidth={outlinerWidth}
                         currentBgClass={currentBgClass}
-                        baselineLocked={baselineLocked}
                         isSelected={isSelected}
                         isHovered={isHovered}
                         taskBarRefs={taskBarRefs}

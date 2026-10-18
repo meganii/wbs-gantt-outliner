@@ -5,17 +5,33 @@ export interface Task {
   description?: string;
   assignee?: string;
   deliverables?: string;
-  startDate: string | null; // ISO 8601 YYYY-MM-DD
-  endDate: string | null;   // ISO 8601 YYYY-MM-DD
-  duration: number;  // Workdays
+  /** 実績開始日 ISO 8601 YYYY-MM-DD（未着工は null） */
+  startDate: string | null;
+  /** 実績終了日 ISO 8601 YYYY-MM-DD（完了までは null） */
+  endDate: string | null;
+  /** 実績期間（Workdays）。実績開始日〜（実績終了日 or 進捗基準日）。 */
+  duration: number;
   progress: number;  // 0-100
   status?: string;
   isCollapsed: boolean;
   children: string[]; // Ordered list of child IDs
   dependencies: string[]; // Array of Task IDs
-  planStartDate?: string | null; // ISO 8601 YYYY-MM-DD (Plan / Baseline)
-  planEndDate?: string | null;   // ISO 8601 YYYY-MM-DD (Plan / Baseline)
-  planDuration?: number;         // Workdays (Plan / Baseline)
+  /** 予定開始日（現在の見込み）。編集可・依存伝播の対象。 ISO 8601 YYYY-MM-DD */
+  planStartDate?: string | null;
+  /** 予定終了日（現在の見込み）。 */
+  planEndDate?: string | null;
+  /** 予定期間（Workdays）。 */
+  planDuration?: number;
+  /** 残り期間（Workdays）。実績期間 + 残り期間 = 予定期間。 */
+  remainingDuration?: number;
+  /** 基準計画（登録時のスナップショット）。通常運用では不変。 */
+  baselineStartDate?: string | null;
+  baselineEndDate?: string | null;
+  baselineDuration?: number | null;
+  /** 1 世代前の基準計画（「基準計画を更新」の退避先）。 */
+  previousBaselineStartDate?: string | null;
+  previousBaselineEndDate?: string | null;
+  previousBaselineDuration?: number | null;
 }
 
 /** 複数行ペースト / 一括入力の対象になるテキスト列。 */
@@ -53,7 +69,10 @@ export interface ProjectConfig {
     duration: number;
     date: number;
   };
-  baselineLocked?: boolean;
+  /** 「基準計画として登録」した日時（ISO 8601）。未登録は null。 */
+  baselineSetAt?: string | null;
+  /** ガントで基準計画バーを表示するか（既定 true）。 */
+  showBaseline?: boolean;
   timelineRange?: {
     start: string; // ISO date YYYY-MM-DD
     end: string;   // ISO date YYYY-MM-DD
@@ -148,7 +167,18 @@ export interface TaskStoreState {
   setCalendarHolidays: (holidays: string[]) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
-  setBaselineLocked: (baselineLocked: boolean) => void;
+  /**
+   * 現在の予定を基準計画として保存する。
+   * `register` は初回登録（既存の基準計画は上書き）、
+   * `update` は再ベースライン（既存の基準計画を 1 世代前へ退避してから上書き）。
+   */
+  setBaseline: (mode: 'register' | 'update') => void;
+  /** 1 世代前の基準計画と入れ替える（更新の取り消し）。 */
+  restoreBaseline: () => void;
+  /** 基準計画（現行・1 世代前）をすべて削除する。 */
+  clearBaseline: () => void;
+  /** ガントの基準計画バー表示を切り替える。 */
+  setShowBaseline: (showBaseline: boolean) => void;
   setVisibleColumns: (columns: ColumnId[]) => void;
   setIntegratedColumns: (columns: ColumnId[]) => void;
   setDragState: (dragState: GanttDragState | null) => void;

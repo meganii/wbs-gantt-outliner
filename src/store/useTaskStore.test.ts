@@ -516,8 +516,8 @@ describe('useTaskStore', () => {
       const { tasks: updatedTasks } = useTaskStore.getState();
       // task2's plan start date should be the next workday after task1's new plan end date
       expect(updatedTasks[task2Id].planStartDate).toBe('2024-01-04');
-      // Actual dates should be synchronized when baseline is unlocked
-      expect(updatedTasks[task2Id].startDate).toBe('2024-01-04');
+      // 依存伝播は予定のみ。実績は動かない（未着工のまま）
+      expect(updatedTasks[task2Id].startDate).toBeNull();
     });
   });
 
@@ -1030,10 +1030,11 @@ describe('useTaskStore', () => {
         useTaskStore.setState({ tasks });
       });
 
-      // Now trigger propagateDependencyDates manually with baselineLocked=true to test decoupling
+      // Now trigger propagateDependencyDates manually to test that the plan moves
+      // while the actual dates are decoupled (never rewritten by propagation).
       act(() => {
         const state = useTaskStore.getState();
-        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar, true);
+        const updatedTasks = propagateDependencyDates(state.tasks, predAId, state.projectConfig.calendar);
         useTaskStore.setState({ tasks: updatedTasks });
       });
 
@@ -1065,12 +1066,11 @@ describe('useTaskStore', () => {
     });
   });
 
-  describe('Baseline Plan and Actual Date Synchronization & Locking', () => {
-    it('should synchronize plan and actual dates when baseline is not locked', () => {
+  describe('Plan / Actual are independent (no bidirectional sync)', () => {
+    it('an actual-date edit never rewrites the plan', () => {
       const { rootIds } = useTaskStore.getState();
       const taskId = rootIds[0];
 
-      // 1. Update actual date, plan date should be synchronized
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           startDate: '2026-05-25',
@@ -1079,12 +1079,27 @@ describe('useTaskStore', () => {
         });
       });
 
-      let task = useTaskStore.getState().tasks[taskId];
+      const task = useTaskStore.getState().tasks[taskId];
       expect(task.startDate).toBe('2026-05-25');
-      expect(task.planStartDate).toBe('2026-05-25');
-      expect(task.planEndDate).toBe('2026-05-27');
+      expect(task.endDate).toBe('2026-05-27');
+      expect(task.duration).toBe(3);
+      // 予定は触られない（実績は独立したフィールド。初期値のまま）
+      expect(task.planStartDate).toBe('2026-05-23');
+      expect(task.planEndDate).toBe('2026-05-23');
+    });
 
-      // 2. Update plan date, actual date should be synchronized
+    it('a plan edit never rewrites the actual dates', () => {
+      const { rootIds } = useTaskStore.getState();
+      const taskId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().updateTask(taskId, {
+          startDate: '2026-05-25',
+          endDate: '2026-05-27',
+          duration: 3,
+        });
+      });
+
       act(() => {
         useTaskStore.getState().updateTask(taskId, {
           planStartDate: '2026-06-01',
@@ -1093,65 +1108,25 @@ describe('useTaskStore', () => {
         });
       });
 
-      task = useTaskStore.getState().tasks[taskId];
+      const task = useTaskStore.getState().tasks[taskId];
       expect(task.planStartDate).toBe('2026-06-01');
-      expect(task.startDate).toBe('2026-06-01');
-      expect(task.endDate).toBe('2026-06-05');
+      expect(task.planEndDate).toBe('2026-06-05');
+      expect(task.planDuration).toBe(5);
+      // 実績は据え置き
+      expect(task.startDate).toBe('2026-05-25');
+      expect(task.endDate).toBe('2026-05-27');
+      expect(task.duration).toBe(3);
     });
 
-    it('should ignore plan updates and only modify actual dates when baseline is locked', () => {
-      const { rootIds } = useTaskStore.getState();
-      const taskId = rootIds[0];
-
-      // 1. Establish initial stable dates
-      act(() => {
-        useTaskStore.getState().setBaselineLocked(false);
-        useTaskStore.getState().updateTask(taskId, {
-          planStartDate: '2026-05-25',
-          planEndDate: '2026-05-27',
-          planDuration: 3,
-        });
-        useTaskStore.getState().setBaselineLocked(true);
-      });
-
-      // 2. Update actual date, plan should remain locked
-      act(() => {
-        useTaskStore.getState().updateTask(taskId, {
-          startDate: '2026-06-01',
-          endDate: '2026-06-03',
-          duration: 3,
-        });
-      });
-
-      let task = useTaskStore.getState().tasks[taskId];
-      expect(task.startDate).toBe('2026-06-01');
-      expect(task.planStartDate).toBe('2026-05-25'); // Unchanged
-
-      // 3. Attempt updating plan date, it should be ignored
-      act(() => {
-        useTaskStore.getState().updateTask(taskId, {
-          planStartDate: '2026-06-10',
-          planEndDate: '2026-06-12',
-          planDuration: 3,
-        });
-      });
-
-      task = useTaskStore.getState().tasks[taskId];
-      expect(task.planStartDate).toBe('2026-05-25'); // Unchanged (updates blocked)
-    });
-
-    it('should calculate plan dates for parent tasks separately', () => {
+    it('rolls up parent plan and actual separately', () => {
       const rootId = useTaskStore.getState().rootIds[0];
 
-      // 1. Add child task
       act(() => {
         useTaskStore.getState().addTask(rootId, 'inside');
       });
       const childId = useTaskStore.getState().tasks[rootId].children[0];
 
-      // 2. Lock baseline and shift child actual date
       act(() => {
-        useTaskStore.getState().setBaselineLocked(false);
         useTaskStore.getState().updateTask(childId, {
           planStartDate: '2026-05-25',
           planEndDate: '2026-05-27',
@@ -1160,15 +1135,13 @@ describe('useTaskStore', () => {
           endDate: '2026-05-27',
           duration: 3,
         });
-        useTaskStore.getState().setBaselineLocked(true);
       });
 
-      // Parent plan and actual should match initially
       let parent = useTaskStore.getState().tasks[rootId];
-      expect(parent.startDate).toBe('2026-05-25');
       expect(parent.planStartDate).toBe('2026-05-25');
+      expect(parent.startDate).toBe('2026-05-25');
 
-      // 3. Move child actual date (plan stays same)
+      // 子の実績だけを動かす → 親の予定は不変、親の実績だけ動く
       act(() => {
         useTaskStore.getState().updateTask(childId, {
           startDate: '2026-06-01',
@@ -1179,21 +1152,31 @@ describe('useTaskStore', () => {
 
       parent = useTaskStore.getState().tasks[rootId];
       expect(parent.startDate).toBe('2026-06-01');
-      expect(parent.planStartDate).toBe('2026-05-25'); // Separately calculated from child plan date
+      expect(parent.planStartDate).toBe('2026-05-25');
+
+      // 子の予定だけを動かす → 親の実績は不変、親の予定だけ動く
+      act(() => {
+        useTaskStore.getState().updateTask(childId, {
+          planStartDate: '2026-06-08',
+          planEndDate: '2026-06-10',
+          planDuration: 3,
+        });
+      });
+
+      parent = useTaskStore.getState().tasks[rootId];
+      expect(parent.planStartDate).toBe('2026-06-08');
+      expect(parent.startDate).toBe('2026-06-01');
     });
 
-    it('should propagate dependency changes to plan dates when baseline is not locked', () => {
+    it('propagates dependency shifts to the plan only, never to the actual dates', () => {
       const rootId = useTaskStore.getState().rootIds[0];
 
-      // Create two sibling tasks
       act(() => {
         useTaskStore.getState().addTask(rootId, 'after');
       });
       const siblingId = useTaskStore.getState().rootIds[1];
 
-      // Set initial plan dates and actual dates
       act(() => {
-        useTaskStore.getState().setBaselineLocked(false);
         useTaskStore.getState().updateTask(rootId, {
           planStartDate: '2026-05-25',
           planEndDate: '2026-05-25',
@@ -1226,65 +1209,120 @@ describe('useTaskStore', () => {
         });
       });
 
-      // Sibling plan date should shift, and actual date must also shift because baseline is not locked
-      const sibling = useTaskStore.getState().tasks[siblingId];
+      let sibling = useTaskStore.getState().tasks[siblingId];
       expect(sibling.planStartDate).toBe('2026-06-02');
-      expect(sibling.startDate).toBe('2026-06-02');
+      // 実績は依存伝播では動かない
+      expect(sibling.startDate).toBe('2026-05-26');
+
+      // 先行タスクの実績だけを動かしても後続の予定は動かない
+      act(() => {
+        useTaskStore.getState().updateTask(rootId, {
+          startDate: '2026-06-08',
+          endDate: '2026-06-08',
+          duration: 1,
+        });
+      });
+
+      sibling = useTaskStore.getState().tasks[siblingId];
+      expect(sibling.planStartDate).toBe('2026-06-02');
+      expect(sibling.startDate).toBe('2026-05-26');
+    });
+  });
+
+  describe('Baseline snapshot', () => {
+    it('registers the plan as the baseline and keeps it frozen when the plan moves', () => {
+      const taskId = useTaskStore.getState().rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().updateTask(taskId, {
+          planStartDate: '2026-05-25',
+          planEndDate: '2026-05-27',
+          planDuration: 3,
+        });
+      });
+
+      act(() => {
+        useTaskStore.getState().setBaseline('register');
+      });
+
+      let task = useTaskStore.getState().tasks[taskId];
+      expect(task.baselineStartDate).toBe('2026-05-25');
+      expect(task.baselineEndDate).toBe('2026-05-27');
+      expect(task.baselineDuration).toBe(3);
+      expect(useTaskStore.getState().projectConfig.baselineSetAt).toBeTruthy();
+
+      // 予定を動かしても基準計画は不変
+      act(() => {
+        useTaskStore.getState().updateTask(taskId, {
+          planStartDate: '2026-06-01',
+          planEndDate: '2026-06-03',
+          planDuration: 3,
+        });
+      });
+
+      task = useTaskStore.getState().tasks[taskId];
+      expect(task.planStartDate).toBe('2026-06-01');
+      expect(task.baselineStartDate).toBe('2026-05-25');
+      expect(task.baselineEndDate).toBe('2026-05-27');
     });
 
-    it('should NOT propagate dependency changes to actual dates when baseline is locked', () => {
-      const rootId = useTaskStore.getState().rootIds[0];
+    it('updates the baseline, backing up the previous one so it can be restored', () => {
+      const taskId = useTaskStore.getState().rootIds[0];
 
-      // Create two sibling tasks
       act(() => {
-        useTaskStore.getState().addTask(rootId, 'after');
-      });
-      const siblingId = useTaskStore.getState().rootIds[1];
-
-      // Set initial dates
-      act(() => {
-        useTaskStore.getState().setBaselineLocked(false);
-        useTaskStore.getState().updateTask(rootId, {
+        useTaskStore.getState().updateTask(taskId, {
           planStartDate: '2026-05-25',
-          planEndDate: '2026-05-25',
-          planDuration: 1,
-          startDate: '2026-05-25',
-          endDate: '2026-05-25',
-          duration: 1,
+          planEndDate: '2026-05-27',
+          planDuration: 3,
         });
-        useTaskStore.getState().updateTask(siblingId, {
-          planStartDate: '2026-05-26',
-          planEndDate: '2026-05-26',
-          planDuration: 1,
-          startDate: '2026-05-26',
-          endDate: '2026-05-26',
-          duration: 1,
+        useTaskStore.getState().setBaseline('register');
+      });
+
+      act(() => {
+        useTaskStore.getState().updateTask(taskId, {
+          planStartDate: '2026-06-01',
+          planEndDate: '2026-06-03',
+          planDuration: 3,
         });
+        useTaskStore.getState().setBaseline('update');
       });
 
-      // Add dependency: sibling depends on root
+      let task = useTaskStore.getState().tasks[taskId];
+      expect(task.baselineStartDate).toBe('2026-06-01');
+      expect(task.previousBaselineStartDate).toBe('2026-05-25');
+      expect(task.previousBaselineEndDate).toBe('2026-05-27');
+
+      // 元に戻すと現行と 1 世代前が入れ替わる
       act(() => {
-        useTaskStore.getState().addDependency(rootId, siblingId);
+        useTaskStore.getState().restoreBaseline();
       });
 
-      // Lock baseline
-      act(() => {
-        useTaskStore.getState().setBaselineLocked(true);
-      });
+      task = useTaskStore.getState().tasks[taskId];
+      expect(task.baselineStartDate).toBe('2026-05-25');
+      expect(task.previousBaselineStartDate).toBe('2026-06-01');
+    });
 
-      // Shift predecessor actual date (root)
+    it('clears the baseline', () => {
+      const taskId = useTaskStore.getState().rootIds[0];
+
       act(() => {
-        useTaskStore.getState().updateTask(rootId, {
-          startDate: '2026-06-01',
-          endDate: '2026-06-01',
-          duration: 1,
+        useTaskStore.getState().updateTask(taskId, {
+          planStartDate: '2026-05-25',
+          planEndDate: '2026-05-27',
+          planDuration: 3,
         });
+        useTaskStore.getState().setBaseline('register');
       });
 
-      // Sibling actual dates should NOT shift because dependencies do not apply to actual dates
-      const sibling = useTaskStore.getState().tasks[siblingId];
-      expect(sibling.startDate).toBe('2026-05-26'); // Unchanged
-      expect(sibling.planStartDate).toBe('2026-05-26'); // Unchanged plan date
+      act(() => {
+        useTaskStore.getState().clearBaseline();
+      });
+
+      const task = useTaskStore.getState().tasks[taskId];
+      expect(task.baselineStartDate).toBeNull();
+      expect(task.baselineEndDate).toBeNull();
+      expect(task.previousBaselineStartDate).toBeNull();
+      expect(useTaskStore.getState().projectConfig.baselineSetAt).toBeNull();
     });
   });
 
@@ -1306,8 +1344,11 @@ describe('useTaskStore', () => {
       // Set child 1 dates and duration
       act(() => {
         useTaskStore.getState().updateTask(child1Id, {
+          planStartDate: '2026-05-11',
+          planEndDate: '2026-05-11', // 1 day
+          planDuration: 1,
           startDate: '2026-05-11',
-          endDate: '2026-05-11', // 1 day
+          endDate: '2026-05-11',
           duration: 1,
           progress: 0,
         });
@@ -1316,8 +1357,11 @@ describe('useTaskStore', () => {
       // Set child 2 dates and duration
       act(() => {
         useTaskStore.getState().updateTask(child2Id, {
+          planStartDate: '2026-05-11',
+          planEndDate: '2026-05-13', // 3 days
+          planDuration: 3,
           startDate: '2026-05-11',
-          endDate: '2026-05-13', // 3 days
+          endDate: '2026-05-13',
           duration: 3,
           progress: 0,
         });

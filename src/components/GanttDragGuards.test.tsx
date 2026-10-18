@@ -94,21 +94,20 @@ describe('Gantt drag guards', () => {
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 
-  it('does not rewrite dates when the plan bar is clicked while the baseline is locked', () => {
+  it('does not rewrite dates when the plan bar is clicked (the bar consumes the click)', () => {
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Locked Plan Bar',
+        title: 'Plan Bar Click',
         planStartDate: '2026-05-25',
         planEndDate: '2026-05-27',
         planDuration: 3,
       });
-      useTaskStore.getState().setBaselineLocked(true);
     });
 
     const { container } = render(<GanttChart showNames />);
     const planBar = container.querySelector(
-      `[data-task-id="${rootId}"].bg-blue-100`
+      `[data-task-id="${rootId}"][data-gantt-bar="plan"]`
     ) as HTMLDivElement;
     expect(planBar).not.toBeNull();
 
@@ -122,31 +121,29 @@ describe('Gantt drag guards', () => {
     expect(snapshot(rootId)).toEqual(before);
   });
 
-  it('does not rewrite dates when the actual bar is clicked while the baseline is locked', () => {
+  it('renders a single movable bar and a non-interactive baseline ghost', () => {
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Locked Actual Bar',
+        title: 'Baseline Ghost',
         planStartDate: '2026-05-25',
         planEndDate: '2026-05-27',
         planDuration: 3,
-        startDate: '2026-05-25',
-        endDate: '2026-05-27',
-        duration: 3,
       });
-      useTaskStore.getState().setBaselineLocked(true);
+      useTaskStore.getState().setBaseline('register');
     });
 
     const { container } = render(<GanttChart showNames />);
-    const actualBar = container.querySelector('[title^="Actual:"]') as HTMLDivElement;
-    expect(actualBar).not.toBeNull();
 
-    const before = snapshot(rootId);
+    // 操作可能なバーは予定バー 1 本だけ
+    const bars = container.querySelectorAll('[data-gantt-bar]');
+    expect(bars).toHaveLength(1);
+    expect(bars[0].getAttribute('data-gantt-bar')).toBe('plan');
 
-    fireEvent.mouseDown(actualBar, { button: 0, clientX: 300, clientY: 50 });
-    fireEvent.mouseUp(window);
-
-    expect(snapshot(rootId)).toEqual(before);
+    // 基準計画は非操作のゴーストとして表示される
+    const baselineGhost = container.querySelector('[title^="基準計画:"]') as HTMLDivElement;
+    expect(baselineGhost).not.toBeNull();
+    expect(baselineGhost.className).toContain('pointer-events-none');
   });
 
   it('still commits a plan range when the timeline area is actually dragged', () => {

@@ -33,7 +33,7 @@ describe('GanttChart UI Interactions', () => {
     const { container } = render(<GanttChart showNames />);
 
     // Find the Plan Bar (blue bar)
-    const planBar = container.querySelector(`[data-task-id="${rootId}"].bg-blue-100`) as HTMLDivElement;
+    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
     expect(planBar).not.toBeNull();
 
     // 2. Drag the plan bar to the right by 80px (which equals 2 days because cellWidth is 40)
@@ -72,7 +72,7 @@ describe('GanttChart UI Interactions', () => {
 
     const { container } = render(<GanttChart showNames />);
 
-    const planBar = container.querySelector(`[data-task-id="${rootId}"].bg-blue-100`) as HTMLDivElement;
+    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
     expect(planBar).not.toBeNull();
 
     // Find the right resize handle (the second cursor-ew-resize element inside the bar)
@@ -114,12 +114,12 @@ describe('GanttChart UI Interactions', () => {
     const { container } = render(<GanttChart showNames />);
 
     // Get plan bar for A and its dependency connector
-    const planBarA = container.querySelector(`[data-task-id="${taskAId}"].bg-blue-100`) as HTMLDivElement;
+    const planBarA = container.querySelector(`[data-task-id="${taskAId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
     const depConnector = planBarA.querySelector('[title="Drag to create dependency"]') as HTMLDivElement;
     expect(depConnector).not.toBeNull();
 
     // Get plan bar for B
-    const planBarB = container.querySelector(`[data-task-id="${taskBId}"].bg-blue-100`) as HTMLDivElement;
+    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
     expect(planBarB).not.toBeNull();
 
     // Start dependency drag

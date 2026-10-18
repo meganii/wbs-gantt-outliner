@@ -69,7 +69,6 @@ export const TaskRow = memo(({
   // セルごとに tasks[taskId] / columnWidths / action を購読すると、
   // ストア更新のたびに 1 行あたり数十個の selector が実行される。
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -209,7 +208,6 @@ export const TaskRow = memo(({
                 taskId={taskId}
                 task={task}
                 columnWidths={columnWidths}
-                baselineLocked={baselineLocked}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}
@@ -222,7 +220,6 @@ export const TaskRow = memo(({
                 taskId={taskId}
                 task={task}
                 columnWidths={columnWidths}
-                baselineLocked={baselineLocked}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}

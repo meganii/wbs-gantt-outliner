@@ -16,7 +16,6 @@ interface TaskPlanDateCellProps {
   taskId: string;
   task: Task;
   columnWidths: ColumnWidths;
-  baselineLocked: boolean;
   prevId?: string;
   nextId?: string;
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
@@ -26,7 +25,6 @@ export const TaskPlanDateCell = memo(({
   taskId,
   task,
   columnWidths,
-  baselineLocked,
   prevId,
   nextId,
   onSelectionChange,
@@ -34,7 +32,7 @@ export const TaskPlanDateCell = memo(({
   const planStart = task.planStartDate || task.startDate || '';
   const planEnd = task.planEndDate || task.endDate || '';
   const isParent = task.children.length > 0;
-  const isReadOnly = baselineLocked || isParent;
+  const isReadOnly = isParent;
 
   const startDateRef = useRef<HTMLInputElement>(null);
   const endDateRef = useRef<HTMLInputElement>(null);

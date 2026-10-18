@@ -26,7 +26,6 @@ const renderPlanDurationCell = (taskId: string) => {
       taskId={taskId}
       task={state.tasks[taskId]}
       columnWidths={state.projectConfig.columnWidths}
-      baselineLocked={state.projectConfig.baselineLocked ?? false}
     />
   );
   const input = container.querySelector<HTMLInputElement>(`input[data-field="planDuration"]`);
@@ -112,19 +111,21 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     expect(getPlanDuration(taskId)).toBe(4);
   });
 
-  it('予定期間: ベースライン固定中は読み取り専用で編集できない', () => {
-    act(() => {
-      useTaskStore.getState().setBaselineLocked(true);
-    });
+  it('予定期間: 編集しても実績期間は変わらない（独立したフィールド）', () => {
     const taskId = useTaskStore.getState().rootIds[0];
+    expect(getPlanDuration(taskId)).toBe(1);
+    expect(getDuration(taskId)).toBe(1);
+
     const input = renderPlanDurationCell(taskId);
 
-    expect(input.readOnly).toBe(true);
-
+    act(() => {
+      input.focus();
+    });
     fireEvent.change(input, { target: { value: '9' } });
     fireEvent.blur(input);
 
-    expect(getPlanDuration(taskId)).toBe(1);
+    expect(getPlanDuration(taskId)).toBe(9);
+    expect(getDuration(taskId)).toBe(1);
   });
 
   it('親タスクの期間セルは読み取り専用（子から自動計算）', () => {

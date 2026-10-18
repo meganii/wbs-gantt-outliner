@@ -26,29 +26,20 @@ interface GeometryContext {
   indexMap: Map<string, number>;
   timelineStart: Date;
   pixelsPerDay: number;
-  baselineLocked: boolean;
   overrides: ReadonlyMap<string, TaskDates>;
 }
 
 /**
- * タスクの描画用日付を返す。baselineLocked のときは実績、それ以外は予定（無ければ実績）を参照する。
+ * タスクの描画用日付を返す。バー（＝予定）の日付を基準にし、予定が無ければ実績を使う。
  * ドラッグ中のタスクは overrides の日付で上書きされる。
  */
 function resolveTaskDates(
   id: string,
   task: Task,
-  baselineLocked: boolean,
   overrides: ReadonlyMap<string, TaskDates>
 ): TaskDates {
   const override = overrides.get(id);
   if (override) return override;
-
-  if (baselineLocked) {
-    return {
-      start: task.startDate ? new Date(task.startDate) : null,
-      end: task.endDate ? new Date(task.endDate) : null,
-    };
-  }
 
   return {
     start: task.planStartDate ? new Date(task.planStartDate) : task.startDate ? new Date(task.startDate) : null,
@@ -60,7 +51,6 @@ function createGeometryContext(
   flattenedItems: FlattenedItem[],
   tasks: Record<string, Task>,
   timelineMetrics: TimelineMetrics,
-  baselineLocked: boolean,
   overrides: ReadonlyMap<string, TaskDates>
 ): GeometryContext | null {
   const { pixelsPerDay, timelineStart } = timelineMetrics;
@@ -71,7 +61,7 @@ function createGeometryContext(
     indexMap.set(item.id, index);
   });
 
-  return { tasks, indexMap, timelineStart, pixelsPerDay, baselineLocked, overrides };
+  return { tasks, indexMap, timelineStart, pixelsPerDay, overrides };
 }
 
 /** 1 本の依存線（先行 fromId → 後続 toId）のパスを組み立てる。 */
@@ -84,8 +74,8 @@ function buildDependencyLine(fromId: string, toId: string, ctx: GeometryContext)
   const targetTask = ctx.tasks[toId];
   if (!sourceTask || !targetTask) return null;
 
-  const sourceDates = resolveTaskDates(fromId, sourceTask, ctx.baselineLocked, ctx.overrides);
-  const targetDates = resolveTaskDates(toId, targetTask, ctx.baselineLocked, ctx.overrides);
+  const sourceDates = resolveTaskDates(fromId, sourceTask, ctx.overrides);
+  const targetDates = resolveTaskDates(toId, targetTask, ctx.overrides);
   if (!sourceDates.end || !targetDates.start) return null;
 
   const startX = (differenceInDays(sourceDates.end, ctx.timelineStart) + 1) * ctx.pixelsPerDay;
@@ -122,7 +112,6 @@ export const useGanttDependencies = (
   timelineMetrics: TimelineMetrics
 ) => {
   const tasks = useTaskStore((state) => state.tasks);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
   // 日付ではなく「どのタスクを動かしているか」だけを購読する（primitive）。
   const draggedTaskId = useTaskStore((state) => {
     const drag = state.dragState;
@@ -131,7 +120,7 @@ export const useGanttDependencies = (
   });
 
   return useMemo(() => {
-    const ctx = createGeometryContext(flattenedItems, tasks, timelineMetrics, baselineLocked, EMPTY_OVERRIDES);
+    const ctx = createGeometryContext(flattenedItems, tasks, timelineMetrics, EMPTY_OVERRIDES);
     if (!ctx) return [] as DependencyLine[];
 
     const lines: DependencyLine[] = [];
@@ -146,7 +135,7 @@ export const useGanttDependencies = (
       }
     }
     return lines;
-  }, [flattenedItems, tasks, timelineMetrics, baselineLocked, draggedTaskId]);
+  }, [flattenedItems, tasks, timelineMetrics, draggedTaskId]);
 };
 
 /**
@@ -159,7 +148,6 @@ export const useDraggedDependencyLines = (
   timelineMetrics: TimelineMetrics
 ) => {
   const tasks = useTaskStore((state) => state.tasks);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
   const dragState = useTaskStore((state) => state.dragState);
 
   return useMemo(() => {
@@ -169,7 +157,7 @@ export const useDraggedDependencyLines = (
     const overrides = new Map<string, TaskDates>([
       [draggedId, { start: dragState.currentStartDate, end: dragState.currentEndDate }],
     ]);
-    const ctx = createGeometryContext(flattenedItems, tasks, timelineMetrics, baselineLocked, overrides);
+    const ctx = createGeometryContext(flattenedItems, tasks, timelineMetrics, overrides);
     if (!ctx) return [] as DependencyLine[];
 
     const lines: DependencyLine[] = [];
@@ -193,5 +181,5 @@ export const useDraggedDependencyLines = (
     }
 
     return lines;
-  }, [flattenedItems, tasks, timelineMetrics, baselineLocked, dragState]);
+  }, [flattenedItems, tasks, timelineMetrics, dragState]);
 };
