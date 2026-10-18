@@ -4,6 +4,19 @@
 
 ## 現在の状態
 
+- **予定・実績モデルを 2 層へ移行（実装完了。`feature/plan-actual-2layer`、未 push）** (October 18, 2026):
+  - `docs/PLAN_ACTUAL_DISCUSSION.md` §8 のチェックリストを上から順に実装した。モデル = **基準（基準開始日 / 基準終了日 / 基準期間）+ 現在の日程（開始日 / 終了日 / 期間）+ 進捗率** の 2 層。保存形式は `schemaVersion: 3`。
+  - 主な変更（`git diff --stat` の対象）:
+    - モデル: `src/types.ts` から `planStartDate` / `planEndDate` / `planDuration` / `remainingDuration` を削除。`ColumnId` を `duration`（期間）+ `date`（開始日 / 終了日）に整理。
+    - ストア: `src/store/taskStoreUtils.ts`（`applyDateCalculations` を 1 組の日付 + 進捗率へ整理、`deriveStatus(progress)`、依存伝播・親ロールアップは現行踏襲）と `src/store/useTaskStore.ts`（`applyTaskUpdate` の `dateTouched` / `progressTouched` 分岐、基準計画アクション）。
+    - 移行: `src/utils/planActualMigration.ts`（`CURRENT_SCHEMA_VERSION = 3`、`foldLegacyDates`、`migrateTaskToV3`）+ `src/utils/validateProjectState.ts`（`schemaVersion < 3` で移行 → 警告トースト）。
+    - 表: `src/utils/columns.ts` / `src/utils/projectConfig.ts` / `src/components/TaskTableHeader.tsx` / `src/components/TaskRow.tsx` / `src/components/cells/*`。`TaskPlanDateCell` / `TaskPlanDurationCell` は削除。ステータス列は**表示のみ**（ピル、`<select>` を廃止、`保留` を削除）。列見出しは「期間」「開始日 / 終了日」。
+    - ガント: `src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts` / `src/hooks/useGanttDependencies.ts`。バー属性値を `data-gantt-bar="plan"` → `"schedule"` に改名（テスト・e2e・bench のセレクタも更新）。ツールチップは `タイトル / 開始日 / 終了日 / 期間 / 進捗 N%（完了）(/ 基準: 開始日〜終了日)`。
+    - Excel: `src/utils/export.ts`（日程グループ=青 + 基準グループ=アンバー + 進捗率。バーは基準アンバーを先に描き、日程バーを上に重ねる）。
+  - **規則の解釈で判断が要った点（要確認）**: §4.3 規則 5（`期間` は稼働日数からの導出値）/ 規則 8（日付以外を入力にしない）と、**`期間` 列を編集可能にすること**は両立しませんでした。MS Project と同じく「`期間` は保存フィールド（稼働日数から計算）だが、`期間` を入力すると終了日が動く」挙動を採りました（`applyDateCalculations` の分岐 (1)(2)(3)）。`日付が唯一の入力` を厳密にしたい場合は `期間` セルを読み取り専用化する追加変更が必要です。
+  - その他の解釈: 進捗率は日付を書き換えない（規則 2）/ 裏方の実績フィールドを持たない（規則 1）/ 親は子の min〜max と進捗ロールアップのみ（規則 6）/ 日付ロックなし（規則 8）/ ステータスは `deriveStatus` で導出（規則 7）。完了バーの緑（`progress >= 100`）は維持。
+  - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **5 件** / `npm run shots`（10 枚。統合表示・WBS で 1 本バー + 進捗塗り + 基準ゴースト + 完了緑を目視）。
+  - 付随更新: `scratch/sample-project.json` を v3（`schemaVersion: 3`、`plan*` 削除、進捗に応じて日付を畳む）へ更新。`bench/generate-tasks.mjs` を v3 形式へ更新し、`bench/fixtures/tasks-100.json` / `tasks-1000.json` を再生成。
 - **予定・実績モデルを 3 層 → 2 層へ見直す方針を決定（実装は別ブランチ）** (October 18, 2026):
   - 経緯: 「実績をガントに出さないのに裏で持つ意味は?」「基準・予定・実績と 3 観点で見るべきか」というレビューから、Phase 1 の 3 層実装では**実績が入力しても何も起きない（消費者がいない）**ことと、**進捗率と実績日付が二重管理**になっていることを確認した。層の数はアプリが答える問いの数で決まる、という結論。
   - 決定: 3 層にしない。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率**の 2 層に一本化。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。MS Project の `Start` / `Finish`（Scheduled）の挙動と同じで、一次情報で裏付け済み。

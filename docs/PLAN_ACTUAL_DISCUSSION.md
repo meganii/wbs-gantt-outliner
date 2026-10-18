@@ -1,6 +1,6 @@
 # 予定・実績モデル 検討記録（3 層 → 2 層への見直し）
 
-Status: **方針・規則・用語 確定（3 層は採用しない。2 層案へ移行）/ 未実装（実装は `feature/plan-actual-2layer` で新規セッションから）** / Date: 2026-10-18
+Status: **方針・規則・用語 確定（3 層は採用しない。2 層案へ移行）/ 2 層モデル実装済み（`feature/plan-actual-2layer`、未 push）** / Date: 2026-10-18
 
 この文書は `docs/PLAN_ACTUAL_MODEL.md`（3 層モデルの提案と Phase 1 実装の記録）の**後のレビュー**と、そこで決まった**2 層案**を保存するものです。3 層 Phase 1 の実装はこのブランチに復帰点として残してあります（§1）。2 層案の実装は**別ブランチ**で行います（§8）。
 
@@ -165,14 +165,18 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 
 規則と用語は確定済み（§4.3 / §5）。以下を上から順に実装する。
 
-- [ ] **モデル** (`src/types.ts`): `planStartDate / planEndDate / planDuration` を削除し、`startDate` / `endDate`（現在の日程）に統合する。`baselineStartDate / baselineEndDate / baselineDuration` と `previousBaseline*` は維持。型だけ持っていた `remainingDuration` を削除。`ColumnId` を `duration` / `date` に整理（`planDuration` / `planDate` を削除）。`schemaVersion: 3`。
-- [ ] **ストア** (`src/store/useTaskStore.ts` / `src/store/taskStoreUtils.ts`): 進捗率は日付を書き換えない（規則 2）。`applyDateCalculations` を 1 組の日付 + 進捗率に整理し、`期間` を稼働日数から導出（規則 5）。`ステータス` を進捗率から導出（規則 7）。親ロールアップは現行どおり（規則 6）。依存伝播は 1 組の日付のみを更新。
-- [ ] **移行** (`src/utils/planActualMigration.ts`): v1（3 層以前）/ v2（3 層）→ 3 に書き直す。進捗率で日付の対を畳む（0% = 予定 / 1〜99% = 開始は実績・終了は予定 / 100% = 両方実績）。v1 の `baselineLocked === true` は 基準 = 旧 plan / 現在 = 旧 actual。基準は引き継ぎ、旧形式は警告トースト。
-- [ ] **表** (`src/utils/columns.ts` / `src/components/cells/*` / `src/utils/projectConfig.ts`): 列を `期間 / 開始日 / 終了日` に統合（`予定期間 / 予定日付 / 実績期間 / 実績日付` を削除）。ステータス列は表示のみ（導出）。表示トグルも整理。
-- [ ] **ガント** (`src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts`): バー = `開始日〜終了日`、塗り = `進捗率`、基準 = ゴースト（現行のまま）、完了 = 緑（`progress >= 100`）。ツールチップに 開始日 / 終了日 / 期間 / 進捗率（基準を表示中なら基準開始日 / 基準終了日）。`data-gantt-bar="plan"` の属性値の改名は任意（改名する場合はテスト・e2e のセレクタも更新）。
-- [ ] **Excel** (`src/utils/export.ts`): 日程 1 組 + 基準 1 組 + 進捗率に整理（アンバーは基準側の列グループに使う）。
-- [ ] **テスト**: 既存の期待値修正（列名 / バーセレクタ / 移行）+ 規則 1〜8 のテスト追加 + 移行テスト（v1 の `baselineLocked` true / false、v2 → 3）。
-- [ ] **サンプル / ドキュメント**: `scratch/sample-project.json` を v3 に更新。`docs/HANDOFF.md` の現在の状態・優先課題を更新。この文書の状態を実装済みに更新。
-- [ ] **検証**: `npm test -- --run` / `npm run lint` / `npm run build` / `npm run test:e2e` / `npm run shots`（1 本バー・進捗塗り・基準ゴースト・完了緑を目視）。
+**実装済み（2026-10-18、`feature/plan-actual-2layer`、未 push）**。検証: `npm test -- --run` 259 件（30 ファイル）/ `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` 5 件 / `npm run shots` 目視。詳細は `docs/HANDOFF.md` の先頭エントリ。
+
+- [x] **モデル** (`src/types.ts`): `planStartDate / planEndDate / planDuration` を削除し、`startDate` / `endDate`（現在の日程）に統合する。`baselineStartDate / baselineEndDate / baselineDuration` と `previousBaseline*` は維持。型だけ持っていた `remainingDuration` を削除。`ColumnId` を `duration` / `date` に整理（`planDuration` / `planDate` を削除）。`schemaVersion: 3`。
+- [x] **ストア** (`src/store/useTaskStore.ts` / `src/store/taskStoreUtils.ts`): 進捗率は日付を書き換えない（規則 2）。`applyDateCalculations` を 1 組の日付 + 進捗率に整理し、`期間` を稼働日数から導出（規則 5）。`ステータス` を進捗率から導出（規則 7）。親ロールアップは現行どおり（規則 6）。依存伝播は 1 組の日付のみを更新。
+- [x] **移行** (`src/utils/planActualMigration.ts`): v1（3 層以前）/ v2（3 層）→ 3 に書き直す。進捗率で日付の対を畳む（0% = 予定 / 1〜99% = 開始は実績・終了は予定 / 100% = 両方実績）。v1 の `baselineLocked === true` は 基準 = 旧 plan / 現在 = 旧 actual。基準は引き継ぎ、旧形式は警告トースト。
+- [x] **表** (`src/utils/columns.ts` / `src/components/cells/*` / `src/utils/projectConfig.ts`): 列を `期間 / 開始日 / 終了日` に統合（`予定期間 / 予定日付 / 実績期間 / 実績日付` を削除）。ステータス列は表示のみ（導出）。表示トグルも整理。
+- [x] **ガント** (`src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts`): バー = `開始日〜終了日`、塗り = `進捗率`、基準 = ゴースト（現行のまま）、完了 = 緑（`progress >= 100`）。ツールチップに 開始日 / 終了日 / 期間 / 進捗率（基準を表示中なら基準開始日 / 基準終了日）。`data-gantt-bar="plan"` の属性値の改名は任意（改名する場合はテスト・e2e のセレクタも更新）。→ `"schedule"` に改名し、テスト・e2e・bench のセレクタを更新。
+- [x] **Excel** (`src/utils/export.ts`): 日程 1 組 + 基準 1 組 + 進捗率に整理（アンバーは基準側の列グループに使う）。
+- [x] **テスト**: 既存の期待値修正（列名 / バーセレクタ / 移行）+ 規則 1〜8 のテスト追加 + 移行テスト（v1 の `baselineLocked` true / false、v2 → 3）。
+- [x] **サンプル / ドキュメント**: `scratch/sample-project.json` を v3 に更新。`docs/HANDOFF.md` の現在の状態・優先課題を更新。この文書の状態を実装済みに更新。
+- [x] **検証**: `npm test -- --run` / `npm run lint` / `npm run build` / `npm run test:e2e` / `npm run shots`（1 本バー・進捗塗り・基準ゴースト・完了緑を目視）。
+
+**解釈の留保（要確認）**: 規則 5（`期間` は稼働日数からの導出値）と規則 8（日付だけを入力にする）に対し、`期間` セルは**編集可能**のまま実装した（入力すると終了日が動く = MS Project の Duration と同じ）。`期間` を厳密に読み取り専用にする場合は追加変更が必要（HANDOFF 先頭エントリの「規則の解釈で判断が要った点」を参照）。
 
 **注意（過去に踏んだ罠）**: ガントバーに `overflow-hidden` を付けない（依存ハンドルがクリップされ、クリックが draw-range に抜けて日付が壊れる）/ バー・ハンドルの `onMouseDown` は常に `stopPropagation()` / タイムライン余白の単クリック = 1 日設定は正（「移動ゼロなら確定しない」ガードは再導入しない）/ 復帰点 `feature/plan-actual-model-phase1` は変更しない / push は指示があるまでしない。

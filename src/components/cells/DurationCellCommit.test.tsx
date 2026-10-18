@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { act, fireEvent, render } from '@testing-library/react';
 import { TaskDurationCell } from './TaskDurationCell';
-import { TaskPlanDurationCell } from './TaskPlanDurationCell';
 import { getTemporalState, useTaskStore } from '../../store/useTaskStore';
 
 const initialState = useTaskStore.getState();
 
 const getDuration = (id: string) => useTaskStore.getState().tasks[id].duration;
-const getPlanDuration = (id: string) => useTaskStore.getState().tasks[id].planDuration;
 
 const renderDurationCell = (taskId: string) => {
   const state = useTaskStore.getState();
@@ -15,20 +13,6 @@ const renderDurationCell = (taskId: string) => {
     <TaskDurationCell taskId={taskId} task={state.tasks[taskId]} columnWidths={state.projectConfig.columnWidths} />
   );
   const input = container.querySelector<HTMLInputElement>(`input[data-field="duration"]`);
-  expect(input).not.toBeNull();
-  return input!;
-};
-
-const renderPlanDurationCell = (taskId: string) => {
-  const state = useTaskStore.getState();
-  const { container } = render(
-    <TaskPlanDurationCell
-      taskId={taskId}
-      task={state.tasks[taskId]}
-      columnWidths={state.projectConfig.columnWidths}
-    />
-  );
-  const input = container.querySelector<HTMLInputElement>(`input[data-field="planDuration"]`);
   expect(input).not.toBeNull();
   return input!;
 };
@@ -41,7 +25,7 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     });
   });
 
-  it('実績期間: 入力中はストアを更新せず、blur で確定する', () => {
+  it('期間: 入力中はストアを更新せず、blur で確定する', () => {
     const taskId = useTaskStore.getState().rootIds[0];
     const input = renderDurationCell(taskId);
 
@@ -57,7 +41,7 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     expect(getDuration(taskId)).toBe(7);
   });
 
-  it('実績期間: Enter で確定する', () => {
+  it('期間: Enter で確定する', () => {
     const taskId = useTaskStore.getState().rootIds[0];
     const input = renderDurationCell(taskId);
 
@@ -70,7 +54,7 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     expect(getDuration(taskId)).toBe(5);
   });
 
-  it('実績期間: Escape で編集を取り消す', () => {
+  it('期間: Escape で編集を取り消す', () => {
     const taskId = useTaskStore.getState().rootIds[0];
     const input = renderDurationCell(taskId);
 
@@ -83,7 +67,7 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     expect(getDuration(taskId)).toBe(1);
   });
 
-  it('実績期間: 数値にならない入力は元の値に戻す', () => {
+  it('期間: 数値にならない入力は元の値に戻す', () => {
     const taskId = useTaskStore.getState().rootIds[0];
     const input = renderDurationCell(taskId);
 
@@ -93,38 +77,6 @@ describe('duration セルの確定タイミング (commit-on-blur / Enter)', () 
     fireEvent.change(input, { target: { value: '' } });
     fireEvent.blur(input);
 
-    expect(getDuration(taskId)).toBe(1);
-  });
-
-  it('予定期間: 入力中はストアを更新せず、blur で確定する', () => {
-    const taskId = useTaskStore.getState().rootIds[0];
-    const input = renderPlanDurationCell(taskId);
-
-    act(() => {
-      input.focus();
-    });
-    fireEvent.change(input, { target: { value: '4' } });
-
-    expect(getPlanDuration(taskId)).toBe(1);
-
-    fireEvent.blur(input);
-    expect(getPlanDuration(taskId)).toBe(4);
-  });
-
-  it('予定期間: 編集しても実績期間は変わらない（独立したフィールド）', () => {
-    const taskId = useTaskStore.getState().rootIds[0];
-    expect(getPlanDuration(taskId)).toBe(1);
-    expect(getDuration(taskId)).toBe(1);
-
-    const input = renderPlanDurationCell(taskId);
-
-    act(() => {
-      input.focus();
-    });
-    fireEvent.change(input, { target: { value: '9' } });
-    fireEvent.blur(input);
-
-    expect(getPlanDuration(taskId)).toBe(9);
     expect(getDuration(taskId)).toBe(1);
   });
 

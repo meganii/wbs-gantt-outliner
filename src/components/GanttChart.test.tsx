@@ -238,9 +238,9 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
         title: 'Test Task',
-        planStartDate: '2026-05-23',
-        planEndDate: '2026-05-23',
-        planDuration: 1,
+        startDate: '2026-05-23',
+        endDate: '2026-05-23',
+        duration: 1,
       });
     });
 
@@ -280,12 +280,12 @@ describe('GanttChart WBS Hierarchy and Shortcuts', () => {
     // today = 2026-05-23, Week mode fallback: start = startOfWeek(addMonths(today, -1)) = startOfWeek(2026-04-23) = 2026-04-20 (Mon)
     // clientX=143, cellWidth=100 → weekIndex=1 → week starting 2026-04-27
     // relativeX=43, daysPerCell=7, pixPerDay=100/7 → dayOffset = floor(43/(100/7)) = floor(3.01) = 3
-    // planStartDate = 2026-04-27 + 3days = 2026-04-30 (Thu)
-    // planEndDate = 2026-04-30 + 3 more days = 2026-05-03 (Sun), or with drag end at clientX=186:
+    // startDate = 2026-04-27 + 3days = 2026-04-30 (Thu)
+    // endDate = 2026-04-30 + 3 more days = 2026-05-03 (Sun), or with drag end at clientX=186:
     //   weekIndex2 = floor(186/100)=1, relX2=86, dayOffset2=floor(86/14.28)=6 → 2026-04-27+6=2026-05-03
-    expect(task.planStartDate).toBe('2026-04-30');
-    expect(task.planEndDate).toBe('2026-05-03');
-    expect(task.planDuration).toBe(2); // Apr 30 (Thu), May 1 (Fri) are work days; May 2 (Sat), May 3 (Sun) are weekends.
+    expect(task.startDate).toBe('2026-04-30');
+    expect(task.endDate).toBe('2026-05-03');
+    expect(task.duration).toBe(2); // Apr 30 (Thu), May 1 (Fri) are work days; May 2 (Sat), May 3 (Sun) are weekends.
 
     vi.useRealTimers();
   });

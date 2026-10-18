@@ -8,8 +8,6 @@ import { TaskOutlineCell } from './cells/TaskOutlineCell';
 import { TaskTextCell } from './cells/TaskTextCell';
 import { TaskStatusCell } from './cells/TaskStatusCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
-import { TaskPlanDurationCell } from './cells/TaskPlanDurationCell';
-import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
 import { TaskDurationCell } from './cells/TaskDurationCell';
 import { TaskDateCell } from './cells/TaskDateCell';
 
@@ -193,30 +191,6 @@ export const TaskRow = memo(({
             return (
               <TaskProgressCell
                 key="progress"
-                taskId={taskId}
-                task={task}
-                columnWidths={columnWidths}
-                prevId={prevId}
-                nextId={nextId}
-                onSelectionChange={onSelectionChange}
-              />
-            );
-          case 'planDuration':
-            return (
-              <TaskPlanDurationCell
-                key="planDuration"
-                taskId={taskId}
-                task={task}
-                columnWidths={columnWidths}
-                prevId={prevId}
-                nextId={nextId}
-                onSelectionChange={onSelectionChange}
-              />
-            );
-          case 'planDate':
-            return (
-              <TaskPlanDateCell
-                key="planDate"
                 taskId={taskId}
                 task={task}
                 columnWidths={columnWidths}

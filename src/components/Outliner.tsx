@@ -49,7 +49,7 @@ export const Outliner = ({
     if (showDetails) {
       cols.push('description', 'assignee', 'deliverables', 'status', 'progress');
     }
-    cols.push('planDuration', 'planDate', 'duration', 'date');
+    cols.push('duration', 'date');
     return cols;
   }, [storeVisibleColumns, showDetails]);
 

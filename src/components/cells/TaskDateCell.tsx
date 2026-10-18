@@ -9,7 +9,7 @@ import type { ProjectConfig, Task } from '../../types';
 
 type ColumnWidths = ProjectConfig['columnWidths'];
 
-/** 実績日付列のフォーカス対象フィールド（開始/終了のどちらでも列として強調する）。 */
+/** 日付列のフォーカス対象フィールド（開始/終了のどちらでも列として強調する）。 */
 const DATE_FIELDS = ['startDate', 'endDate'] as const;
 
 interface TaskDateCellProps {

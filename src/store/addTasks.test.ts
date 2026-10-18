@@ -43,10 +43,10 @@ describe('useTaskStore.addTasks (複数行の一括登録)', () => {
 
     const task = useTaskStore.getState().tasks[ids[0]];
     expect(task.duration).toBe(1);
-    expect(task.planDuration).toBe(1);
+    expect(task.duration).toBe(1);
     expect(task.progress).toBe(0);
     expect(task.startDate).toBe(null);
-    expect(task.planStartDate).toBe(null);
+    expect(task.startDate).toBe(null);
     expect(task.children).toEqual([]);
     expect(task.dependencies).toEqual([]);
   });

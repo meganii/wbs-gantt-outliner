@@ -7,6 +7,16 @@ export interface TaskGraphState {
   rootIds: string[];
 }
 
+/**
+ * 進捗率からステータスを導出する（規則 7）。
+ * 0% = 未着手 / 1〜99% = 進行中 / 100% = 完了。手入力はしない。
+ */
+export function deriveStatus(progress: number): string {
+  if (progress >= 100) return '完了';
+  if (progress > 0) return '進行中';
+  return '未着手';
+}
+
 export function getTaskDepth(tasks: Record<string, Task>, id: string): number {
   let depth = 0;
   let current = tasks[id];
@@ -113,9 +123,9 @@ export function shiftDescendants(
 ): Record<string, Task> {
   const nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
-  if (!parent || !parent.planStartDate) return nextTasks;
+  if (!parent || !parent.startDate) return nextTasks;
 
-  const oldParentStart = parseISO(parent.planStartDate);
+  const oldParentStart = parseISO(parent.startDate);
   if (!isValid(oldParentStart)) return nextTasks;
 
   // 1. Collect all descendant IDs recursively
@@ -136,22 +146,22 @@ export function shiftDescendants(
   // 2. Shift each descendant
   descendantIds.forEach((descId) => {
     const descTask = nextTasks[descId];
-    if (!descTask || !descTask.planStartDate) return;
+    if (!descTask || !descTask.startDate) return;
 
-    const descStart = parseISO(descTask.planStartDate);
+    const descStart = parseISO(descTask.startDate);
     if (!isValid(descStart)) return;
 
     // Calculate work days offset from oldParentStart to descStart
     const offset = getWorkDaysCount(oldParentStart, descStart, calendar) - 1;
-    
+
     // Calculate new start date
     const newDescStart = addWorkDays(newParentStart, offset, calendar);
-    const newDescEnd = calculateEndDate(newDescStart, descTask.planDuration || descTask.duration, calendar);
+    const newDescEnd = calculateEndDate(newDescStart, descTask.duration, calendar);
 
     nextTasks[descId] = {
       ...descTask,
-      planStartDate: format(newDescStart, 'yyyy-MM-dd'),
-      planEndDate: format(newDescEnd, 'yyyy-MM-dd'),
+      startDate: format(newDescStart, 'yyyy-MM-dd'),
+      endDate: format(newDescEnd, 'yyyy-MM-dd'),
     };
   });
 
@@ -187,11 +197,11 @@ export function propagateDependencyDates(
 
     currentTask.dependencies.forEach((depId) => {
       const depTask = nextTasks[depId];
-      if (!depTask?.planEndDate) {
+      if (!depTask?.endDate) {
         return;
       }
 
-      const depEndDate = parseISO(depTask.planEndDate);
+      const depEndDate = parseISO(depTask.endDate);
       if (!isValid(depEndDate)) {
         return;
       }
@@ -235,14 +245,14 @@ export function propagateDependencyDates(
         });
       }
 
-      const duration = currentTask.planDuration !== undefined ? currentTask.planDuration : currentTask.duration;
+      const duration = currentTask.duration;
       const newEndDate = calculateEndDate(newStartDate, duration, calendar);
 
       nextTasks[currentId] = {
         ...nextTasks[currentId],
-        planStartDate: format(newStartDate, 'yyyy-MM-dd'),
-        planEndDate: format(newEndDate, 'yyyy-MM-dd'),
-        planDuration: duration,
+        startDate: format(newStartDate, 'yyyy-MM-dd'),
+        endDate: format(newEndDate, 'yyyy-MM-dd'),
+        duration,
       };
 
       if (nextTasks[currentId].parentId) {
@@ -336,8 +346,6 @@ export function recalculateParentDatesRecursive(
 
     let minStartDate: Date | null = null;
     let maxEndDate: Date | null = null;
-    let minPlanStartDate: Date | null = null;
-    let maxPlanEndDate: Date | null = null;
 
     let totalDuration = 0;
     let weightedProgressSum = 0;
@@ -364,62 +372,37 @@ export function recalculateParentDatesRecursive(
         }
       }
 
-      // 予定（plan*）は予定のみからロールアップする（実績とは独立）。
-      if (child.planStartDate) {
-        const start = parseISO(child.planStartDate);
-        if (isValid(start)) {
-          if (!minPlanStartDate || start < minPlanStartDate) {
-            minPlanStartDate = start;
-          }
-        }
-      }
-
-      if (child.planEndDate) {
-        const end = parseISO(child.planEndDate);
-        if (isValid(end)) {
-          if (!maxPlanEndDate || end > maxPlanEndDate) {
-            maxPlanEndDate = end;
-          }
-        }
-      }
-
-      const childDur = child.planDuration || child.duration || 1;
+      const childDur = child.duration || 1;
       totalDuration += childDur;
       weightedProgressSum += (child.progress || 0) * childDur;
     });
 
     const parentProgress = totalDuration > 0 ? Math.round(weightedProgressSum / totalDuration) : 0;
-    
-    let parentStatus = '未着手';
-    if (parentProgress === 100) {
-      parentStatus = '完了';
-    } else if (parentProgress > 0) {
-      parentStatus = '進行中';
-    }
 
     const updatedParent: Task = { ...parent };
     let changed = false;
 
-    // Update progress
+    // Update progress（親 = 子の期間重み付け平均）
     if (updatedParent.progress !== parentProgress) {
       updatedParent.progress = parentProgress;
       changed = true;
     }
 
-    // Update status
+    // Update status（進捗率から導出）
+    const parentStatus = deriveStatus(parentProgress);
     if (updatedParent.status !== parentStatus) {
       updatedParent.status = parentStatus;
       changed = true;
     }
 
-    // Update startDate
+    // Update startDate（子の最小開始）
     const minStartStr = minStartDate ? format(minStartDate, 'yyyy-MM-dd') : null;
     if (updatedParent.startDate !== minStartStr) {
       updatedParent.startDate = minStartStr;
       changed = true;
     }
 
-    // Update endDate
+    // Update endDate（子の最大終了）
     const maxEndStr = maxEndDate ? format(maxEndDate, 'yyyy-MM-dd') : null;
     if (updatedParent.endDate !== maxEndStr) {
       updatedParent.endDate = maxEndStr;
@@ -441,33 +424,6 @@ export function recalculateParentDatesRecursive(
       if (updatedParent.duration !== 0) {
         updatedParent.duration = 0;
         changed = true;
-      }
-    }
-
-    // Update planStartDate
-    const minPlanStartStr = minPlanStartDate ? format(minPlanStartDate, 'yyyy-MM-dd') : null;
-    if (updatedParent.planStartDate !== minPlanStartStr) {
-      updatedParent.planStartDate = minPlanStartStr;
-      changed = true;
-    }
-
-    // Update planEndDate
-    const maxPlanEndStr = maxPlanEndDate ? format(maxPlanEndDate, 'yyyy-MM-dd') : null;
-    if (updatedParent.planEndDate !== maxPlanEndStr) {
-      updatedParent.planEndDate = maxPlanEndStr;
-      changed = true;
-    }
-
-    // Recalculate parent's planDuration if plan start or end changed
-    if (updatedParent.planStartDate && updatedParent.planEndDate) {
-      const start = parseISO(updatedParent.planStartDate);
-      const end = parseISO(updatedParent.planEndDate);
-      if (isValid(start) && isValid(end) && start <= end) {
-        const newPlanDuration = getWorkDaysCount(start, end, calendar);
-        if (updatedParent.planDuration !== newPlanDuration) {
-          updatedParent.planDuration = newPlanDuration;
-          changed = true;
-        }
       }
     }
 
@@ -540,73 +496,47 @@ export function applyDateCalculations(
   updates: Partial<Task>,
   calendar: ProjectConfig['calendar']
 ): Partial<Task> {
-  // Do not perform automatic calculation on parent tasks (dates are rolled up from children)
-  if (oldTask.children.length > 0) {
-    return updates;
-  }
-
   const nextUpdates = { ...updates };
 
-  // 1. Plan Duration Update
-  if (nextUpdates.planDuration !== undefined && nextUpdates.planEndDate === undefined) {
-    const startStr = nextUpdates.planStartDate || oldTask.planStartDate;
-    if (startStr) {
-      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.planDuration, calendar);
-      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
-    }
-  }
-  // 2. Plan Start Date Update
-  else if (nextUpdates.planStartDate !== undefined && nextUpdates.planEndDate === undefined) {
-    const duration = nextUpdates.planDuration !== undefined ? nextUpdates.planDuration : (oldTask.planDuration ?? 1);
-    const startStr = nextUpdates.planStartDate;
-    if (startStr) {
-      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
-      nextUpdates.planEndDate = format(newEndDate, 'yyyy-MM-dd');
-    }
-  }
-  // 3. Plan End Date Update
-  else if (nextUpdates.planEndDate !== undefined && nextUpdates.planDuration === undefined) {
-    const startStr = nextUpdates.planStartDate || oldTask.planStartDate;
-    const endStr = nextUpdates.planEndDate;
-    if (startStr && endStr) {
-      const start = new Date(startStr);
-      const end = new Date(endStr);
-      if (end >= start) {
-        nextUpdates.planDuration = getWorkDaysCount(start, end, calendar);
-      }
-    }
+  // 進捗率が変わったら、ステータスは進捗率から導出する（規則 7）。
+  // 進捗率は日付を書き換えない（規則 2）。
+  if (nextUpdates.progress !== undefined) {
+    nextUpdates.status = deriveStatus(Math.min(100, Math.max(0, nextUpdates.progress)));
   }
 
-  // 4. Actual Duration Update
-  if (nextUpdates.duration !== undefined && nextUpdates.endDate === undefined) {
-    // 実績開始日が未入力なら、予定開始日を着工日とみなして実績開始日を補完する。
-    const startStr = nextUpdates.startDate || oldTask.startDate || oldTask.planStartDate;
+  // 親タスクの日付・期間は子からロールアップする（規則 6）。ここでは日付を触らない。
+  if (oldTask.children.length > 0) {
+    return nextUpdates;
+  }
+
+  const hasStart = nextUpdates.startDate !== undefined;
+  const hasEnd = nextUpdates.endDate !== undefined;
+  const hasDuration = nextUpdates.duration !== undefined;
+
+  // 1. 期間の入力 → 開始日を固定して終了日を導出する
+  //    （保存される期間は「開始日〜終了日の稼働日数」に一致する）
+  if (hasDuration && !hasEnd) {
+    const startStr = nextUpdates.startDate ?? oldTask.startDate;
     if (startStr) {
-      if (!nextUpdates.startDate && !oldTask.startDate) {
-        nextUpdates.startDate = startStr;
-      }
-      const newEndDate = calculateEndDate(new Date(startStr), nextUpdates.duration, calendar);
-      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+      nextUpdates.endDate = format(
+        calculateEndDate(new Date(startStr), nextUpdates.duration!, calendar),
+        'yyyy-MM-dd'
+      );
     }
   }
-  // 5. Actual Start Date Update
-  else if (nextUpdates.startDate !== undefined && nextUpdates.endDate === undefined) {
-    const duration = nextUpdates.duration !== undefined ? nextUpdates.duration : oldTask.duration;
+  // 2. 開始日の入力 → 期間を保ったまま終了日を移動する
+  else if (hasStart && !hasEnd) {
     const startStr = nextUpdates.startDate;
     if (startStr) {
-      const newEndDate = calculateEndDate(new Date(startStr), duration, calendar);
-      nextUpdates.endDate = format(newEndDate, 'yyyy-MM-dd');
+      const duration = hasDuration ? nextUpdates.duration! : (oldTask.duration || 1);
+      nextUpdates.endDate = format(calculateEndDate(new Date(startStr), duration, calendar), 'yyyy-MM-dd');
     }
   }
-  // 6. Actual End Date Update
-  else if (nextUpdates.endDate !== undefined && nextUpdates.duration === undefined) {
-    // ここでも実績開始日が未入力なら予定開始日で補完する。
-    const startStr = nextUpdates.startDate || oldTask.startDate || oldTask.planStartDate;
+  // 3. 終了日の入力 → 開始日を固定して期間を導出する
+  else if (hasEnd && !hasDuration) {
+    const startStr = nextUpdates.startDate ?? oldTask.startDate;
     const endStr = nextUpdates.endDate;
     if (startStr && endStr) {
-      if (!nextUpdates.startDate && !oldTask.startDate) {
-        nextUpdates.startDate = startStr;
-      }
       const start = new Date(startStr);
       const end = new Date(endStr);
       if (end >= start) {
@@ -691,23 +621,14 @@ export function indentTaskInGraph(
 
   sortedIds.forEach((id) => {
     const childTask = tasks[id];
-    const hasPlanDate = childTask.planStartDate && childTask.planEndDate;
-    const hasActualDate = childTask.startDate && childTask.endDate;
+    const hasDate = childTask.startDate && childTask.endDate;
 
-    const parentHasPlanDate = newParent.planStartDate && newParent.planEndDate;
-    const parentHasActualDate = newParent.startDate && newParent.endDate;
+    const parentHasDate = newParent.startDate && newParent.endDate;
 
     const taskUpdates: Partial<Task> = { parentId: newParentId };
 
-    // If child has no plan dates, inherit from parent
-    if (!hasPlanDate && parentHasPlanDate) {
-      taskUpdates.planStartDate = newParent.planStartDate;
-      taskUpdates.planEndDate = newParent.planEndDate;
-      taskUpdates.planDuration = newParent.planDuration;
-    }
-
-    // If child has no actual dates, inherit from parent
-    if (!hasActualDate && parentHasActualDate) {
+    // 子に日程が無ければ、親の日程を引き継ぐ（開始日 / 終了日 / 期間）。
+    if (!hasDate && parentHasDate) {
       taskUpdates.startDate = newParent.startDate;
       taskUpdates.endDate = newParent.endDate;
       taskUpdates.duration = newParent.duration;

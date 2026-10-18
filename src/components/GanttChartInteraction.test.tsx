@@ -24,16 +24,16 @@ describe('GanttChart UI Interactions', () => {
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
         title: 'Plan Drag Test',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
-        planDuration: 2,
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
+        duration: 2,
       });
     });
 
     const { container } = render(<GanttChart showNames />);
 
     // Find the Plan Bar (blue bar)
-    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
+    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="schedule"]`) as HTMLDivElement;
     expect(planBar).not.toBeNull();
 
     // 2. Drag the plan bar to the right by 80px (which equals 2 days because cellWidth is 40)
@@ -48,9 +48,9 @@ describe('GanttChart UI Interactions', () => {
 
     // 3. Verify task dates are shifted by +2 days
     const updatedTask = useTaskStore.getState().tasks[rootId];
-    expect(updatedTask.planStartDate).toBe('2026-05-27');
-    expect(updatedTask.planEndDate).toBe('2026-05-28');
-    expect(updatedTask.planDuration).toBe(2);
+    expect(updatedTask.startDate).toBe('2026-05-27');
+    expect(updatedTask.endDate).toBe('2026-05-28');
+    expect(updatedTask.duration).toBe(2);
 
     vi.useRealTimers();
   });
@@ -64,15 +64,15 @@ describe('GanttChart UI Interactions', () => {
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
         title: 'Plan Resize Test',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
-        planDuration: 2,
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
+        duration: 2,
       });
     });
 
     const { container } = render(<GanttChart showNames />);
 
-    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
+    const planBar = container.querySelector(`[data-task-id="${rootId}"][data-gantt-bar="schedule"]`) as HTMLDivElement;
     expect(planBar).not.toBeNull();
 
     // Find the right resize handle (the second cursor-ew-resize element inside the bar)
@@ -85,10 +85,10 @@ describe('GanttChart UI Interactions', () => {
     fireEvent.mouseMove(window, { clientX: 240 });
     fireEvent.mouseUp(window);
 
-    // Verify task endDate is shifted by +1 day, and planDuration becomes 3 (including weekend? No, getWorkDaysCount handles weekends)
+    // Verify task endDate is shifted by +1 day, and duration becomes 3 (including weekend? No, getWorkDaysCount handles weekends)
     const updatedTask = useTaskStore.getState().tasks[rootId];
-    expect(updatedTask.planEndDate).toBe('2026-05-27');
-    expect(updatedTask.planDuration).toBe(3);
+    expect(updatedTask.endDate).toBe('2026-05-27');
+    expect(updatedTask.duration).toBe(3);
 
     vi.useRealTimers();
   });
@@ -107,19 +107,19 @@ describe('GanttChart UI Interactions', () => {
       const ids = useTaskStore.getState().rootIds;
       taskBId = ids[1];
       
-      useTaskStore.getState().updateTask(taskAId, { title: 'Task A', planStartDate: '2026-05-25', planEndDate: '2026-05-26' });
-      useTaskStore.getState().updateTask(taskBId, { title: 'Task B', planStartDate: '2026-05-27', planEndDate: '2026-05-28' });
+      useTaskStore.getState().updateTask(taskAId, { title: 'Task A', startDate: '2026-05-25', endDate: '2026-05-26' });
+      useTaskStore.getState().updateTask(taskBId, { title: 'Task B', startDate: '2026-05-27', endDate: '2026-05-28' });
     });
 
     const { container } = render(<GanttChart showNames />);
 
     // Get plan bar for A and its dependency connector
-    const planBarA = container.querySelector(`[data-task-id="${taskAId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
+    const planBarA = container.querySelector(`[data-task-id="${taskAId}"][data-gantt-bar="schedule"]`) as HTMLDivElement;
     const depConnector = planBarA.querySelector('[title="Drag to create dependency"]') as HTMLDivElement;
     expect(depConnector).not.toBeNull();
 
     // Get plan bar for B
-    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
+    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="schedule"]`) as HTMLDivElement;
     expect(planBarB).not.toBeNull();
 
     // Start dependency drag

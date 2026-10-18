@@ -4,22 +4,22 @@ import type { Task } from '../types';
  * 基準計画（baseline*）まわりの純粋関数。
  *
  * 基準計画は「承認済み計画のスナップショット」であり、通常の運用
- * （予定の編集・実績の入力・依存伝播・親ロールアップ）では変化しない。
+ * （日程の編集・進捗率の入力・依存伝播・親ロールアップ）では変化しない。
  * 変わるのは以下の明示操作のときだけ:
- *   - registerBaseline / updateBaseline … 現在の予定を基準計画として保存
+ *   - setBaseline('register' | 'update') … 現在の日程を基準計画として保存
  *   - restoreBaseline … 1 世代前の基準計画と入れ替える
  *   - clearBaseline … 削除
  */
 
-/** 現在の予定（plan*）を基準計画（baseline*）へコピーする。予定が無いタスクは null にする。 */
-export function snapshotPlanToBaseline(tasks: Record<string, Task>): Record<string, Task> {
+/** 現在の日程（startDate / endDate / duration）を基準計画（baseline*）へコピーする。 */
+export function snapshotScheduleToBaseline(tasks: Record<string, Task>): Record<string, Task> {
   const next: Record<string, Task> = {};
   Object.values(tasks).forEach((task) => {
     next[task.id] = {
       ...task,
-      baselineStartDate: task.planStartDate ?? null,
-      baselineEndDate: task.planEndDate ?? null,
-      baselineDuration: task.planDuration ?? null,
+      baselineStartDate: task.startDate ?? null,
+      baselineEndDate: task.endDate ?? null,
+      baselineDuration: task.duration ?? null,
     };
   });
   return next;

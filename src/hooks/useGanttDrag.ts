@@ -119,9 +119,9 @@ export const useGanttDrag = (
 
         const newDuration = getWorkDaysCount(start, end, calendar);
         state.endDragUpdate(taskId, {
-          planStartDate: format(start, 'yyyy-MM-dd'),
-          planEndDate: format(end, 'yyyy-MM-dd'),
-          planDuration: newDuration,
+          startDate: format(start, 'yyyy-MM-dd'),
+          endDate: format(end, 'yyyy-MM-dd'),
+          duration: newDuration,
         });
       } else {
         const {
@@ -137,9 +137,9 @@ export const useGanttDrag = (
         ) {
           const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
           state.endDragUpdate(taskId, {
-            planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-            planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-            planDuration: newDuration,
+            startDate: format(currentStartDate, 'yyyy-MM-dd'),
+            endDate: format(currentEndDate, 'yyyy-MM-dd'),
+            duration: newDuration,
           });
         } else {
           state.setDragState(null);

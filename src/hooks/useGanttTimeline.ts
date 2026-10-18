@@ -47,7 +47,7 @@ function getTaskDateRange(items: FlattenedItem[]): { minDate: Date | null; maxDa
   let maxDate: Date | null = null;
   for (const item of items) {
     const task = item.task;
-    const dates = [task.startDate, task.endDate, task.planStartDate, task.planEndDate];
+    const dates = [task.startDate, task.endDate];
     for (const d of dates) {
       if (!d) continue;
       const date = new Date(d);

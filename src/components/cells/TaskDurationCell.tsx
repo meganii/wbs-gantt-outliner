@@ -160,7 +160,7 @@ export const TaskDurationCell = memo(({
             ? "text-gray-400 cursor-not-allowed select-none font-semibold"
             : "focus:border-gray-300 focus:text-gray-900"
         )}
-        title={isParent ? "期間は子タスクから自動計算されます" : "実績期間（日）"}
+        title={isParent ? "期間は子タスクから自動計算されます" : "期間（稼働日数）"}
       />
     </div>
   );

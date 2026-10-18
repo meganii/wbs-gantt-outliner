@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
-import { COLUMN_LABEL, CENTERED_COLUMNS, PLAN_COLUMNS, ACTUAL_COLUMNS } from '../utils/columns';
+import { COLUMN_LABEL, CENTERED_COLUMNS } from '../utils/columns';
 import type { ColumnId } from '../types';
 
 interface TaskTableHeaderProps {
@@ -87,8 +87,6 @@ export const TaskTableHeader = ({
     >
       {visibleColumns.map((colId) => {
         const isCentered = CENTERED_COLUMNS.includes(colId);
-        const isPlan = PLAN_COLUMNS.includes(colId);
-        const isActual = ACTUAL_COLUMNS.includes(colId);
 
         return (
           <div
@@ -97,8 +95,6 @@ export const TaskTableHeader = ({
               'h-full flex items-center flex-shrink-0 relative group whitespace-nowrap',
               colId === 'taskName' ? 'flex-1 pl-4 pr-2' : 'px-2 border-l border-line',
               isCentered ? 'justify-center' : '',
-              isPlan ? 'text-brand-700 bg-brand-50/40' : '',
-              isActual ? 'text-amber-700 bg-amber-50/40' : '',
             ].join(' ')}
             style={{
               width: columnWidths[colId],

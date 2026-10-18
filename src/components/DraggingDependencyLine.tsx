@@ -30,7 +30,7 @@ export const DraggingDependencyLine = ({
     return null;
   }
 
-  const endDateStr = task.planEndDate || task.endDate;
+  const endDateStr = task.endDate;
   if (!endDateStr) {
     return null;
   }

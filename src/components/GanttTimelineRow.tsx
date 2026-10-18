@@ -20,17 +20,17 @@ export interface GanttTimelineRowProps {
   isHovered?: boolean;
 }
 
-/** バーの日付（予定。無ければ実績で補完）。 */
+/** バーの日付（現在の日程 = 開始日 / 終了日）。 */
 function resolveBarDates(task: Task): { start: string | null; end: string | null } {
   return {
-    start: task.planStartDate ?? task.startDate ?? null,
-    end: task.planEndDate ?? task.endDate ?? null,
+    start: task.startDate ?? null,
+    end: task.endDate ?? null,
   };
 }
 
 /**
- * ガントの 1 行。操作対象のバーは 1 本だけ（予定バー）とし、
- * 進捗を塗りで表現する。基準計画は予定バーの下に薄いグレーバー
+ * ガントの 1 行。操作対象のバーは 1 本だけ（現在の日程）とし、
+ * 進捗を塗りで表現する。基準計画は現在のバーの下に薄いグレーバー
  * （非操作・`pointer-events: none`）として重ねる。
  */
 export const GanttTimelineRow = memo(({
@@ -167,7 +167,7 @@ export const GanttTimelineRow = memo(({
 
         return (
           <>
-            {/* 基準計画バー（予定バーの下に数 px ずらした薄いグレー） */}
+            {/* 基準計画バー（現在のバーの下に数 px ずらした薄いグレー） */}
             {hasBaseline && baselineWidth > 0 && (
               <div
                 aria-hidden="true"
@@ -180,7 +180,7 @@ export const GanttTimelineRow = memo(({
               />
             )}
 
-            {/* 予定バー（唯一の操作対象。進捗を左端から塗る） */}
+            {/* 現在の日程バー（唯一の操作対象。進捗を左端から塗る） */}
             {barWidth > 0 && (
               <div
                 ref={(el) => {
@@ -191,7 +191,7 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
-                data-gantt-bar="plan"
+                data-gantt-bar="schedule"
                 className={clsx(
                   "absolute flex items-center shadow-sm group z-20 transition-[background-color,color,box-shadow] duration-150",
                   isParent
@@ -210,7 +210,14 @@ export const GanttTimelineRow = memo(({
                       ]
                 )}
                 style={{ left: barOffset, width: Math.max(0, barWidth - 2) }}
-                title={`予定: ${task.title} (${format(barStart!, 'yyyy-MM-dd')} - ${format(barEnd!, 'yyyy-MM-dd')})${isParent ? '' : ` / 進捗 ${progress}%${isCompleted ? '（完了）' : ''}`}`}
+                title={[
+                  task.title,
+                  `開始日: ${format(barStart!, 'yyyy-MM-dd')}`,
+                  `終了日: ${format(barEnd!, 'yyyy-MM-dd')}`,
+                  `期間: ${task.duration ?? ''}日`,
+                  `進捗 ${progress}%${isCompleted ? '（完了）' : ''}`,
+                  hasBaseline ? `基準: ${task.baselineStartDate} - ${task.baselineEndDate}` : '',
+                ].filter(Boolean).join(' / ')}
                 onMouseDown={(e) => {
                   // バー上のクリック/ドラッグを行の draw-range に伝播させない。
                   e.stopPropagation();

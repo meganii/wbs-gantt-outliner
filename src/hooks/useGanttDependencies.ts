@@ -30,7 +30,7 @@ interface GeometryContext {
 }
 
 /**
- * タスクの描画用日付を返す。バー（＝予定）の日付を基準にし、予定が無ければ実績を使う。
+ * タスクの描画用日付を返す（現在の日程 = 開始日 / 終了日）。
  * ドラッグ中のタスクは overrides の日付で上書きされる。
  */
 function resolveTaskDates(
@@ -42,8 +42,8 @@ function resolveTaskDates(
   if (override) return override;
 
   return {
-    start: task.planStartDate ? new Date(task.planStartDate) : task.startDate ? new Date(task.startDate) : null,
-    end: task.planEndDate ? new Date(task.planEndDate) : task.endDate ? new Date(task.endDate) : null,
+    start: task.startDate ? new Date(task.startDate) : null,
+    end: task.endDate ? new Date(task.endDate) : null,
   };
 }
 

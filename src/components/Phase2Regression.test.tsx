@@ -32,9 +32,6 @@ const seedTask = () => {
   act(() => {
     useTaskStore.getState().updateTask(id, {
       title: 'Seed',
-      planStartDate: '2026-05-20',
-      planEndDate: '2026-05-22',
-      planDuration: 3,
       startDate: '2026-05-20',
       endDate: '2026-05-22',
       duration: 3,

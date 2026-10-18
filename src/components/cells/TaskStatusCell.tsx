@@ -1,8 +1,9 @@
-import React, { memo, useState, useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import { useTaskStore } from '../../store/useTaskStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { cellPropsEqual } from './cellPropsEqual';
 import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
+import { deriveStatus } from '../../store/taskStoreUtils';
 import clsx from 'clsx';
 import type { ProjectConfig, Task } from '../../types';
 
@@ -17,6 +18,10 @@ interface TaskStatusCellProps {
   onSelectionChange?: (id: string, multi: boolean, range: boolean) => void;
 }
 
+/**
+ * ステータス列。2 層モデルではステータスは進捗率から導出される（規則 7）ため、
+ * このセルは表示のみで入力は受け付けない（進捗率セルで変更する）。
+ */
 export const TaskStatusCell = memo(({
   taskId,
   task,
@@ -25,12 +30,10 @@ export const TaskStatusCell = memo(({
   nextId,
   onSelectionChange,
 }: TaskStatusCellProps) => {
-  const status = task.status || '';
+  const status = task.status || deriveStatus(task.progress || 0);
   const isParent = task.children.length > 0;
 
-  // Local state
-  const [localStatus, setLocalStatus] = useState(status);
-  const selectRef = useRef<HTMLSelectElement>(null);
+  const cellRef = useRef<HTMLDivElement>(null);
 
   // フォーカス状態だけを boolean で購読する（行/選択の変更で全行を再描画させない）
   const isFocused = useTaskStore(
@@ -40,43 +43,27 @@ export const TaskStatusCell = memo(({
   // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
   const isActiveColumn = useIsActiveColumn(taskId, 'status');
 
-  // Sync with store (effect 内での setState を避け、レンダー中に state を調整する)
-  const [syncedStatus, setSyncedStatus] = useState(status);
-  if (syncedStatus !== status) {
-    setSyncedStatus(status);
-    setLocalStatus(status);
-  }
-
   // Focus synchronization
   useEffect(() => {
-    if (isFocused && selectRef.current && selectRef.current !== document.activeElement) {
-      selectRef.current.focus();
+    if (isFocused && cellRef.current && cellRef.current !== document.activeElement) {
+      cellRef.current.focus();
     }
   }, [isFocused]);
-
-  const commitValue = (value: string) => {
-    if (status !== value) {
-      useTaskStore.getState().updateTask(taskId, { status: value });
-    }
-  };
 
   const { handleArrowNavigation } = useTaskCellKeyboard({
     taskId,
     field: 'status',
     prevId,
     nextId,
-    commitFieldLocalState: () => {}, // select box saves directly onChange, no blur commit needed
+    commitFieldLocalState: () => {},
     onSelectionChange,
   });
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLSelectElement>) => {
-    if (handleArrowNavigation(e, false)) {
-      return;
-    }
-
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.stopPropagation();
     }
+    handleArrowNavigation(e, false);
   };
 
   const width = columnWidths.status;
@@ -89,35 +76,26 @@ export const TaskStatusCell = memo(({
       )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
-      <select
-        ref={selectRef}
-        value={localStatus}
-        disabled={isParent}
-        onChange={(e) => {
-          const val = e.target.value;
-          setLocalStatus(val);
-          commitValue(val);
-        }}
-        onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'status')}
+      <div
+        ref={cellRef}
+        tabIndex={0}
         data-task-id={taskId}
         data-field="status"
-        style={{ backgroundColor: 'transparent' }}
-        className={clsx(
-          "w-full bg-transparent border border-gray-200 rounded px-1 py-0.5 text-[10px] font-medium focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-all",
-          isParent ? "text-gray-400 cursor-not-allowed select-none font-semibold border-transparent" : "text-gray-700 cursor-pointer",
-          localStatus === '完了' && "bg-green-50 text-green-700 border-green-200",
-          localStatus === '進行中' && "bg-blue-50 text-blue-700 border-blue-200",
-          localStatus === '未着手' && "bg-gray-50 text-gray-700 border-gray-200",
-          localStatus === '保留' && "bg-yellow-50 text-yellow-700 border-yellow-200"
-        )}
+        title="ステータスは進捗率から自動計算されます"
+        onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'status')}
         onKeyDown={handleKeyDown}
+        className={clsx(
+          'w-full rounded border px-1 py-0.5 text-center text-[10px] font-medium outline-none transition-all focus:ring-1 focus:ring-blue-400',
+          isParent
+            ? 'cursor-not-allowed border-transparent font-semibold text-gray-400 select-none'
+            : 'cursor-default',
+          status === '完了' && 'border-green-200 bg-green-50 text-green-700',
+          status === '進行中' && 'border-blue-200 bg-blue-50 text-blue-700',
+          (status === '未着手' || !status) && 'border-gray-200 bg-gray-50 text-gray-700'
+        )}
       >
-        <option value="">-</option>
-        <option value="未着手">未着手</option>
-        <option value="進行中">進行中</option>
-        <option value="完了">完了</option>
-        <option value="保留">保留</option>
-      </select>
+        {status || '-'}
+      </div>
     </div>
   );
 }, cellPropsEqual);

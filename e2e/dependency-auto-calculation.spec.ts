@@ -46,23 +46,23 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
     // Plan Start Dates
-    const planStartDateInputs = page.locator('input[data-field="planStartDate"]');
-    const planEndDateInputs = page.locator('input[data-field="planEndDate"]');
+    const startDateInputs = page.locator('input[data-field="startDate"]');
+    const endDateInputs = page.locator('input[data-field="endDate"]');
 
     // Fill Task A (2026-06-01 to 2026-06-02 - duration 2)
-    await planStartDateInputs.nth(1).fill('2026-06-01');
-    await planEndDateInputs.nth(1).fill('2026-06-02');
-    await planEndDateInputs.nth(1).press('Enter');
+    await startDateInputs.nth(1).fill('2026-06-01');
+    await endDateInputs.nth(1).fill('2026-06-02');
+    await endDateInputs.nth(1).press('Enter');
 
     // Fill Task B (2026-06-03 to 2026-06-04 - duration 2)
-    await planStartDateInputs.nth(2).fill('2026-06-03');
-    await planEndDateInputs.nth(2).fill('2026-06-04');
-    await planEndDateInputs.nth(2).press('Enter');
+    await startDateInputs.nth(2).fill('2026-06-03');
+    await endDateInputs.nth(2).fill('2026-06-04');
+    await endDateInputs.nth(2).press('Enter');
 
     // Fill Task C (2026-06-05 to 2026-06-08 - duration 2, because 06 and 07 are weekend)
-    await planStartDateInputs.nth(3).fill('2026-06-05');
-    await planEndDateInputs.nth(3).fill('2026-06-08');
-    await planEndDateInputs.nth(3).press('Enter');
+    await startDateInputs.nth(3).fill('2026-06-05');
+    await endDateInputs.nth(3).fill('2026-06-08');
+    await endDateInputs.nth(3).press('Enter');
 
     // Let the state settle
     await page.waitForTimeout(200);
@@ -73,9 +73,9 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     await page.waitForTimeout(200);
 
     // Locate the dependency handle of Task A plan bar, drag to Task B's plan bar
-    const barA = page.locator(`[data-task-id="${taskIdA}"][data-gantt-bar="plan"]`);
+    const barA = page.locator(`[data-task-id="${taskIdA}"][data-gantt-bar="schedule"]`);
     const connectorA = page.locator(`[data-task-id="${taskIdA}"] [title="Drag to create dependency"]`);
-    const barB = page.locator(`[data-task-id="${taskIdB}"][data-gantt-bar="plan"]`);
+    const barB = page.locator(`[data-task-id="${taskIdB}"][data-gantt-bar="schedule"]`);
 
     await expect(barA).toBeVisible();
     await expect(connectorA).toBeVisible();
@@ -102,7 +102,7 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
 
     // 5. Create dependency Task B -> Task C
     const connectorB = page.locator(`[data-task-id="${taskIdB}"] [title="Drag to create dependency"]`);
-    const barC = page.locator(`[data-task-id="${taskIdC}"][data-gantt-bar="plan"]`);
+    const barC = page.locator(`[data-task-id="${taskIdC}"][data-gantt-bar="schedule"]`);
     await expect(connectorB).toBeVisible();
     await expect(barC).toBeVisible();
 
@@ -132,23 +132,23 @@ test.describe('Task Dependency Chain & Auto-calculation E2E Tests', () => {
     // 日付入力は WBS に戻って行う
     await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
-    await planStartDateInputs.nth(1).click();
+    await startDateInputs.nth(1).click();
     await page.waitForTimeout(100);
-    await planStartDateInputs.nth(1).fill('2026-06-10');
-    await planStartDateInputs.nth(1).press('Enter');
+    await startDateInputs.nth(1).fill('2026-06-10');
+    await startDateInputs.nth(1).press('Enter');
 
     // Let the automatic recalculation cascade propagate through the chain
     await page.waitForTimeout(500);
 
     // 7. Verify Task B and C shifted automatically!
-    await expect(planStartDateInputs.nth(1)).toHaveValue('06/10');
-    await expect(planEndDateInputs.nth(1)).toHaveValue('06/11');
+    await expect(startDateInputs.nth(1)).toHaveValue('06/10');
+    await expect(endDateInputs.nth(1)).toHaveValue('06/11');
 
-    await expect(planStartDateInputs.nth(2)).toHaveValue('06/12');
-    await expect(planEndDateInputs.nth(2)).toHaveValue('06/15');
+    await expect(startDateInputs.nth(2)).toHaveValue('06/12');
+    await expect(endDateInputs.nth(2)).toHaveValue('06/15');
 
-    await expect(planStartDateInputs.nth(3)).toHaveValue('06/16');
-    await expect(planEndDateInputs.nth(3)).toHaveValue('06/17');
+    await expect(startDateInputs.nth(3)).toHaveValue('06/16');
+    await expect(endDateInputs.nth(3)).toHaveValue('06/17');
 
     console.log('Dependency chain auto-calculation E2E test passed perfectly!');
   });

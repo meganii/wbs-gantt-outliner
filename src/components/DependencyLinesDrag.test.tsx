@@ -24,15 +24,15 @@ describe('Dependency line layers during drag', () => {
 
       useTaskStore.getState().updateTask(taskAId, {
         title: 'Task A',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-25',
-        planDuration: 1,
+        startDate: '2026-05-25',
+        endDate: '2026-05-25',
+        duration: 1,
       });
       useTaskStore.getState().updateTask(taskBId, {
         title: 'Task B',
-        planStartDate: '2026-05-27',
-        planEndDate: '2026-05-28',
-        planDuration: 2,
+        startDate: '2026-05-27',
+        endDate: '2026-05-28',
+        duration: 2,
       });
       // B depends on A
       useTaskStore.getState().addDependency(taskAId, taskBId);
@@ -64,7 +64,7 @@ describe('Dependency line layers during drag', () => {
     const dInitial = initialLines[0].getAttribute('d');
     expect(dInitial).toBeTruthy();
 
-    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="plan"]`) as HTMLDivElement;
+    const planBarB = container.querySelector(`[data-task-id="${taskBId}"][data-gantt-bar="schedule"]`) as HTMLDivElement;
     expect(planBarB).not.toBeNull();
 
     // 2. B のバーを +2 日（cellWidth=40px 換算で 80px）ドラッグする（mouseUp しない）

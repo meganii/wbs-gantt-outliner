@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * 予定（見込み）／実績（事実）／基準計画（登録した当初計画）の 3 層モデルの E2E。
+ * 予定・実績モデル（2 層: 基準計画 + 現在の日程 + 進捗率）の E2E。
  *
- * - 予定と実績は双方向同期しない（それぞれ独立に編集できる）
+ * - 日付は 1 系統（開始日 / 終了日）で、進捗率は日付を書き換えない（規則 2）
  * - 基準計画は「基準計画として登録」でスナップショットを取り、通常の日程変更では動かない
  * - 「基準計画を更新」で再登録すると旧基準が 1 世代退避され、「元に戻す」で復帰できる
  */
 test.describe('基準計画（ベースライン）', () => {
-  test('予定と実績は独立し、基準計画は登録後に不変で、更新後は元に戻せる', async ({ page }) => {
+  test('日程を編集しても基準計画は不変で、更新後は元に戻せる', async ({ page }) => {
     await page.goto('/');
 
     // タスクを追加
@@ -23,31 +23,26 @@ test.describe('基準計画（ベースライン）', () => {
     await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
 
-    const planStart = page.locator('input[data-field="planStartDate"]').nth(1);
-    const planEnd = page.locator('input[data-field="planEndDate"]').nth(1);
-    const actualStart = page.locator('input[data-field="startDate"]').nth(1);
-    const actualEnd = page.locator('input[data-field="endDate"]').nth(1);
+    const startInput = page.locator('input[data-field="startDate"]').nth(1);
+    const endInput = page.locator('input[data-field="endDate"]').nth(1);
 
-    // 1. 予定を入力しても実績は空のまま（同期しない）
-    await planStart.fill('2026-06-01');
-    await planEnd.fill('2026-06-02');
-    await planEnd.press('Enter');
+    // 1. 開始日 / 終了日を入力する
+    await startInput.fill('2026-06-01');
+    await endInput.fill('2026-06-02');
+    await endInput.press('Enter');
     await page.waitForTimeout(200);
 
-    await expect(planStart).toHaveValue('06/01');
-    await expect(planEnd).toHaveValue('06/02');
-    await expect(actualStart).toHaveValue('');
-    await expect(actualEnd).toHaveValue('');
+    await expect(startInput).toHaveValue('06/01');
+    await expect(endInput).toHaveValue('06/02');
 
-    // 2. 実績開始日を入力しても予定は書き換わらない（独立）
-    await actualStart.click();
-    await actualStart.fill('2026-06-05');
-    await actualStart.press('Enter');
+    // 2. 進捗率を入力しても日付は書き換わらない（規則 2）
+    const progressInput = page.locator('input[data-field="progress"]').nth(1);
+    await progressInput.click();
+    await progressInput.fill('50');
+    await progressInput.press('Enter');
     await page.waitForTimeout(200);
-
-    await expect(actualStart).toHaveValue('06/05');
-    await expect(planStart).toHaveValue('06/01');
-    await expect(planEnd).toHaveValue('06/02');
+    await expect(startInput).toHaveValue('06/01');
+    await expect(endInput).toHaveValue('06/02');
 
     // 3. 基準計画として登録
     const baselineButton = page.getByRole('button', { name: '基準計画', exact: true });
@@ -62,12 +57,12 @@ test.describe('基準計画（ベースライン）', () => {
     await expect(ghost).toHaveCount(1);
     await expect(ghost).toHaveAttribute('title', /2026-06-01 - 2026-06-02/);
 
-    // 5. 予定を変更しても基準計画は不変
+    // 5. 日程を変更しても基準計画は不変
     await page.getByRole('button', { name: 'WBS', exact: true }).click();
     await page.waitForTimeout(200);
-    await planStart.click();
-    await planStart.fill('2026-06-15');
-    await planStart.press('Enter');
+    await startInput.click();
+    await startInput.fill('2026-06-15');
+    await startInput.press('Enter');
     await page.waitForTimeout(200);
 
     await page.getByRole('button', { name: 'ガントチャート', exact: true }).click();

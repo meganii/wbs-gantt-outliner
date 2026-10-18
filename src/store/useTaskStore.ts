@@ -21,7 +21,7 @@ import {
   backupBaseline,
   clearBaselineFields,
   hasPreviousBaseline,
-  snapshotPlanToBaseline,
+  snapshotScheduleToBaseline,
   swapBaselineWithPrevious,
 } from '../utils/baseline';
 
@@ -43,17 +43,14 @@ const initialTask: Task = {
   id: initialTaskId,
   parentId: null,
   title: 'Project Root',
-  startDate: null,
-  endDate: null,
+  startDate: format(new Date(), 'yyyy-MM-dd'),
+  endDate: format(new Date(), 'yyyy-MM-dd'),
   duration: 1,
   progress: 0,
-  status: '',
+  status: '未着手',
   isCollapsed: false,
   children: [],
   dependencies: [],
-  planStartDate: format(new Date(), 'yyyy-MM-dd'),
-  planEndDate: format(new Date(), 'yyyy-MM-dd'),
-  planDuration: 1,
 };
 
 /** 階層の最大深さ（0 始まり。level 4 まで）。addTask の depth 判定と揃える。 */
@@ -69,22 +66,20 @@ function createBlankTask(id: string, title = ''): Task {
     endDate: null,
     duration: 1,
     progress: 0,
-    status: '',
+    status: '未着手',
     isCollapsed: false,
     children: [],
     dependencies: [],
-    planStartDate: null,
-    planEndDate: null,
-    planDuration: 1,
   };
 }
 
 /**
  * 1 タスクの更新を適用した次の `tasks` を返す。
  *
- * 予定（plan*）と実績（startDate/endDate）は独立して扱い、双方向にコピーしない。
- * 依存伝播は「予定が動いたとき」だけ行い、親ロールアップは予定・実績・進捗の
- * いずれかが動いたときに行う。
+ * 日程（startDate / endDate / duration）は 1 系統だけを持つ。進捗率の変更は日付を
+ * 書き換えず（規則 2）、ステータスだけを進捗率から導出する（規則 7）。
+ * 依存伝播は日程が動いたときだけ行い、親ロールアップは日程・進捗の
+ * いずれかが動いたときに行う（規則 6）。
  */
 function applyTaskUpdate(
   state: Pick<TaskStoreState, 'tasks' | 'projectConfig'>,
@@ -103,23 +98,19 @@ function applyTaskUpdate(
     [id]: { ...oldTask, ...finalUpdates },
   };
 
-  const planTouched =
-    finalUpdates.planStartDate !== undefined ||
-    finalUpdates.planEndDate !== undefined ||
-    finalUpdates.planDuration !== undefined;
-  const actualTouched =
+  const dateTouched =
     finalUpdates.startDate !== undefined ||
     finalUpdates.endDate !== undefined ||
     finalUpdates.duration !== undefined;
   const progressTouched =
     finalUpdates.progress !== undefined || finalUpdates.status !== undefined;
 
-  // 依存伝播は予定の変化のみ（実績入力では後続の予定を動かさない）。
-  if (planTouched) {
+  // 依存伝播は日程の変化のみ（進捗率の入力では後続の日程を動かさない）。
+  if (dateTouched) {
     tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar);
   }
 
-  if ((planTouched || actualTouched || progressTouched) && oldTask.parentId) {
+  if ((dateTouched || progressTouched) && oldTask.parentId) {
     tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar);
   }
 
@@ -591,7 +582,7 @@ const taskStore = create<TaskStoreState>()(
       setBaseline: (mode) => set((state) => {
         const baseTasks = mode === 'update' ? backupBaseline(state.tasks) : state.tasks;
         return {
-          tasks: snapshotPlanToBaseline(baseTasks),
+          tasks: snapshotScheduleToBaseline(baseTasks),
           projectConfig: {
             ...state.projectConfig,
             baselineSetAt: new Date().toISOString(),

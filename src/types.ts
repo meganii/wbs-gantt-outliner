@@ -5,25 +5,27 @@ export interface Task {
   description?: string;
   assignee?: string;
   deliverables?: string;
-  /** 実績開始日 ISO 8601 YYYY-MM-DD（未着工は null） */
+  /**
+   * 現在の日程（開始）。ISO 8601 YYYY-MM-DD。
+   * 進捗率 0% は「予定（見込み）」、1% 以上は「実績」として読む（役割は進捗率が決める）。
+   */
   startDate: string | null;
-  /** 実績終了日 ISO 8601 YYYY-MM-DD（完了までは null） */
+  /**
+   * 現在の日程（終了）。ISO 8601 YYYY-MM-DD。
+   * 進捗率 100% は「実績」、1〜99% は「予定（見込み）」として読む。
+   */
   endDate: string | null;
-  /** 実績期間（Workdays）。実績開始日〜（実績終了日 or 進捗基準日）。 */
+  /**
+   * 期間（稼働日数）。開始日〜終了日から導出される値で、独立した入力は持たない
+   * （期間セルからの入力は終了日を動かすだけで、保存値は常に稼働日数）。
+   */
   duration: number;
   progress: number;  // 0-100
+  /** ステータス。進捗率から導出される表示用の値（手入力しない）。 */
   status?: string;
   isCollapsed: boolean;
   children: string[]; // Ordered list of child IDs
   dependencies: string[]; // Array of Task IDs
-  /** 予定開始日（現在の見込み）。編集可・依存伝播の対象。 ISO 8601 YYYY-MM-DD */
-  planStartDate?: string | null;
-  /** 予定終了日（現在の見込み）。 */
-  planEndDate?: string | null;
-  /** 予定期間（Workdays）。 */
-  planDuration?: number;
-  /** 残り期間（Workdays）。実績期間 + 残り期間 = 予定期間。 */
-  remainingDuration?: number;
   /** 基準計画（登録時のスナップショット）。通常運用では不変。 */
   baselineStartDate?: string | null;
   baselineEndDate?: string | null;
@@ -44,8 +46,6 @@ export type ColumnId =
   | 'deliverables'
   | 'status'
   | 'progress'
-  | 'planDuration'
-  | 'planDate'
   | 'duration'
   | 'date';
 
@@ -64,8 +64,6 @@ export interface ProjectConfig {
     deliverables: number;
     status: number;
     progress: number;
-    planDuration: number;
-    planDate: number;
     duration: number;
     date: number;
   };
@@ -90,9 +88,6 @@ export type TaskFocusableField =
   | 'deliverables'
   | 'status'
   | 'progress'
-  | 'planDuration'
-  | 'planStartDate'
-  | 'planEndDate'
   | 'duration'
   | 'startDate'
   | 'endDate';

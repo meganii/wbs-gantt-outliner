@@ -19,9 +19,6 @@
         "t13"
       ],
       "dependencies": [],
-      "planStartDate": "2026-10-05",
-      "planEndDate": "2026-10-20",
-      "planDuration": 12,
       "baselineStartDate": "2026-10-05",
       "baselineEndDate": "2026-10-20",
       "baselineDuration": 12
@@ -41,9 +38,6 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-05",
-      "planEndDate": "2026-10-09",
-      "planDuration": 5,
       "baselineStartDate": "2026-10-05",
       "baselineEndDate": "2026-10-09",
       "baselineDuration": 5
@@ -63,9 +57,6 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-12",
-      "planEndDate": "2026-10-16",
-      "planDuration": 5,
       "baselineStartDate": "2026-10-12",
       "baselineEndDate": "2026-10-16",
       "baselineDuration": 5
@@ -87,9 +78,6 @@
       "dependencies": [
         "t12"
       ],
-      "planStartDate": "2026-10-19",
-      "planEndDate": "2026-10-20",
-      "planDuration": 2,
       "baselineStartDate": "2026-10-19",
       "baselineEndDate": "2026-10-20",
       "baselineDuration": 2
@@ -102,8 +90,8 @@
       "assignee": "鈴木",
       "deliverables": "",
       "startDate": "2026-10-21",
-      "endDate": "2026-10-27",
-      "duration": 5,
+      "endDate": "2026-11-10",
+      "duration": 15,
       "progress": 60,
       "status": "進行中",
       "isCollapsed": false,
@@ -113,9 +101,6 @@
         "t23"
       ],
       "dependencies": [],
-      "planStartDate": "2026-10-21",
-      "planEndDate": "2026-11-10",
-      "planDuration": 15,
       "baselineStartDate": "2026-10-16",
       "baselineEndDate": "2026-11-05",
       "baselineDuration": 15
@@ -135,9 +120,6 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-21",
-      "planEndDate": "2026-10-27",
-      "planDuration": 5,
       "baselineStartDate": "2026-10-16",
       "baselineEndDate": "2026-10-22",
       "baselineDuration": 5
@@ -150,8 +132,8 @@
       "assignee": "田中",
       "deliverables": "",
       "startDate": "2026-10-28",
-      "endDate": null,
-      "duration": 2,
+      "endDate": "2026-11-04",
+      "duration": 6,
       "progress": 40,
       "status": "進行中",
       "isCollapsed": false,
@@ -159,9 +141,6 @@
       "dependencies": [
         "t21"
       ],
-      "planStartDate": "2026-10-28",
-      "planEndDate": "2026-11-04",
-      "planDuration": 6,
       "baselineStartDate": "2026-10-23",
       "baselineEndDate": "2026-10-30",
       "baselineDuration": 6
@@ -173,9 +152,9 @@
       "description": "",
       "assignee": "鈴木",
       "deliverables": "",
-      "startDate": null,
-      "endDate": null,
-      "duration": 0,
+      "startDate": "2026-11-05",
+      "endDate": "2026-11-10",
+      "duration": 4,
       "progress": 0,
       "status": "未着手",
       "isCollapsed": false,
@@ -183,9 +162,6 @@
       "dependencies": [
         "t22"
       ],
-      "planStartDate": "2026-11-05",
-      "planEndDate": "2026-11-10",
-      "planDuration": 4,
       "baselineStartDate": "2026-11-02",
       "baselineEndDate": "2026-11-05",
       "baselineDuration": 4
@@ -198,10 +174,10 @@
       "assignee": "",
       "deliverables": "",
       "startDate": "2026-11-11",
-      "endDate": null,
-      "duration": 0,
+      "endDate": "2026-12-15",
+      "duration": 24,
       "progress": 10,
-      "status": "未着手",
+      "status": "進行中",
       "isCollapsed": false,
       "children": [
         "t31",
@@ -210,9 +186,6 @@
         "t34"
       ],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-12-15",
-      "planDuration": 24,
       "baselineStartDate": "2026-11-11",
       "baselineEndDate": "2026-12-15",
       "baselineDuration": 24
@@ -225,16 +198,13 @@
       "assignee": "田中",
       "deliverables": "フロント実装",
       "startDate": "2026-11-11",
-      "endDate": null,
-      "duration": 4,
+      "endDate": "2026-11-27",
+      "duration": 12,
       "progress": 30,
       "status": "進行中",
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-11-27",
-      "planDuration": 13,
       "baselineStartDate": "2026-11-11",
       "baselineEndDate": "2026-11-27",
       "baselineDuration": 12
@@ -246,17 +216,14 @@
       "description": "",
       "assignee": "山田",
       "deliverables": "",
-      "startDate": null,
-      "endDate": null,
-      "duration": 0,
+      "startDate": "2026-11-11",
+      "endDate": "2026-12-02",
+      "duration": 15,
       "progress": 0,
       "status": "未着手",
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-12-02",
-      "planDuration": 16,
       "baselineStartDate": "2026-11-11",
       "baselineEndDate": "2026-12-02",
       "baselineDuration": 15
@@ -268,9 +235,9 @@
       "description": "",
       "assignee": "鈴木",
       "deliverables": "",
-      "startDate": null,
-      "endDate": null,
-      "duration": 0,
+      "startDate": "2026-12-03",
+      "endDate": "2026-12-11",
+      "duration": 7,
       "progress": 0,
       "status": "未着手",
       "isCollapsed": false,
@@ -279,9 +246,6 @@
         "t31",
         "t32"
       ],
-      "planStartDate": "2026-12-03",
-      "planEndDate": "2026-12-11",
-      "planDuration": 7,
       "baselineStartDate": "2026-12-03",
       "baselineEndDate": "2026-12-11",
       "baselineDuration": 7
@@ -293,9 +257,9 @@
       "description": "",
       "assignee": "佐藤",
       "deliverables": "",
-      "startDate": null,
-      "endDate": null,
-      "duration": 0,
+      "startDate": "2026-12-14",
+      "endDate": "2026-12-15",
+      "duration": 2,
       "progress": 0,
       "status": "未着手",
       "isCollapsed": false,
@@ -303,9 +267,6 @@
       "dependencies": [
         "t33"
       ],
-      "planStartDate": "2026-12-14",
-      "planEndDate": "2026-12-15",
-      "planDuration": 2,
       "baselineStartDate": "2026-12-14",
       "baselineEndDate": "2026-12-15",
       "baselineDuration": 2
@@ -333,5 +294,5 @@
     "showBaseline": true,
     "baselineSetAt": "2026-10-05T09:00:00.000Z"
   },
-  "schemaVersion": 2
+  "schemaVersion": 3
 }
