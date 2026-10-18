@@ -4,13 +4,20 @@
 
 ## 現在の状態
 
-- **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026, 未コミット):
+- **予定・実績モデルを 3 層 → 2 層へ見直す方針を決定（実装は別ブランチ）** (October 18, 2026):
+  - 経緯: 「実績をガントに出さないのに裏で持つ意味は?」「基準・予定・実績と 3 観点で見るべきか」というレビューから、Phase 1 の 3 層実装では**実績が入力しても何も起きない（消費者がいない）**ことと、**進捗率と実績日付が二重管理**になっていることを確認した。層の数はアプリが答える問いの数で決まる、という結論。
+  - 決定: 3 層にしない。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率**の 2 層に一本化。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。MS Project の `Start` / `Finish`（Scheduled）の挙動と同じで、一次情報で裏付け済み。
+  - 用語: 日付の列名は「予定日付 / 実績日付」をやめて「**開始日 / 終了日**」（英名 Start / Finish）。基準側は「基準開始日 / 基準終了日」とし、「基準日」単独は使わない（MS Project の Status Date / P6 の Data Date と衝突するため）。
+  - **議論・2 層案・用語対比・未決規則・復帰点は `docs/PLAN_ACTUAL_DISCUSSION.md` に保存した。** `docs/PLAN_ACTUAL_MODEL.md` は 3 層の記録として残し、冒頭に不採用の注記を入れた。
+  - **3 層 Phase 1 の実装は復帰点として `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`）に保存済み。未 push。** 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（完了 = 進捗率 100 は変わらない）ので cherry-pick できる。
+  - 実装は**別ブランチ `feature/plan-actual-2layer`** で行う（3 層の復帰点を汚さないため）。着手前に `docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 の規則 1〜6 と §5 の用語を確定する。
+- **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026 / `feature/plan-actual-model-phase1` `2913c0c`):
   - 予定バー 1 本 + 進捗塗りの構成は変えず、`progress >= 100` のときだけ枠と塗りを青（`brand`）から緑（`green`）へ切り替える（葉 = `border-green-400 bg-green-100` + 塗り `bg-green-600`、親 = `border-green-500/60 bg-green-200/70` + 塗り `bg-green-500/80`）。`src/components/GanttTimelineRow.tsx`。
   - 色は WBS のステータス列（`TaskStatusCell` の「完了 = 緑 / 進行中 = 青 / 未着手 = グレー」）に合わせた。判断は `progress >= 100` の 1 条件なので、ステータスだけ「完了」で進捗が 100% でないタスクは緑にならない（＝不整合が色で見える）。
   - 塗り切り時に角がはみ出していたのを直し、塗り側の角丸を完了時のみ `rounded-[5px]`（親は `rounded-full`）にした。ツールチップは `進捗 100%（完了）`。タイトルの文字色も完了時は `text-green-900`。
   - テスト: `src/components/GanttBarCompletion.test.tsx` を追加（未着工 / 進行中 / 完了 / 親ロールアップ完了の 4 状態）。
   - 検証: vitest / lint / build / e2e 通過。`npm run shots` のガントで緑（完了）・青の部分塗り（進行中）・無塗り（未着工）を目視確認。
-- **予定・実績モデル Phase 1（モデルと言葉の整理）実装済み** (October 18, 2026, 未コミット):
+- **予定・実績モデル Phase 1（モデルと言葉の整理）実装済み** (October 18, 2026 / `feature/plan-actual-model-phase1` `ad40e59`・`4380ec8`。**この 3 層モデルは不採用になり、上の 2 層案へ移行する**):
   - 背景/要望: 「予定 / 実績」の使い分けが直感的でない。既定（基準計画固定 OFF）では `plan*` ⇄ `startDate` 等が双方向同期され常に同値になるため実績を記録できず、固定 ON では予定・実績の二重管理と UI 意味反転が発生する。
   - Oracle Primavera P6 / Microsoft Project の用語と実装を調査（基準計画 = 不変スナップショット、予定 = 現在の見込み、実績 = 開始/終了、総期間 = 実績期間 + 残り期間、進捗率 = 実績 ÷ 総期間、基準日 = データ日）し、3 層モデルへの再設計を **`docs/PLAN_ACTUAL_MODEL.md`** に提案としてまとめた。**Phase 1（このエントリ末尾の「Phase 1 の実装」）まで実装済み**。§8 の未決事項のうち ③〜⑥（残り期間列 / 進捗基準日 / ステータス導出 / 予定編集ロック）は Phase 2 以降。
   - 主な提案: 「基準計画固定」トグル廃止 → 「基準計画として登録」メニュー、plan⇔actual の双方向同期廃止、`remainingDuration` / `baseline*` の追加、実績期間を導出値化（Phase 2）、旧ファイルの移行規則（`baselineLocked=true` は 基準計画 = 旧 plan / 予定 = 旧 actual に変換、`schemaVersion: 2` を付与）。
@@ -338,11 +345,12 @@
 
 ## 次に着手する優先課題
 
-1. **予定・実績モデル Phase 2（進捗と見込みの連動）** — 仕様は `docs/PLAN_ACTUAL_MODEL.md` §5.3 / §7 Phase 2 を正とする
-   - 進捗率 / 残り期間 / 予定期間の整合（予定期間 = 実績期間 + 残り期間、進捗率 = 実績期間 ÷ 予定期間）をストアで実装。1 回の `set` で反映し Undo 1 エントリを維持。
-   - 実績開始日・実績終了日入力時の自動規則（着工時 = 予定開始、完了時 = 予定終了）と、`projectConfig.statusDate`（進捗基準日、既定 = 今日）。
-   - 列の追加（残り期間 = 入力可 / 実績期間 = 表示のみ）。Phase 1 で型だけ追加した `remainingDuration` はここで使う。実績期間 `duration` の導出値化も同時に検討する。
-   - Phase 3（基準計画との差異列・遅延の可視化・Excel 出力）はその後。
+1. **予定・実績モデルを 2 層へ移行（別ブランチ `feature/plan-actual-2layer`）** — 仕様は `docs/PLAN_ACTUAL_DISCUSSION.md` §4〜§5 を正とする
+   - 方針: 3 層は不採用。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率** の 2 層にする。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。
+   - **実装前に確定する**: 規則 1〜6（状態ごとの編集可否 / 進捗率を戻したときに事実を消してよいか / 進捗率 > 0 にしたときの開始日の補完 / 進捗率 100 にしたときの終了日の扱い / 期間・実績期間・残り期間の導出と進捗率と日付のどちらを正とするか / 親ロールアップ）と、用語（開始日 / 終了日 / 期間 / 進捗率 / 基準開始日 / 基準終了日。「基準日」単独は使わない）。
+   - 主な作業: `plan*` と `startDate` 等の統合、表の列の統合（予定期間 / 予定日付 / 実績期間 / 実績日付 → 期間 / 開始日 / 終了日）、`planActualMigration.ts` の書き直し（v1 / v2 の 3 層データを進捗率で 2 層へ畳む）、Excel 出力の整理、ガントを「バー = 開始日〜終了日 / 塗り = 進捗率 / ゴースト = 基準」に整理。
+   - 3 層の復帰点は `feature/plan-actual-model-phase1`（`2913c0c`）。完了バーの緑化は cherry-pick で引き継ぐ。
+   - 参考: 3 層案の原本は `docs/PLAN_ACTUAL_MODEL.md`（冒頭に不採用の注記あり）。
 2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
    - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
@@ -416,8 +424,9 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 
 ## 次の作業で最初に見るとよい場所
 
+- **`docs/PLAN_ACTUAL_DISCUSSION.md`（予定・実績モデルの 3 層 → 2 層見直しの検討記録。次の作業の正。復帰点と未決規則もここ）**
 - `src/store/useTaskStore.ts`
-- `src/utils/baseline.ts` / `src/utils/planActualMigration.ts`（基準計画の純粋関数 / 旧形式の移行。Phase 1 で新設。触るときは `docs/PLAN_ACTUAL_MODEL.md` §5〜§6 を確認）
+- `src/utils/baseline.ts` / `src/utils/planActualMigration.ts`（基準計画の純粋関数 / 旧形式の移行。Phase 1 で新設。3 層の記録は `docs/PLAN_ACTUAL_MODEL.md` §5〜§6、2 層への移行方針は `docs/PLAN_ACTUAL_DISCUSSION.md` §4）
 - `src/components/AppHeader.tsx`（「基準計画」メニュー。登録 / 更新 / 元に戻す / 表示 / 削除）
 - `src/components/GanttTimelineRow.tsx`（1 本バー + 進捗塗り + 基準計画ゴースト。`overflow-hidden` を付けない注意は上記「注意点」参照）
 - `src/utils/parseTaskPaste.ts` / `src/utils/parseTaskPaste.test.ts`（複数行ペーストのパース。ストアの `addTasks` とセットで扱う）
