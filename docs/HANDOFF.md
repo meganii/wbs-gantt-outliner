@@ -4,6 +4,12 @@
 
 ## 現在の状態
 
+- **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026, 未コミット):
+  - 予定バー 1 本 + 進捗塗りの構成は変えず、`progress >= 100` のときだけ枠と塗りを青（`brand`）から緑（`green`）へ切り替える（葉 = `border-green-400 bg-green-100` + 塗り `bg-green-600`、親 = `border-green-500/60 bg-green-200/70` + 塗り `bg-green-500/80`）。`src/components/GanttTimelineRow.tsx`。
+  - 色は WBS のステータス列（`TaskStatusCell` の「完了 = 緑 / 進行中 = 青 / 未着手 = グレー」）に合わせた。判断は `progress >= 100` の 1 条件なので、ステータスだけ「完了」で進捗が 100% でないタスクは緑にならない（＝不整合が色で見える）。
+  - 塗り切り時に角がはみ出していたのを直し、塗り側の角丸を完了時のみ `rounded-[5px]`（親は `rounded-full`）にした。ツールチップは `進捗 100%（完了）`。タイトルの文字色も完了時は `text-green-900`。
+  - テスト: `src/components/GanttBarCompletion.test.tsx` を追加（未着工 / 進行中 / 完了 / 親ロールアップ完了の 4 状態）。
+  - 検証: vitest / lint / build / e2e 通過。`npm run shots` のガントで緑（完了）・青の部分塗り（進行中）・無塗り（未着工）を目視確認。
 - **予定・実績モデル Phase 1（モデルと言葉の整理）実装済み** (October 18, 2026, 未コミット):
   - 背景/要望: 「予定 / 実績」の使い分けが直感的でない。既定（基準計画固定 OFF）では `plan*` ⇄ `startDate` 等が双方向同期され常に同値になるため実績を記録できず、固定 ON では予定・実績の二重管理と UI 意味反転が発生する。
   - Oracle Primavera P6 / Microsoft Project の用語と実装を調査（基準計画 = 不変スナップショット、予定 = 現在の見込み、実績 = 開始/終了、総期間 = 実績期間 + 残り期間、進捗率 = 実績 ÷ 総期間、基準日 = データ日）し、3 層モデルへの再設計を **`docs/PLAN_ACTUAL_MODEL.md`** に提案としてまとめた。**Phase 1（このエントリ末尾の「Phase 1 の実装」）まで実装済み**。§8 の未決事項のうち ③〜⑥（残り期間列 / 進捗基準日 / ステータス導出 / 予定編集ロック）は Phase 2 以降。
@@ -315,7 +321,7 @@
 
 ## 直近の検証結果 (October 18, 2026 / 予定・実績モデル Phase 1 実装後)
 
-- `npm test -- --run` : **257テスト全件合格** (29ファイル。Phase 1 で旧「双方向同期 / 基準計画固定」テストを「予定と実績は独立 / 基準計画の登録・更新・復元・削除 / 旧 JSON の移行」に置き換え、`validateProjectState` の移行ケース 3 件と `useProjectFileHandlers` の旧形式読み込み 1 件を追加)
+- `npm test -- --run` : **259テスト全件合格** (30ファイル。Phase 1 で旧「双方向同期 / 基準計画固定」テストを「予定と実績は独立 / 基準計画の登録・更新・復元・削除 / 旧 JSON の移行」に置き換え、`validateProjectState` の移行ケース 3 件と `useProjectFileHandlers` の旧形式読み込み 1 件、完了バーの色 `GanttBarCompletion`(2) を追加)
 - `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright / chromium。旧 `e2e/baseline-lock.spec.ts`（基準計画固定の検証）は削除し、新モデルの `e2e/baseline.spec.ts`（予定と実績が独立 / 登録後は基準計画が不変 / 更新後は元に戻せる）に置き換えた)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)

@@ -55,6 +55,9 @@ export const GanttTimelineRow = memo(({
   const { start: barStartStr, end: barEndStr } = resolveBarDates(task);
   const hasBar = !!(barStartStr && barEndStr);
   const progress = Math.max(0, Math.min(100, task.progress || 0));
+  // 完了（塗りが 100% まで到達）は色でも分かるようにする。
+  // WBS のステータス列（TaskStatusCell）が「完了 = 緑」なので、色の意味を合わせる。
+  const isCompleted = progress >= 100;
 
   return (
     <div
@@ -192,15 +195,22 @@ export const GanttTimelineRow = memo(({
                 className={clsx(
                   "absolute flex items-center shadow-sm group z-20 transition-[background-color,color,box-shadow] duration-150",
                   isParent
-                    ? "top-[4px] h-2.5 bg-slate-300/80 cursor-default rounded-full border border-slate-500/50"
+                    ? clsx(
+                        "top-[4px] h-2.5 cursor-default rounded-full border",
+                        isCompleted
+                          ? "bg-green-200/70 border-green-500/60"
+                          : "bg-slate-300/80 border-slate-500/50"
+                      )
                     : [
-                        "top-[3px] h-3.5 rounded-md border border-brand-300 bg-brand-100 select-none",
-                        isParent ? "cursor-default" : "cursor-pointer hover:border-brand-400",
+                        "top-[3px] h-3.5 rounded-md border select-none cursor-pointer",
+                        isCompleted
+                          ? "border-green-400 bg-green-100 hover:border-green-500"
+                          : "border-brand-300 bg-brand-100 hover:border-brand-400",
                         isDraggingBar && "cursor-grabbing border-brand-500 shadow-md"
                       ]
                 )}
                 style={{ left: barOffset, width: Math.max(0, barWidth - 2) }}
-                title={`予定: ${task.title} (${format(barStart!, 'yyyy-MM-dd')} - ${format(barEnd!, 'yyyy-MM-dd')})${isParent ? '' : ` / 進捗 ${progress}%`}`}
+                title={`予定: ${task.title} (${format(barStart!, 'yyyy-MM-dd')} - ${format(barEnd!, 'yyyy-MM-dd')})${isParent ? '' : ` / 進捗 ${progress}%${isCompleted ? '（完了）' : ''}`}`}
                 onMouseDown={(e) => {
                   // バー上のクリック/ドラッグを行の draw-range に伝播させない。
                   e.stopPropagation();
@@ -208,13 +218,15 @@ export const GanttTimelineRow = memo(({
                   startDrag('move')(e);
                 }}
               >
-                {/* 進捗の塗り（実績期間 ÷ 予定期間） */}
+                {/* 進捗の塗り（実績期間 ÷ 予定期間）。完了時は緑で塗り切る */}
                 {progress > 0 && (
                   <div
                     aria-hidden="true"
                     className={clsx(
                       'absolute inset-y-0 left-0 pointer-events-none',
-                      isParent ? 'bg-slate-500/70 rounded-l-full' : 'bg-brand-600 rounded-l-[5px]'
+                      isCompleted
+                        ? (isParent ? 'bg-green-500/80 rounded-full' : 'bg-green-600 rounded-[5px]')
+                        : (isParent ? 'bg-slate-500/70 rounded-l-full' : 'bg-brand-600 rounded-l-[5px]')
                     )}
                     style={{ width: `${progress}%` }}
                   />
@@ -258,7 +270,10 @@ export const GanttTimelineRow = memo(({
                 {/* タイトル（塗りの上でも読めるよう白フチを付ける） */}
                 {!isParent && (
                   <span
-                    className="relative z-[5] px-1.5 truncate pointer-events-none text-[9px] font-medium text-blue-900"
+                    className={clsx(
+                      'relative z-[5] px-1.5 truncate pointer-events-none text-[9px] font-medium',
+                      isCompleted ? 'text-green-900' : 'text-blue-900'
+                    )}
                     style={{ textShadow: '0 0 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.7)' }}
                   >
                     {task.title}
