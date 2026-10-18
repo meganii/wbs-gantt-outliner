@@ -9,7 +9,7 @@
   - 決定: 3 層にしない。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率**の 2 層に一本化。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。MS Project の `Start` / `Finish`（Scheduled）の挙動と同じで、一次情報で裏付け済み。
   - 用語: 日付の列名は「予定日付 / 実績日付」をやめて「**開始日 / 終了日**」（英名 Start / Finish）。基準側は「基準開始日 / 基準終了日」とし、「基準日」単独は使わない（MS Project の Status Date / P6 の Data Date と衝突するため）。
   - **議論・2 層案・用語対比・未決規則・復帰点は `docs/PLAN_ACTUAL_DISCUSSION.md` に保存した。** `docs/PLAN_ACTUAL_MODEL.md` は 3 層の記録として残し、冒頭に不採用の注記を入れた。
-  - **3 層 Phase 1 の実装は復帰点として `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`）に保存済み。未 push。** 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（完了 = 進捗率 100 は変わらない）ので cherry-pick できる。
+  - **3 層 Phase 1 の実装は復帰点として `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`、この検討記録を載せた先頭コミットまで）に保存済み。未 push。** 実装そのものの地点は `2913c0c`。2 層の作業ブランチ `feature/plan-actual-2layer` はこの復帰点の先頭から分岐したので、完了バーの緑化（`2913c0c`）も既に含まれている。
   - 実装は**別ブランチ `feature/plan-actual-2layer`** で行う（3 層の復帰点を汚さないため）。着手前に `docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 の規則 1〜6 と §5 の用語を確定する。
 - **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026 / `feature/plan-actual-model-phase1` `2913c0c`):
   - 予定バー 1 本 + 進捗塗りの構成は変えず、`progress >= 100` のときだけ枠と塗りを青（`brand`）から緑（`green`）へ切り替える（葉 = `border-green-400 bg-green-100` + 塗り `bg-green-600`、親 = `border-green-500/60 bg-green-200/70` + 塗り `bg-green-500/80`）。`src/components/GanttTimelineRow.tsx`。

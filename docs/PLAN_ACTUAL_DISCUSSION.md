@@ -23,7 +23,7 @@ git switch feature/plan-actual-model-phase1
 git switch -c restore-3layer feature/plan-actual-model-phase1
 ```
 
-- 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（「完了 = 進捗率 100」は 2 層案でも同じ）ので、必要なら新しいブランチへ `git cherry-pick 2913c0c` で持ってこられる。
+- 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（「完了 = 進捗率 100」は 2 層案でも同じ）。2 層の作業ブランチはこの復帰点の先頭から分岐しているので既に取り込まれている（main から作り直す場合のみ `git cherry-pick 2913c0c`）。
 - 3 層の Phase 2 / Phase 3（進捗と見込みの連動、基準との差異表示）は**未実装**。もしこの地点に戻る場合は `docs/PLAN_ACTUAL_MODEL.md` §7 の Phase 2 から再開する。
 
 ## 2. 見直しの結論（なぜ 3 層にしないか）
@@ -133,7 +133,7 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 
 ## 8. 次の作業
 
-- 2 層案の実装は **別ブランチ** で行う（3 層実装の復帰点を汚さないため）。検討記録のコミットの上に `feature/plan-actual-2layer` を作成済み。
+- 2 層案の実装は **別ブランチ** で行う（3 層実装の復帰点を汚さないため）。復帰点の先頭コミットから `feature/plan-actual-2layer` を作成済み（この検討記録と 3 層 Phase 1 の実装を含む状態から分岐している）。
 - 実装の前に §4.3 の規則 1〜6 と §5 の用語を確定する。
 - 旧データ移行は v1（移行前の形式）から 2 層へ 1 段で畳む。`schemaVersion: 2`（3 層）は main に未マージなので、`planActualMigration.ts` を 2 層向けに書き直してよい。
 - `docs/PLAN_ACTUAL_MODEL.md` は 3 層の記録として残す（冒頭に不採用の注記を追加済み）。
