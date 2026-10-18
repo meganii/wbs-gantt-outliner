@@ -116,7 +116,7 @@ await shot('integrated-narrow');
 await page.setViewportSize(VIEWPORT);
 
 // プロジェクト設定ダイアログ
-await page.getByRole('button', { name: 'プロジェクト' }).click();
+await page.getByRole('button', { name: '設定' }).click();
 await page.getByRole('button', { name: '祝日設定' }).click();
 await page.waitForTimeout(300);
 await shot('dialog');
