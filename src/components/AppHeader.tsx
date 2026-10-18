@@ -11,6 +11,7 @@ import {
   Redo2,
   Rows3,
   Save,
+  Settings,
   SquareGanttChart,
   Table2,
   Undo2,
@@ -34,25 +35,25 @@ const VIEWS: { id: View; label: string; icon: typeof Table2 }[] = [
 ];
 
 export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderProps) {
-  // ── Project menu ──────────────────────────────────────────────────────────
+  // ── Settings menu ─────────────────────────────────────────────────────────
   // ヘッダーは overflow-hidden（狭い幅でのはみ出し防止）なので、absolute の
   // ドロップダウンはヘッダーの高さで切り取られてしまう。fixed にして
   // ヘッダーの外へ描画し、ボタンの位置から座標を決める。
   // （z-[60] でメイン領域の行 z-40 / リサイズハンドル z-50 より前面に置く）
-  const [projectMenuPos, setProjectMenuPos] = useState<{ top: number; right: number } | null>(null);
-  const projectMenuRef = useRef<HTMLDivElement>(null);
-  const projectButtonRef = useRef<HTMLButtonElement>(null);
-  useClickOutside(projectMenuRef, () => setProjectMenuPos(null));
-  const isProjectMenuOpen = projectMenuPos !== null;
+  const [settingsMenuPos, setSettingsMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  useClickOutside(settingsMenuRef, () => setSettingsMenuPos(null));
+  const isSettingsMenuOpen = settingsMenuPos !== null;
 
-  const toggleProjectMenu = () => {
-    if (projectMenuPos) {
-      setProjectMenuPos(null);
+  const toggleSettingsMenu = () => {
+    if (settingsMenuPos) {
+      setSettingsMenuPos(null);
       return;
     }
-    const rect = projectButtonRef.current?.getBoundingClientRect();
+    const rect = settingsButtonRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setProjectMenuPos({
+    setSettingsMenuPos({
       top: rect.bottom + 4,
       right: Math.max(8, window.innerWidth - rect.right),
     });
@@ -162,36 +163,39 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
 
       <div className="h-5 w-px bg-line shrink-0" />
 
-      {/* Project menu */}
-      <div className="relative shrink-0" ref={projectMenuRef}>
+      {/* Settings menu */}
+      <div className="relative shrink-0" ref={settingsMenuRef}>
         <button
-          ref={projectButtonRef}
-          onClick={toggleProjectMenu}
+          ref={settingsButtonRef}
+          onClick={toggleSettingsMenu}
           className={clsx(
             textButton,
-            isProjectMenuOpen && 'bg-slate-100 text-slate-800'
+            isSettingsMenuOpen && 'bg-slate-100 text-slate-800'
           )}
-          aria-label="プロジェクト"
-          aria-expanded={isProjectMenuOpen}
+          aria-label="設定"
+          aria-expanded={isSettingsMenuOpen}
         >
-          <CalendarDays size={14} className="text-brand-500" />
-          <span className="hidden xl:inline">プロジェクト</span>
+          <Settings
+            size={14}
+            className={isSettingsMenuOpen ? 'text-brand-600' : 'text-slate-500'}
+          />
+          <span className="hidden xl:inline">設定</span>
           <ChevronDown size={12} />
         </button>
 
-        {projectMenuPos && (
+        {settingsMenuPos && (
           <div
             className="no-drag fixed z-[60] w-60 overflow-hidden rounded-lg border border-line bg-white py-1 shadow-pop"
-            style={{ top: projectMenuPos.top, right: projectMenuPos.right }}
+            style={{ top: settingsMenuPos.top, right: settingsMenuPos.right }}
           >
             <button
               onClick={() => {
                 onOpenProjectSettings();
-                setProjectMenuPos(null);
+                setSettingsMenuPos(null);
               }}
               className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-gray-700 transition-colors hover:bg-gray-50"
             >
-              <CalendarDays size={14} className="text-brand-500" />
+              <CalendarDays size={14} className="text-slate-500" />
               <span className="flex-1">祝日設定</span>
               <span className="text-[10px] text-gray-400">{holidayCount}</span>
             </button>
@@ -207,11 +211,11 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
         </button>
         <button onClick={handleLoad} className={textButton} title="読み込み (JSON)" aria-label="読み込み">
           <FolderOpen size={14} />
-          <span className="hidden xl:inline">読み込み</span>
+          <span className="hidden xl:inline">読込</span>
         </button>
-        <button onClick={handleExport} className={textButton} title="Excel エクスポート" aria-label="エクスポート">
+        <button onClick={handleExport} className={textButton} title="Excel 出力" aria-label="Excel 出力">
           <FileSpreadsheet size={14} />
-          <span className="hidden xl:inline">エクスポート</span>
+          <span className="hidden xl:inline">出力</span>
         </button>
       </div>
     </header>
