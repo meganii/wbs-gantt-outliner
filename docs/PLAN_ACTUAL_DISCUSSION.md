@@ -1,19 +1,19 @@
 # 予定・実績モデル 検討記録（3 層 → 2 層への見直し）
 
-Status: **方針・規則・用語 確定（3 層は採用しない。2 層案へ移行）/ 2 層モデル実装済み（`feature/plan-actual-2layer`、未 push）** / Date: 2026-10-18
+Status: **方針・規則・用語 確定（3 層は採用しない。2 層案へ移行）/ 2 層モデル実装済み・main にマージ済み（PR #45 / `2026-10-19`）** / Date: 2026-10-18（最終更新: 2026-10-20）
 
-この文書は `docs/PLAN_ACTUAL_MODEL.md`（3 層モデルの提案と Phase 1 実装の記録）の**後のレビュー**と、そこで決まった**2 層案**を保存するものです。3 層 Phase 1 の実装はこのブランチに復帰点として残してあります（§1）。2 層案の実装は**別ブランチ**で行います（§8）。
+この文書は `docs/PLAN_ACTUAL_MODEL.md`（3 層モデルの提案と Phase 1 実装の記録）の**後のレビュー**と、そこで決まった**2 層案**を保存するものです。3 層 Phase 1 の実装は PR #45 の履歴として main に取り込まれています（§1）。2 層案の実装は `feature/plan-actual-2layer` で完了し、**PR #45 で main にマージ済み**です（§8）。
 
 ---
 
-## 1. 復帰点（3 層 Phase 1 実装の保存先）
+## 1. 復帰点（3 層 Phase 1 実装の保存先 / 現在は main の履歴に統合済み）
 
 | 項目 | 値 |
 | --- | --- |
-| ブランチ | `feature/plan-actual-model-phase1` |
+| ブランチ | `feature/plan-actual-model-phase1`（ローカルのみ。不要なら削除可） |
 | コミット | `ad40e59` 3 層モデル再設計 / `4380ec8` HANDOFF / `2913c0c` 完了バーの緑化 / `fddfb0f` この検討記録（復帰点ブランチの先頭） |
-| 状態 | Phase 1 実装 + 完了バー緑。作業ツリーはクリーン。**未 push**（origin には未退避） |
-| 検証 | vitest 259 件 / 30 ファイル、`npm run lint` 0、`npm run build` 成功、Playwright 5 件 |
+| 状態 | Phase 1 実装 + 完了バー緑。**PR #45 で main に取り込み済み**（最終状態は 2 層）。復帰点ブランチはローカルに残置 |
+| 検証 | vitest 259 件 / 30 ファイル、`npm run lint` 0、`npm run build` 成功、Playwright 5 件（当時の記録） |
 
 **この地点に戻る方法**
 
@@ -21,10 +21,12 @@ Status: **方針・規則・用語 確定（3 層は採用しない。2 層案�
 git switch feature/plan-actual-model-phase1
 # 壊さずに試すなら別ブランチに切り出してから
 git switch -c restore-3layer feature/plan-actual-model-phase1
+# ブランチを削除した場合はコミットから作る
+git switch -c restore-3layer 2913c0c
 ```
 
-- 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（「完了 = 進捗率 100」は 2 層案でも同じ）。2 層の作業ブランチはこの復帰点の先頭から分岐しているので既に取り込まれている（main から作り直す場合のみ `git cherry-pick 2913c0c`）。
-- この検討記録のコミット（`5b91382` / `fddfb0f`）は復帰点ブランチにも載っている。**以降の 2 層の作業コミットは `feature/plan-actual-2layer` にのみ積む**（復帰点ブランチは `fddfb0f` のまま据え置く）。
+- 完了バーの緑化（`2913c0c`）は 2 層案でもそのまま成立する（「完了 = 進捗率 100」は 2 層案でも同じ）。2 層の作業ブランチはこの復帰点の先頭から分岐し、PR #45 で main にマージ済み。
+- この検討記録のコミット（`5b91382` / `fddfb0f`）は復帰点ブランチにも載っている。**2 層の作業コミットは PR #45 で main に取り込み済み**（復帰点ブランチは `fddfb0f` のまま据え置き）。
 - 3 層の Phase 2 / Phase 3（進捗と見込みの連動、基準との差異表示）は**未実装**。もしこの地点に戻る場合は `docs/PLAN_ACTUAL_MODEL.md` §7 の Phase 2 から再開する。
 
 ## 2. 見直しの結論（なぜ 3 層にしないか）
@@ -168,11 +170,11 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 - Microsoft Project: 進捗バーは実日付レンジで描かれる（予定バーとは別に実績を表すバーを持つ）
 - Oracle Primavera P6: Activities のバーは Timescale の表示項目で定義し、Actual Bar / Remaining Bar を別に描ける。`Data Date` は日本では「データ日」
 
-## 8. 実装タスク（`feature/plan-actual-2layer` / 新規セッションで実施）
+## 8. 実装タスク（`feature/plan-actual-2layer` / 実装完了・main マージ済み）
 
-規則と用語は確定済み（§4.3 / §5）。以下を上から順に実装する。
+規則と用語は確定済み（§4.3 / §5）。以下を上から順に実装した。
 
-**実装済み（2026-10-18、`feature/plan-actual-2layer`、未 push）**。検証: `npm test -- --run` 259 件（30 ファイル）/ `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` 5 件 / `npm run shots` 目視。詳細は `docs/HANDOFF.md` の先頭エントリ。
+**実装済み（2026-10-18）→ main にマージ済み（2026-10-19、PR #45 / マージコミット `18cb8c0`）**。検証: `npm test -- --run` 259 件（30 ファイル）/ `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` 5 件 / `npm run shots` 目視。詳細は `docs/HANDOFF.md` の先頭エントリ。
 
 - [x] **モデル** (`src/types.ts`): `planStartDate / planEndDate / planDuration` を削除し、`startDate` / `endDate`（現在の日程）に統合する。`baselineStartDate / baselineEndDate / baselineDuration` と `previousBaseline*` は維持。型だけ持っていた `remainingDuration` を削除。`ColumnId` を `duration` / `date` に整理（`planDuration` / `planDate` を削除）。`schemaVersion: 3`。
 - [x] **ストア** (`src/store/useTaskStore.ts` / `src/store/taskStoreUtils.ts`): 進捗率は日付を書き換えない（規則 2）。`applyDateCalculations` を 1 組の日付 + 進捗率に整理し、`期間` を稼働日数から導出（規則 5）。`ステータス` を進捗率から導出（規則 7）。親ロールアップは現行どおり（規則 6）。依存伝播は 1 組の日付のみを更新。
@@ -186,4 +188,4 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 
 **解釈の確定（2026-10-19）**: 規則 5 の `期間` と規則 8 の「日付が唯一の入力」は、**案 A（現状維持）** で確定した。理由は「工数（日数）から終了日を算出したい」ケースがあるため。`期間` の入力は開始日を固定して終了日を再計算する代替入力であり、独立した第 2 の真実源にはしない。既知の境界ケース（開始日が非稼働日 / 期間 0 / v3 読み込みは保存値を信頼）は未修正の残課題。
 
-**注意（過去に踏んだ罠）**: ガントバーに `overflow-hidden` を付けない（依存ハンドルがクリップされ、クリックが draw-range に抜けて日付が壊れる）/ バー・ハンドルの `onMouseDown` は常に `stopPropagation()` / タイムライン余白の単クリック = 1 日設定は正（「移動ゼロなら確定しない」ガードは再導入しない）/ 復帰点 `feature/plan-actual-model-phase1` は変更しない / push は指示があるまでしない。
+**注意（過去に踏んだ罠）**: ガントバーに `overflow-hidden` を付けない（依存ハンドルがクリップされ、クリックが draw-range に抜けて日付が壊れる）/ バー・ハンドルの `onMouseDown` は常に `stopPropagation()` / タイムライン余白の単クリック = 1 日設定は正（「移動ゼロなら確定しない」ガードは再導入しない）。復帰点 `feature/plan-actual-model-phase1` は当時変更せず、現在は PR #45 で main に取り込み済み。

@@ -4,6 +4,10 @@
 
 ## 現在の状態
 
+- **2 層モデル・表示名・状態列幅を main にマージ済み** (October 20, 2026):
+  - PR #45（`feature/plan-actual-2layer` → `main`）をマージ（マージコミット `18cb8c0`）。ローカルの作業ブランチとリモートブランチは削除し、`main` 上で vitest 259 件 / 30 ファイルを再確認した。
+  - 3 層 Phase 1 の実装コミットは PR #45 の履歴として `main` に取り込まれた（最終状態は 2 層）。復帰点 `feature/plan-actual-model-phase1` はローカルに残置（不要なら `git branch -d feature/plan-actual-model-phase1` で削除可）。
+  - 以下の 2 層関連エントリに残っていた「未 push」表記は、このマージで解消済み。
 - **`状態` 列の初期幅を 60px に変更** (October 19, 2026):
   - 「進行中」「未着手」の 3 文字がちょうど 1 行で収まる幅にした（実測: 3 文字 = 30px、セル内訳 = 左右 padding 16px + ピル左右 padding 8px + 枠 2px + セル左罫線 1px。最小 57px、余白を見て **60px**）。
   - 変更: `src/utils/projectConfig.ts` の `DEFAULT_PROJECT_CONFIG.columnWidths.status`（100 → 60）。`bench/generate-tasks.mjs` も同じ値に更新し、フィクスチャを再生成。
@@ -14,12 +18,12 @@
   - 位置づけ: `期間` は「終了日を指定する代替入力」であり、日付と独立した第 2 の真実源にはしない。通常の日付編集後は稼働日数から再計算される。仕様（`docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 規則 5 / 8 と §8 の留保）もこの決定に合わせて更新した。
   - 既知の境界ケース（未修正・挙動は現状維持）: 開始日が非稼働日のとき / 期間 0 を入力したとき / v3 読み込みは保存済み `duration` を信頼する（日付から再計算しない）。不整合が実害になったら別途対応する。
   - コード変更なし（ドキュメントのみ）。検証は前エントリの 259 件 / lint 0 / build / e2e 5 件のまま。
-- **表示名を「項目名」「状態」に変更（`feature/plan-actual-2layer`、未 push）** (October 19, 2026):
+- **表示名を「項目名」「状態」に変更（`feature/plan-actual-2layer` → main マージ済み: PR #45）** (October 19, 2026):
   - WBS / 統合表示 / ガント / 表示項目メニューの列見出しを「タスク名」→「**項目名**」、「ステータス」→「**状態**」に変更。Excel 出力のヘッダー（`src/utils/export.ts`）と状態セルのツールチップも合わせた。
   - 変更点: `src/utils/columns.ts`（`COLUMN_LABELS`。列ヘッダーと表示項目メニューはここを参照）、`src/components/GanttChart.tsx`（ガント左列のハードコード見出し）、`src/utils/export.ts`、`src/components/cells/TaskStatusCell.tsx`。テストは `Phase2Regression.test.tsx` / `GanttChart.test.tsx` の期待値を更新。
   - 内部の識別子（`taskName` / `status` / `deriveStatus` / `data-field`）は保存形式・セレクタ互換のため変更していない。表示名だけの変更。
   - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` で WBS・ガントの見出しを目視確認。
-- **予定・実績モデルを 2 層へ移行（実装完了。`feature/plan-actual-2layer`、未 push）** (October 18, 2026):
+- **予定・実績モデルを 2 層へ移行（実装完了。`feature/plan-actual-2layer` → main マージ済み: PR #45）** (October 18, 2026):
   - `docs/PLAN_ACTUAL_DISCUSSION.md` §8 のチェックリストを上から順に実装した。モデル = **基準（基準開始日 / 基準終了日 / 基準期間）+ 現在の日程（開始日 / 終了日 / 期間）+ 進捗率** の 2 層。保存形式は `schemaVersion: 3`。
   - 主な変更（`git diff --stat` の対象）:
     - モデル: `src/types.ts` から `planStartDate` / `planEndDate` / `planDuration` / `remainingDuration` を削除。`ColumnId` を `duration`（期間）+ `date`（開始日 / 終了日）に整理。
@@ -32,14 +36,14 @@
   - その他の解釈: 進捗率は日付を書き換えない（規則 2）/ 裏方の実績フィールドを持たない（規則 1）/ 親は子の min〜max と進捗ロールアップのみ（規則 6）/ 日付ロックなし（規則 8）/ ステータスは `deriveStatus` で導出（規則 7）。完了バーの緑（`progress >= 100`）は維持。
   - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **5 件** / `npm run shots`（10 枚。統合表示・WBS で 1 本バー + 進捗塗り + 基準ゴースト + 完了緑を目視）。
   - 付随更新: `scratch/sample-project.json` を v3（`schemaVersion: 3`、`plan*` 削除、進捗に応じて日付を畳む）へ更新。`bench/generate-tasks.mjs` を v3 形式へ更新し、`bench/fixtures/tasks-100.json` / `tasks-1000.json` を再生成。
-- **予定・実績モデルを 3 層 → 2 層へ見直す方針を決定（実装は別ブランチ）** (October 18, 2026):
+- **予定・実績モデルを 3 層 → 2 層へ見直す方針を決定（実装は別ブランチ → 完了・main マージ済み）** (October 18, 2026):
   - 経緯: 「実績をガントに出さないのに裏で持つ意味は?」「基準・予定・実績と 3 観点で見るべきか」というレビューから、Phase 1 の 3 層実装では**実績が入力しても何も起きない（消費者がいない）**ことと、**進捗率と実績日付が二重管理**になっていることを確認した。層の数はアプリが答える問いの数で決まる、という結論。
   - 決定: 3 層にしない。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率**の 2 層に一本化。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。MS Project の `Start` / `Finish`（Scheduled）の挙動と同じで、一次情報で裏付け済み。
   - 用語（**採用決定**）: 日付の列名は「予定日付 / 実績日付」をやめて「**開始日 / 終了日**」（英名 Start / Finish）。基準側は「基準開始日 / 基準終了日」とし、「基準日」単独は使わない（MS Project の Status Date / P6 の Data Date と衝突するため）。
   - **規則も確定した（§4.3 の 1〜8）**: 進捗率は日付を書き換えない（MS Project の `%完了` 入力と同じ。一次情報で確認）/ 実績期間・残り期間は導出で保存しない / 進捗率を戻すと事実は消える（裏方フィールドを持たない）/ 食い違いは自動で直さない / ステータスは進捗率から導出（手入力の二重管理をやめる）/ 着手後も日付は編集可（ロックしない）。
   - **議論・2 層案・確定した規則・用語対比・復帰点・実装タスク（§8）は `docs/PLAN_ACTUAL_DISCUSSION.md` に保存した。** `docs/PLAN_ACTUAL_MODEL.md` は 3 層の記録として残し、冒頭に不採用の注記を入れた。
-  - **3 層 Phase 1 の実装は復帰点として `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`、この検討記録を載せた先頭コミットまで）に保存済み。未 push。** 実装そのものの地点は `2913c0c`。2 層の作業ブランチ `feature/plan-actual-2layer` はこの復帰点の先頭から分岐したので、完了バーの緑化（`2913c0c`）も既に含まれている。
-  - 実装は**別ブランチ `feature/plan-actual-2layer`** で行う（3 層の復帰点を汚さないため）。規則 1〜8（§4.3）と用語（§5）は確定済み。**実装タスクは §8 のチェックリストを正とする。**
+  - **3 層 Phase 1 の実装は `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`、この検討記録を載せた先頭コミットまで）に保存した。現在は PR #45 の履歴として main に取り込み済み**（最終状態は 2 層）。実装そのものの地点は `2913c0c`。2 層の作業ブランチ `feature/plan-actual-2layer` はこの復帰点の先頭から分岐したので、完了バーの緑化（`2913c0c`）も既に含まれている。
+  - 実装は**別ブランチ `feature/plan-actual-2layer`** で行い（3 層の復帰点を汚さないため）、完了後に PR #45 で main へマージした。規則 1〜8（§4.3）と用語（§5）は確定済み。**実装タスクは §8 のチェックリストを正とする。**
 - **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026 / `feature/plan-actual-model-phase1` `2913c0c`):
   - 予定バー 1 本 + 進捗塗りの構成は変えず、`progress >= 100` のときだけ枠と塗りを青（`brand`）から緑（`green`）へ切り替える（葉 = `border-green-400 bg-green-100` + 塗り `bg-green-600`、親 = `border-green-500/60 bg-green-200/70` + 塗り `bg-green-500/80`）。`src/components/GanttTimelineRow.tsx`。
   - 色は WBS のステータス列（`TaskStatusCell` の「完了 = 緑 / 進行中 = 青 / 未着手 = グレー」）に合わせた。判断は `progress >= 100` の 1 条件なので、ステータスだけ「完了」で進捗が 100% でないタスクは緑にならない（＝不整合が色で見える）。
@@ -374,20 +378,18 @@
 
 ## 次に着手する優先課題
 
-1. **予定・実績モデルを 2 層へ移行（別ブランチ `feature/plan-actual-2layer`）** — 仕様は `docs/PLAN_ACTUAL_DISCUSSION.md` §4〜§5 を正とする
-   - 方針: 3 層は不採用。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率** の 2 層にする。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。
-   - **規則 1〜8 と用語は確定済み**（`docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 / §5）。要旨: 進捗率は日付を書き換えない（MS Project の `%完了` と同じ）/ 実績期間・残り期間は導出（保存しない）/ 進捗率を戻すと事実は消える / 食い違いは自動で直さない / ステータスは進捗率から導出 / 着手後も日付は編集可。
-   - **実装タスク（モデル / ストア / 移行 / 表 / ガント / Excel / テスト / ドキュメント / 検証）は §8 のチェックリストを正とする。**
-   - 主な作業: `plan*` と `startDate` 等の統合、表の列の統合（予定期間 / 予定日付 / 実績期間 / 実績日付 → 期間 / 開始日 / 終了日）、`planActualMigration.ts` の書き直し（v1 / v2 の 3 層データを進捗率で 2 層へ畳む）、Excel 出力の整理、ガントを「バー = 開始日〜終了日 / 塗り = 進捗率 / ゴースト = 基準」に整理。
-   - 3 層の復帰点は `feature/plan-actual-model-phase1`（`2913c0c`）。完了バーの緑化は cherry-pick で引き継ぐ。
-   - 参考: 3 層案の原本は `docs/PLAN_ACTUAL_MODEL.md`（冒頭に不採用の注記あり）。
-2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+1. ~~**予定・実績モデルを 2 層へ移行**~~ ✅ **完了（October 19, 2026。PR #45 で main にマージ済み）**
+   - 仕様と実装の記録は `docs/PLAN_ACTUAL_DISCUSSION.md`。3 層案の原本は `docs/PLAN_ACTUAL_MODEL.md`（不採用の注記あり）。
+   - 残っている既知の課題は「`期間` の境界ケース」（下記 2）。
+2. **`期間` の境界ケースの整理と実装（小さめ）**
+   - 開始日が非稼働日（土日・祝日）のとき、期間と稼働日数がずれる / 期間 0 を入力すると終了日 = 開始日になり得る / v3 読み込みは保存済み `duration` を信頼する（日付から再計算しない）。
+   - まず「開始日が非稼働日なら次の稼働日に補正するか、そのまま許すか」を決める。決定後、`src/store/taskStoreUtils.ts` と `src/utils/date.ts` を直し、テストを追加する。
+3. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
    - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
-3. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
+4. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
    - 旧 #2「JSON インポートの互換性・異常値バリデーション強化」は October 17, 2026 に完了（上記「現在の状態」参照）。
-   - D8 は Phase 1 で一部前進した（`applyTaskUpdate` への集約。`addDependency` は未統合）。
-   - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（過去に D1 の非対称を生んだ二重化の解消）。
+   - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（`applyTaskUpdate` への集約で一部前進。`addDependency` は未統合）。
    - D9: 行高 `32` の定数化（`useGanttDependencies` 以外は未対応）、未使用 `taskBarRefs` の削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
    - D10: zundo の `partialize` と `equality` のズレ。「データ変更時だけ履歴化し、その時点の選択/フォーカスを一緒に保存する」意図的な設計とも読めるため、まずバグか仕様かを切り分ける。
 
@@ -454,7 +456,7 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 
 ## 次の作業で最初に見るとよい場所
 
-- **`docs/PLAN_ACTUAL_DISCUSSION.md`（予定・実績モデルの 3 層 → 2 層見直しの検討記録。次の作業の正。復帰点と未決規則もここ）**
+- **`docs/PLAN_ACTUAL_DISCUSSION.md`（予定・実績モデルの 2 層化の仕様・規則・実装記録。`期間` の扱いと既知の残課題もここ）**
 - `src/store/useTaskStore.ts`
 - `src/utils/baseline.ts` / `src/utils/planActualMigration.ts`（基準計画の純粋関数 / 旧形式の移行。Phase 1 で新設。3 層の記録は `docs/PLAN_ACTUAL_MODEL.md` §5〜§6、2 層への移行方針は `docs/PLAN_ACTUAL_DISCUSSION.md` §4）
 - `src/components/AppHeader.tsx`（「基準計画」メニュー。登録 / 更新 / 元に戻す / 表示 / 削除）
