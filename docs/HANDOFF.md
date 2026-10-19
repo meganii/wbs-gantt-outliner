@@ -4,6 +4,11 @@
 
 ## 現在の状態
 
+- **`期間` の編集可を確定（案 A = 現状維持）** (October 19, 2026):
+  - 判断: 「工数（日数）から終了日を算出したい」ケースがあるため、`期間` セルは**編集可**のままとする。入力すると開始日を固定して終了日を稼働日で再計算し、ガントバーも再描画する（MS Project の Duration と同じ）。
+  - 位置づけ: `期間` は「終了日を指定する代替入力」であり、日付と独立した第 2 の真実源にはしない。通常の日付編集後は稼働日数から再計算される。仕様（`docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 規則 5 / 8 と §8 の留保）もこの決定に合わせて更新した。
+  - 既知の境界ケース（未修正・挙動は現状維持）: 開始日が非稼働日のとき / 期間 0 を入力したとき / v3 読み込みは保存済み `duration` を信頼する（日付から再計算しない）。不整合が実害になったら別途対応する。
+  - コード変更なし（ドキュメントのみ）。検証は前エントリの 259 件 / lint 0 / build / e2e 5 件のまま。
 - **表示名を「項目名」「状態」に変更（`feature/plan-actual-2layer`、未 push）** (October 19, 2026):
   - WBS / 統合表示 / ガント / 表示項目メニューの列見出しを「タスク名」→「**項目名**」、「ステータス」→「**状態**」に変更。Excel 出力のヘッダー（`src/utils/export.ts`）と状態セルのツールチップも合わせた。
   - 変更点: `src/utils/columns.ts`（`COLUMN_LABELS`。列ヘッダーと表示項目メニューはここを参照）、`src/components/GanttChart.tsx`（ガント左列のハードコード見出し）、`src/utils/export.ts`、`src/components/cells/TaskStatusCell.tsx`。テストは `Phase2Regression.test.tsx` / `GanttChart.test.tsx` の期待値を更新。
@@ -18,7 +23,7 @@
     - 表: `src/utils/columns.ts` / `src/utils/projectConfig.ts` / `src/components/TaskTableHeader.tsx` / `src/components/TaskRow.tsx` / `src/components/cells/*`。`TaskPlanDateCell` / `TaskPlanDurationCell` は削除。ステータス列は**表示のみ**（ピル、`<select>` を廃止、`保留` を削除）。列見出しは「期間」「開始日 / 終了日」。
     - ガント: `src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts` / `src/hooks/useGanttDependencies.ts`。バー属性値を `data-gantt-bar="plan"` → `"schedule"` に改名（テスト・e2e・bench のセレクタも更新）。ツールチップは `タイトル / 開始日 / 終了日 / 期間 / 進捗 N%（完了）(/ 基準: 開始日〜終了日)`。
     - Excel: `src/utils/export.ts`（日程グループ=青 + 基準グループ=アンバー + 進捗率。バーは基準アンバーを先に描き、日程バーを上に重ねる）。
-  - **規則の解釈で判断が要った点（要確認）**: §4.3 規則 5（`期間` は稼働日数からの導出値）/ 規則 8（日付以外を入力にしない）と、**`期間` 列を編集可能にすること**は両立しませんでした。MS Project と同じく「`期間` は保存フィールド（稼働日数から計算）だが、`期間` を入力すると終了日が動く」挙動を採りました（`applyDateCalculations` の分岐 (1)(2)(3)）。`日付が唯一の入力` を厳密にしたい場合は `期間` セルを読み取り専用化する追加変更が必要です。
+  - **規則の解釈で判断が要った点（2026-10-19 決定: 案 A = 現状維持）**: §4.3 規則 5（`期間` は稼働日数からの導出値）/ 規則 8（日付以外を入力にしない）と、**`期間` 列を編集可能にすること**は文言上は両立しませんでした。MS Project と同じく「`期間` は保存フィールド（稼働日数から計算）だが、`期間` を入力すると終了日が動く」挙動を採っています（`applyDateCalculations` の分岐 (1)(2)(3)）。**「工数（日数）から終了日を算出したい」ケースがあるため、この挙動を正式採用**（詳細は上の「`期間` の編集可を確定」エントリ）。
   - その他の解釈: 進捗率は日付を書き換えない（規則 2）/ 裏方の実績フィールドを持たない（規則 1）/ 親は子の min〜max と進捗ロールアップのみ（規則 6）/ 日付ロックなし（規則 8）/ ステータスは `deriveStatus` で導出（規則 7）。完了バーの緑（`progress >= 100`）は維持。
   - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **5 件** / `npm run shots`（10 枚。統合表示・WBS で 1 本バー + 進捗塗り + 基準ゴースト + 完了緑を目視）。
   - 付随更新: `scratch/sample-project.json` を v3（`schemaVersion: 3`、`plan*` 削除、進捗に応じて日付を畳む）へ更新。`bench/generate-tasks.mjs` を v3 形式へ更新し、`bench/fixtures/tasks-100.json` / `tasks-1000.json` を再生成。
