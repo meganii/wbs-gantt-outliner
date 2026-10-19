@@ -91,8 +91,6 @@ export const GanttChart = ({
   // Use custom drag interaction hook
   useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
 
-  const baselineLocked = useTaskStore(state => state.projectConfig.baselineLocked ?? false);
-
   const handleSelectionChange = (id: string, multi: boolean, range: boolean) => {
     const flattenedIds = flattenedItemsRef.current.map(item => item.id);
     const {
@@ -328,13 +326,13 @@ export const GanttChart = ({
               className="flex items-center pl-4 pr-2"
               style={{ width: columnWidths.taskName }}
             >
-              タスク名
+              項目名
             </div>
             <div
               className="flex items-center justify-center border-l border-line"
               style={{ width: columnWidths.status }}
             >
-              ステータス
+              状態
             </div>
             <div
               className="flex items-center justify-center border-l border-line"
@@ -500,7 +498,6 @@ export const GanttChart = ({
                   taskId={id}
                   task={task}
                   timelineMetrics={timelineMetrics}
-                  baselineLocked={baselineLocked}
                   taskBarRefs={taskBarRefs}
                   timelineWidth={timeRange.length * CELL_WIDTH}
                   isSelected={isSelected}

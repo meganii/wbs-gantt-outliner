@@ -19,9 +19,9 @@
         "t13"
       ],
       "dependencies": [],
-      "planStartDate": "2026-10-05",
-      "planEndDate": "2026-10-20",
-      "planDuration": 12
+      "baselineStartDate": "2026-10-05",
+      "baselineEndDate": "2026-10-20",
+      "baselineDuration": 12
     },
     "t11": {
       "id": "t11",
@@ -38,9 +38,9 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-05",
-      "planEndDate": "2026-10-09",
-      "planDuration": 5
+      "baselineStartDate": "2026-10-05",
+      "baselineEndDate": "2026-10-09",
+      "baselineDuration": 5
     },
     "t12": {
       "id": "t12",
@@ -57,9 +57,9 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-12",
-      "planEndDate": "2026-10-16",
-      "planDuration": 5
+      "baselineStartDate": "2026-10-12",
+      "baselineEndDate": "2026-10-16",
+      "baselineDuration": 5
     },
     "t13": {
       "id": "t13",
@@ -78,9 +78,9 @@
       "dependencies": [
         "t12"
       ],
-      "planStartDate": "2026-10-19",
-      "planEndDate": "2026-10-20",
-      "planDuration": 2
+      "baselineStartDate": "2026-10-19",
+      "baselineEndDate": "2026-10-20",
+      "baselineDuration": 2
     },
     "p2": {
       "id": "p2",
@@ -101,9 +101,9 @@
         "t23"
       ],
       "dependencies": [],
-      "planStartDate": "2026-10-21",
-      "planEndDate": "2026-11-10",
-      "planDuration": 15
+      "baselineStartDate": "2026-10-16",
+      "baselineEndDate": "2026-11-05",
+      "baselineDuration": 15
     },
     "t21": {
       "id": "t21",
@@ -120,9 +120,9 @@
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-10-21",
-      "planEndDate": "2026-10-27",
-      "planDuration": 5
+      "baselineStartDate": "2026-10-16",
+      "baselineEndDate": "2026-10-22",
+      "baselineDuration": 5
     },
     "t22": {
       "id": "t22",
@@ -141,9 +141,9 @@
       "dependencies": [
         "t21"
       ],
-      "planStartDate": "2026-10-28",
-      "planEndDate": "2026-11-04",
-      "planDuration": 6
+      "baselineStartDate": "2026-10-23",
+      "baselineEndDate": "2026-10-30",
+      "baselineDuration": 6
     },
     "t23": {
       "id": "t23",
@@ -162,9 +162,9 @@
       "dependencies": [
         "t22"
       ],
-      "planStartDate": "2026-11-05",
-      "planEndDate": "2026-11-10",
-      "planDuration": 4
+      "baselineStartDate": "2026-11-02",
+      "baselineEndDate": "2026-11-05",
+      "baselineDuration": 4
     },
     "p3": {
       "id": "p3",
@@ -177,7 +177,7 @@
       "endDate": "2026-12-15",
       "duration": 24,
       "progress": 10,
-      "status": "未着手",
+      "status": "進行中",
       "isCollapsed": false,
       "children": [
         "t31",
@@ -186,9 +186,9 @@
         "t34"
       ],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-12-15",
-      "planDuration": 24
+      "baselineStartDate": "2026-11-11",
+      "baselineEndDate": "2026-12-15",
+      "baselineDuration": 24
     },
     "t31": {
       "id": "t31",
@@ -199,15 +199,15 @@
       "deliverables": "フロント実装",
       "startDate": "2026-11-11",
       "endDate": "2026-11-27",
-      "duration": 13,
+      "duration": 12,
       "progress": 30,
       "status": "進行中",
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-11-27",
-      "planDuration": 13
+      "baselineStartDate": "2026-11-11",
+      "baselineEndDate": "2026-11-27",
+      "baselineDuration": 12
     },
     "t32": {
       "id": "t32",
@@ -218,15 +218,15 @@
       "deliverables": "",
       "startDate": "2026-11-11",
       "endDate": "2026-12-02",
-      "duration": 16,
+      "duration": 15,
       "progress": 0,
       "status": "未着手",
       "isCollapsed": false,
       "children": [],
       "dependencies": [],
-      "planStartDate": "2026-11-11",
-      "planEndDate": "2026-12-02",
-      "planDuration": 16
+      "baselineStartDate": "2026-11-11",
+      "baselineEndDate": "2026-12-02",
+      "baselineDuration": 15
     },
     "t33": {
       "id": "t33",
@@ -246,9 +246,9 @@
         "t31",
         "t32"
       ],
-      "planStartDate": "2026-12-03",
-      "planEndDate": "2026-12-11",
-      "planDuration": 7
+      "baselineStartDate": "2026-12-03",
+      "baselineEndDate": "2026-12-11",
+      "baselineDuration": 7
     },
     "t34": {
       "id": "t34",
@@ -267,9 +267,9 @@
       "dependencies": [
         "t33"
       ],
-      "planStartDate": "2026-12-14",
-      "planEndDate": "2026-12-15",
-      "planDuration": 2
+      "baselineStartDate": "2026-12-14",
+      "baselineEndDate": "2026-12-15",
+      "baselineDuration": 2
     }
   },
   "rootIds": [
@@ -291,6 +291,8 @@
       ]
     },
     "viewMode": "Day",
-    "baselineLocked": false
-  }
+    "showBaseline": true,
+    "baselineSetAt": "2026-10-05T09:00:00.000Z"
+  },
+  "schemaVersion": 3
 }

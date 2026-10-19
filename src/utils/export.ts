@@ -23,14 +23,13 @@ export async function buildExcelExportFile({
   const flattened = flattenTreeAll(tasks, rootIds);
 
   // Bar & font colors
-  const PLAN_COLOR = 'FF3B82F6';    // Blue-500  (予定)
-  const ACTUAL_COLOR = 'FFF59E0B';  // Amber-500 (実績・見込)
-  const PLAN_FONT: Partial<ExcelJS.Font> = { color: { argb: 'FF2563EB' } };        // Blue-600
-  const PLAN_FONT_BOLD: Partial<ExcelJS.Font> = { color: { argb: 'FF2563EB' }, bold: true };
-  const ACTUAL_FONT: Partial<ExcelJS.Font> = { color: { argb: 'FFD97706' } };      // Amber-600
-  const ACTUAL_FONT_BOLD: Partial<ExcelJS.Font> = { color: { argb: 'FFD97706' }, bold: true };
+  const SCHEDULE_COLOR = 'FF3B82F6';  // Blue-500  (現在の日程)
+  const BASELINE_COLOR = 'FFF59E0B';  // Amber-500 (基準計画)
+  const SCHEDULE_FONT: Partial<ExcelJS.Font> = { color: { argb: 'FF2563EB' } };        // Blue-600
+  const BASELINE_FONT: Partial<ExcelJS.Font> = { color: { argb: 'FFD97706' } };        // Amber-600
+  const BASELINE_FONT_BOLD: Partial<ExcelJS.Font> = { color: { argb: 'FFD97706' }, bold: true };
 
-  // 1. Calculate Date Range (consider both plan AND actual dates)
+  // 1. Calculate Date Range (current schedule + baseline)
   let minDate: Date | null = null;
   let maxDate: Date | null = null;
 
@@ -45,8 +44,8 @@ export async function buildExcelExportFile({
   flattened.forEach(({ task }) => {
     expandRange(task.startDate);
     expandRange(task.endDate);
-    expandRange(task.planStartDate);
-    expandRange(task.planEndDate);
+    expandRange(task.baselineStartDate);
+    expandRange(task.baselineEndDate);
   });
 
   // Default range if no dates found
@@ -63,23 +62,23 @@ export async function buildExcelExportFile({
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Gantt Chart');
 
-  // 3. Define Columns — show both Plan and Actual date groups
+  // 3. Define Columns — 現在の日程 1 組 + 基準計画 1 組 + 進捗率
   const fixedColumns = [
     { header: 'WBS番号', key: 'wbsNumber', width: 10 },
-    { header: 'タスク名', key: 'wbs', width: 40 },
+    { header: '項目名', key: 'wbs', width: 40 },
     { header: '説明', key: 'description', width: 40 },
     { header: '担当者', key: 'assignee', width: 15 },
     { header: '成果物', key: 'deliverables', width: 25 },
-    { header: 'ステータス', key: 'status', width: 15 },
+    { header: '状態', key: 'status', width: 15 },
     { header: '進捗率', key: 'progress', width: 10 },
-    // Plan date columns (予定)
-    { header: '予定開始日', key: 'planStartDate', width: 12 },
-    { header: '予定終了日', key: 'planEndDate', width: 12 },
-    { header: '予定期間', key: 'planDuration', width: 10 },
-    // Actual date columns (実績・見込)
-    { header: '実績開始日', key: 'actStartDate', width: 12 },
-    { header: '実績終了日', key: 'actEndDate', width: 12 },
-    { header: '実績期間', key: 'actDuration', width: 10 },
+    // Current schedule (現在の日程)
+    { header: '開始日', key: 'startDate', width: 12 },
+    { header: '終了日', key: 'endDate', width: 12 },
+    { header: '期間', key: 'duration', width: 10 },
+    // Baseline plan (基準計画)
+    { header: '基準開始日', key: 'baselineStartDate', width: 12 },
+    { header: '基準終了日', key: 'baselineEndDate', width: 12 },
+    { header: '基準期間', key: 'baselineDuration', width: 10 },
   ];
 
   // Date columns for Gantt area
@@ -101,18 +100,11 @@ export async function buildExcelExportFile({
   headerRow.font = { bold: true };
   headerRow.alignment = { horizontal: 'center' };
 
-  // Color Plan header columns in blue
-  const planHeaderKeys = ['planStartDate', 'planEndDate', 'planDuration'];
-  planHeaderKeys.forEach(key => {
+  // Color Baseline header columns in amber
+  const baselineHeaderKeys = ['baselineStartDate', 'baselineEndDate', 'baselineDuration'];
+  baselineHeaderKeys.forEach(key => {
     const col = fixedColumns.findIndex(c => c.key === key);
-    if (col >= 0) headerRow.getCell(col + 1).font = PLAN_FONT_BOLD;
-  });
-
-  // Color Actual header columns in orange
-  const actHeaderKeys = ['actStartDate', 'actEndDate', 'actDuration'];
-  actHeaderKeys.forEach(key => {
-    const col = fixedColumns.findIndex(c => c.key === key);
-    if (col >= 0) headerRow.getCell(col + 1).font = ACTUAL_FONT_BOLD;
+    if (col >= 0) headerRow.getCell(col + 1).font = BASELINE_FONT_BOLD;
   });
 
   // Style Date Column Headers (colors for weekends/holidays)
@@ -158,61 +150,61 @@ export async function buildExcelExportFile({
     row.getCell('status').value = task.status || '';
     row.getCell('progress').value = task.progress + '%';
 
-    // --- Plan dates (blue) ---
-    row.getCell('planStartDate').value = task.planStartDate || '';
-    row.getCell('planEndDate').value = task.planEndDate || '';
-    row.getCell('planDuration').value = task.planDuration ?? '';
-    row.getCell('planStartDate').font = PLAN_FONT;
-    row.getCell('planEndDate').font = PLAN_FONT;
-    row.getCell('planDuration').font = PLAN_FONT;
+    // --- Current schedule (blue) ---
+    row.getCell('startDate').value = task.startDate || '';
+    row.getCell('endDate').value = task.endDate || '';
+    row.getCell('duration').value = task.duration ?? '';
+    row.getCell('startDate').font = SCHEDULE_FONT;
+    row.getCell('endDate').font = SCHEDULE_FONT;
+    row.getCell('duration').font = SCHEDULE_FONT;
 
-    // --- Actual dates (orange) ---
-    row.getCell('actStartDate').value = task.startDate || '';
-    row.getCell('actEndDate').value = task.endDate || '';
-    row.getCell('actDuration').value = task.duration ?? '';
-    row.getCell('actStartDate').font = ACTUAL_FONT;
-    row.getCell('actEndDate').font = ACTUAL_FONT;
-    row.getCell('actDuration').font = ACTUAL_FONT;
+    // --- Baseline plan (amber) ---
+    row.getCell('baselineStartDate').value = task.baselineStartDate || '';
+    row.getCell('baselineEndDate').value = task.baselineEndDate || '';
+    row.getCell('baselineDuration').value = task.baselineDuration ?? '';
+    row.getCell('baselineStartDate').font = BASELINE_FONT;
+    row.getCell('baselineEndDate').font = BASELINE_FONT;
+    row.getCell('baselineDuration').font = BASELINE_FONT;
 
     // --- Gantt Chart Bars ---
-    // Draw plan bar (blue) first, then actual bar (orange) on top
-    // This means if both overlap, actual (orange) takes visual priority
+    // 基準（アンバー）を先に描き、現在の日程（青）を上に重ねる。
+    // 両方が重なる場合は現在の日程（青）が視覚的に優先される。
 
-    const hasPlan = !!(task.planStartDate && task.planEndDate);
-    const hasActual = !!(task.startDate && task.endDate);
+    const hasSchedule = !!(task.startDate && task.endDate);
+    const hasBaselineDates = !!(task.baselineStartDate && task.baselineEndDate);
 
-    if (hasPlan) {
-      const planStart = parseISO(task.planStartDate!);
-      const planEnd = parseISO(task.planEndDate!);
-      if (isValid(planStart) && isValid(planEnd)) {
+    if (hasBaselineDates) {
+      const bStart = parseISO(task.baselineStartDate!);
+      const bEnd = parseISO(task.baselineEndDate!);
+      if (isValid(bStart) && isValid(bEnd)) {
         for (let i = 0; i < totalDays; i++) {
           const current = addDays(rangeStart, i);
-          if (isInRange(current, planStart, planEnd)) {
+          if (isInRange(current, bStart, bEnd)) {
             const colIndex = fixedColumns.length + 1 + i;
             const cell = row.getCell(colIndex);
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: PLAN_COLOR }
+              fgColor: { argb: BASELINE_COLOR }
             };
           }
         }
       }
     }
 
-    if (hasActual) {
-      const actStart = parseISO(task.startDate!);
-      const actEnd = parseISO(task.endDate!);
-      if (isValid(actStart) && isValid(actEnd)) {
+    if (hasSchedule) {
+      const sStart = parseISO(task.startDate!);
+      const sEnd = parseISO(task.endDate!);
+      if (isValid(sStart) && isValid(sEnd)) {
         for (let i = 0; i < totalDays; i++) {
           const current = addDays(rangeStart, i);
-          if (isInRange(current, actStart, actEnd)) {
+          if (isInRange(current, sStart, sEnd)) {
             const colIndex = fixedColumns.length + 1 + i;
             const cell = row.getCell(colIndex);
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: ACTUAL_COLOR }
+              fgColor: { argb: SCHEDULE_COLOR }
             };
           }
         }

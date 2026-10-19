@@ -16,8 +16,6 @@ const COLUMN_IDS: ColumnId[] = [
   'deliverables',
   'status',
   'progress',
-  'planDuration',
-  'planDate',
   'duration',
   'date',
 ];
@@ -30,8 +28,6 @@ const COLUMN_WIDTH_KEYS = Object.keys(
     deliverables: 0,
     status: 0,
     progress: 0,
-    planDuration: 0,
-    planDate: 0,
     duration: 0,
     date: 0,
   } satisfies Record<keyof ProjectConfig['columnWidths'], number>
@@ -40,13 +36,12 @@ const COLUMN_WIDTH_KEYS = Object.keys(
 /**
  * 統合表示ビューの既定列。
  * 日付は右のタイムラインで分かるため、左ペインはコンパクトに保つ
- * （10 列すべてを出すと左ペインが画面幅を占有し、列が隠れて操作できなくなる）。
+ * （全列を出すと左ペインが画面幅を占有し、列が隠れて操作できなくなる）。
  */
 export const COMPACT_COLUMNS: ColumnId[] = [
   'taskName',
   'status',
   'progress',
-  'planDuration',
   'duration',
 ];
 
@@ -61,14 +56,13 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     description: 256,
     assignee: 128,
     deliverables: 192,
-    status: 100,
+    status: 60,
     progress: 80,
-    planDuration: 64,
-    planDate: 224,
     duration: 64,
     date: 224,
   },
-  baselineLocked: false,
+  showBaseline: true,
+  baselineSetAt: null,
   visibleColumns: [
     'taskName',
     'description',
@@ -76,8 +70,6 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     'deliverables',
     'status',
     'progress',
-    'planDuration',
-    'planDate',
     'duration',
     'date',
   ],
@@ -188,9 +180,14 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     }
   }
 
-  const nextBaselineLocked = typeof config?.baselineLocked === 'boolean'
-    ? config.baselineLocked
-    : DEFAULT_PROJECT_CONFIG.baselineLocked;
+  const nextShowBaseline = typeof config?.showBaseline === 'boolean'
+    ? config.showBaseline
+    : DEFAULT_PROJECT_CONFIG.showBaseline;
+
+  const rawBaselineSetAt = config?.baselineSetAt;
+  const nextBaselineSetAt = typeof rawBaselineSetAt === 'string' && rawBaselineSetAt.trim() !== ''
+    ? rawBaselineSetAt
+    : null;
 
   return {
     calendar: {
@@ -199,7 +196,8 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     },
     viewMode: nextViewMode,
     columnWidths: nextColumnWidths,
-    baselineLocked: nextBaselineLocked,
+    showBaseline: nextShowBaseline,
+    baselineSetAt: nextBaselineSetAt,
     visibleColumns: nextVisibleColumns,
     integratedColumns: nextIntegratedColumns,
     ...(nextTimelineRange ? { timelineRange: nextTimelineRange } : {}),

@@ -32,7 +32,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 interface BenchTask {
   id: string;
-  planStartDate?: string | null;
+  startDate?: string | null;
   children: string[];
 }
 interface BenchProjectData {
@@ -237,9 +237,9 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
       let bestDelta = Number.POSITIVE_INFINITY;
       orderedIds.forEach((id, index) => {
         const task = data.tasks[id];
-        if (!task || task.children.length > 0 || !task.planStartDate) return;
+        if (!task || task.children.length > 0 || !task.startDate) return;
         if (index >= 24) return;
-        const delta = Math.abs(new Date(task.planStartDate).getTime() - todayMs);
+        const delta = Math.abs(new Date(task.startDate).getTime() - todayMs);
         if (delta < bestDelta) {
           bestDelta = delta;
           targetId = id;

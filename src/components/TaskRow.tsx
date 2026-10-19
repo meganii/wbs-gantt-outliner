@@ -8,8 +8,6 @@ import { TaskOutlineCell } from './cells/TaskOutlineCell';
 import { TaskTextCell } from './cells/TaskTextCell';
 import { TaskStatusCell } from './cells/TaskStatusCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
-import { TaskPlanDurationCell } from './cells/TaskPlanDurationCell';
-import { TaskPlanDateCell } from './cells/TaskPlanDateCell';
 import { TaskDurationCell } from './cells/TaskDurationCell';
 import { TaskDateCell } from './cells/TaskDateCell';
 
@@ -69,7 +67,6 @@ export const TaskRow = memo(({
   // セルごとに tasks[taskId] / columnWidths / action を購読すると、
   // ストア更新のたびに 1 行あたり数十個の selector が実行される。
   const columnWidths = useTaskStore((state) => state.projectConfig.columnWidths);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -197,32 +194,6 @@ export const TaskRow = memo(({
                 taskId={taskId}
                 task={task}
                 columnWidths={columnWidths}
-                prevId={prevId}
-                nextId={nextId}
-                onSelectionChange={onSelectionChange}
-              />
-            );
-          case 'planDuration':
-            return (
-              <TaskPlanDurationCell
-                key="planDuration"
-                taskId={taskId}
-                task={task}
-                columnWidths={columnWidths}
-                baselineLocked={baselineLocked}
-                prevId={prevId}
-                nextId={nextId}
-                onSelectionChange={onSelectionChange}
-              />
-            );
-          case 'planDate':
-            return (
-              <TaskPlanDateCell
-                key="planDate"
-                taskId={taskId}
-                task={task}
-                columnWidths={columnWidths}
-                baselineLocked={baselineLocked}
                 prevId={prevId}
                 nextId={nextId}
                 onSelectionChange={onSelectionChange}

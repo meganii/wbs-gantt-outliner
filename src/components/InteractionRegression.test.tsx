@@ -52,9 +52,9 @@ describe('cell editing and derived values', () => {
     act(() => {
       useTaskStore.getState().updateTask(id, {
         title: 'T',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
-        planDuration: 2,
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
+        duration: 2,
       });
     });
     const { container } = render(<Outliner showDetails />);
@@ -65,7 +65,9 @@ describe('cell editing and derived values', () => {
 
     const task = useTaskStore.getState().tasks[id];
     expect(task.duration).toBe(5);
-    expect(task.planEndDate).toBe('2026-05-29');
+    // 期間を編集すると終了日が動く（開始日はそのまま）
+    expect(task.startDate).toBe('2026-05-25');
+    expect(task.endDate).toBe('2026-05-29');
 
     const endInput = fieldInput(container, id, 'endDate');
     const span = endInput.parentElement!.querySelector('span')!;
@@ -120,14 +122,21 @@ describe('cell editing and derived values', () => {
     expect(useTaskStore.getState().focusedTaskField).toBe('startDate');
   });
 
-  it('status select commits to the store', () => {
+  it('status is display-only and derived from progress', () => {
     const id = useTaskStore.getState().rootIds[0];
     const { container } = render(<Outliner showDetails />);
-    const select = container.querySelector<HTMLSelectElement>(
-      `select[data-task-id="${id}"][data-field="status"]`
-    )!;
-    fireEvent.change(select, { target: { value: '進行中' } });
-    expect(useTaskStore.getState().tasks[id].status).toBe('進行中');
+
+    // ステータス列は select を持たない（進捗率から導出される表示専用）
+    expect(
+      container.querySelector(`select[data-task-id="${id}"][data-field="status"]`)
+    ).toBeNull();
+
+    const progress = fieldInput(container, id, 'progress');
+    fireEvent.focus(progress);
+    fireEvent.change(progress, { target: { value: '100' } });
+    fireEvent.blur(progress);
+
+    expect(useTaskStore.getState().tasks[id].status).toBe('完了');
   });
 
   it('progress input clamps and commits on blur', () => {
@@ -175,53 +184,53 @@ describe('cell editing and derived values', () => {
     const parentId = useTaskStore.getState().rootIds[0];
     let childId = '';
     act(() => {
-      useTaskStore.getState().setIntegratedColumns(['taskName', 'planDate']);
+      useTaskStore.getState().setIntegratedColumns(['taskName', 'date']);
       useTaskStore.getState().addTask(parentId, 'inside');
       childId = useTaskStore.getState().tasks[parentId].children[0];
       useTaskStore.getState().updateTask(childId, {
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
       });
     });
 
     // App と同様に flattenedItems を外から渡す（購読して再計算する）
     const { container } = render(<IntegratedWrapper />);
-    expect(fieldInput(container, parentId, 'planStartDate')).not.toBeNull();
+    expect(fieldInput(container, parentId, 'startDate')).not.toBeNull();
 
     act(() => {
       useTaskStore.getState().updateTask(childId, {
-        planStartDate: '2026-06-01',
-        planEndDate: '2026-06-02',
+        startDate: '2026-06-01',
+        endDate: '2026-06-02',
       });
     });
 
-    expect(useTaskStore.getState().tasks[parentId].planStartDate).toBe('2026-06-01');
-    const span = fieldInput(container, parentId, 'planStartDate').parentElement!.querySelector('span')!;
+    expect(useTaskStore.getState().tasks[parentId].startDate).toBe('2026-06-01');
+    const span = fieldInput(container, parentId, 'startDate').parentElement!.querySelector('span')!;
     expect(span.textContent).toBe('06/01');
   });
 
   it('IntegratedView without the flattenedItems prop still tracks store changes', () => {
     const id = useTaskStore.getState().rootIds[0];
     act(() => {
-      useTaskStore.getState().setIntegratedColumns(['taskName', 'planDate']);
+      useTaskStore.getState().setIntegratedColumns(['taskName', 'date']);
       useTaskStore.getState().updateTask(id, {
         title: 'fallback',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
       });
     });
     const { container } = render(
       <IntegratedView outlinerWidth={800} onResizeStart={() => {}} />
     );
-    expect(fieldInput(container, id, 'planStartDate')).not.toBeNull();
+    expect(fieldInput(container, id, 'startDate')).not.toBeNull();
 
     act(() => {
       useTaskStore.getState().updateTask(id, {
-        planStartDate: '2026-06-08',
-        planEndDate: '2026-06-09',
+        startDate: '2026-06-08',
+        endDate: '2026-06-09',
       });
     });
-    const span = fieldInput(container, id, 'planStartDate').parentElement!.querySelector('span')!;
+    const span = fieldInput(container, id, 'startDate').parentElement!.querySelector('span')!;
     expect(span.textContent).toBe('06/08');
   });
 });
@@ -242,8 +251,8 @@ describe('gantt interaction', () => {
     act(() => {
       useTaskStore.getState().addTask(aId, 'after');
       bId = useTaskStore.getState().rootIds[1];
-      useTaskStore.getState().updateTask(aId, { planStartDate: '2026-05-25', planEndDate: '2026-05-26' });
-      useTaskStore.getState().updateTask(bId, { planStartDate: '2026-05-27', planEndDate: '2026-05-28' });
+      useTaskStore.getState().updateTask(aId, { startDate: '2026-05-25', endDate: '2026-05-26' });
+      useTaskStore.getState().updateTask(bId, { startDate: '2026-05-27', endDate: '2026-05-28' });
       useTaskStore.getState().addDependency(aId, bId);
     });
     expect(useTaskStore.getState().tasks[bId].dependencies).toEqual([aId]);
@@ -258,25 +267,25 @@ describe('gantt interaction', () => {
     expect(useTaskStore.getState().tasks[bId].dependencies).toEqual([]);
   });
 
-  it('IntegratedView plan bar drag commits new dates', () => {
+  it('IntegratedView schedule bar drag commits new dates', () => {
     const id = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(id, {
         title: 'IV drag',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-26',
-        planDuration: 2,
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
+        duration: 2,
       });
     });
     const { container } = render(<IntegratedWrapper />);
-    const bar = container.querySelector(`[data-gantt-bar][data-task-id="${id}"].bg-blue-100`)!;
+    const bar = container.querySelector(`[data-gantt-bar="schedule"][data-task-id="${id}"]`)!;
     expect(bar).not.toBeNull();
     fireEvent.mouseDown(bar, { button: 0, clientX: 200, clientY: 50 });
     fireEvent.mouseMove(window, { clientX: 280, clientY: 50 });
     fireEvent.mouseUp(window);
     const task = useTaskStore.getState().tasks[id];
-    expect(task.planStartDate).toBe('2026-05-27');
-    expect(task.planEndDate).toBe('2026-05-28');
+    expect(task.startDate).toBe('2026-05-27');
+    expect(task.endDate).toBe('2026-05-28');
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 
@@ -286,27 +295,27 @@ describe('gantt interaction', () => {
     act(() => {
       useTaskStore.getState().addTask(aId, 'after');
       bId = useTaskStore.getState().rootIds[1];
-      useTaskStore.getState().updateTask(aId, { planStartDate: '2026-05-25', planEndDate: '2026-05-26' });
-      useTaskStore.getState().updateTask(bId, { planStartDate: '2026-05-27', planEndDate: '2026-05-28' });
+      useTaskStore.getState().updateTask(aId, { startDate: '2026-05-25', endDate: '2026-05-26' });
+      useTaskStore.getState().updateTask(bId, { startDate: '2026-05-27', endDate: '2026-05-28' });
     });
     const { container } = render(<IntegratedWrapper />);
-    const barA = container.querySelector(`[data-gantt-bar][data-task-id="${aId}"].bg-blue-100`)!;
+    const barA = container.querySelector(`[data-gantt-bar="schedule"][data-task-id="${aId}"]`)!;
     const handle = barA.querySelector('[title="Drag to create dependency"]')!;
-    const barB = container.querySelector(`[data-gantt-bar][data-task-id="${bId}"].bg-blue-100`)!;
+    const barB = container.querySelector(`[data-gantt-bar="schedule"][data-task-id="${bId}"]`)!;
     fireEvent.mouseDown(handle, { button: 0, clientX: 300, clientY: 50 });
     fireEvent.mouseMove(window, { clientX: 300, clientY: 82 });
     fireEvent.mouseUp(barB);
     expect(useTaskStore.getState().tasks[bId].dependencies).toContain(aId);
   });
 
-  it('IntegratedView single click on a day cell sets a one-day plan', () => {
+  it('IntegratedView single click on a day cell sets a one-day schedule', () => {
     const id = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(id, {
         title: 'IV click',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-27',
-        planDuration: 3,
+        startDate: '2026-05-25',
+        endDate: '2026-05-27',
+        duration: 3,
       });
     });
     const { container } = render(<IntegratedWrapper />);
@@ -317,8 +326,8 @@ describe('gantt interaction', () => {
     fireEvent.mouseDown(rowArea, { button: 0, clientX: 300, clientY: 50 });
     fireEvent.mouseUp(window);
     const task = useTaskStore.getState().tasks[id];
-    expect(task.planStartDate).toBe(task.planEndDate);
-    expect(task.planDuration).toBe(1);
+    expect(task.startDate).toBe(task.endDate);
+    expect(task.duration).toBe(1);
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 });

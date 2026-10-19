@@ -197,11 +197,7 @@ describe('Outliner keyboard navigation', () => {
     expect(useTaskStore.getState().projectConfig.visibleColumns).toContain('description');
   });
 
-  it('disables planning columns toggle when baseline is locked', () => {
-    act(() => {
-      useTaskStore.getState().setBaselineLocked(true);
-    });
-
+  it('期間列・日付列の表示トグルが通常どおり操作できる', () => {
     const { container } = render(<Outliner showDetails />);
     const header = container.querySelector('.sticky');
     fireEvent.contextMenu(header!);
@@ -209,11 +205,20 @@ describe('Outliner keyboard navigation', () => {
     const menuContainer = container.querySelector('.fixed.bg-white') as HTMLElement;
     expect(menuContainer).not.toBeNull();
 
-    // "予定期間" should be disabled in the menu (look for disabled checkbox)
-    const planDurationLabel = within(menuContainer).getByText('予定期間');
-    const checkbox = (planDurationLabel.querySelector('input[type="checkbox"]') || planDurationLabel.parentElement?.querySelector('input[type="checkbox"]')) as HTMLInputElement;
-    expect(checkbox).not.toBeNull();
-    expect(checkbox.disabled).toBe(true);
+    // 2 層モデルでは「期間」「開始日 / 終了日」の 1 系統だけ（予定・実績で分けない）
+    const durationLabel = within(menuContainer).getByText('期間');
+    const durationCheckbox = (durationLabel.querySelector('input[type="checkbox"]') || durationLabel.parentElement?.querySelector('input[type="checkbox"]')) as HTMLInputElement;
+    expect(durationCheckbox).not.toBeNull();
+    expect(durationCheckbox.disabled).toBe(false);
+
+    const dateLabel = within(menuContainer).getByText('開始日 / 終了日');
+    const dateCheckbox = (dateLabel.querySelector('input[type="checkbox"]') || dateLabel.parentElement?.querySelector('input[type="checkbox"]')) as HTMLInputElement;
+    expect(dateCheckbox).not.toBeNull();
+    expect(dateCheckbox.disabled).toBe(false);
+
+    // 旧「予定期間 / 実績期間」の列は無い
+    expect(within(menuContainer).queryByText('予定期間')).toBeNull();
+    expect(within(menuContainer).queryByText('実績期間')).toBeNull();
   });
 
   /**

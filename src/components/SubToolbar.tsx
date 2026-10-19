@@ -36,7 +36,6 @@ export function SubToolbar({ view }: SubToolbarProps) {
   const setIntegratedColumns = useTaskStore((state) => state.setIntegratedColumns);
   const tasks = useTaskStore((state) => state.tasks);
 
-  const baselineLocked = projectConfig.baselineLocked ?? false;
   const isWbs = view === 'wbs';
   // ズーム・今日への移動はタイムラインを持つビューでのみ意味がある。
   const hasTimeline = !isWbs;
@@ -133,7 +132,6 @@ export function SubToolbar({ view }: SubToolbarProps) {
               <ColumnVisibilityMenu
                 columns={menuColumns}
                 onChange={onColumnsChange}
-                baselineLocked={baselineLocked}
                 className="absolute left-0 top-full z-[60] mt-1 min-w-[180px] rounded-lg border border-line bg-white py-1 text-gray-700 shadow-pop"
               />
             )}

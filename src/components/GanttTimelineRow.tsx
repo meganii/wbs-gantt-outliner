@@ -12,7 +12,6 @@ export interface GanttTimelineRowProps {
     pixelsPerDay: number;
     totalDays: number;
   };
-  baselineLocked: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   timelineWidth: number;
   /** 選択中の行かどうか（タイムライン側にもハイライト帯を敷く）。 */
@@ -21,11 +20,23 @@ export interface GanttTimelineRowProps {
   isHovered?: boolean;
 }
 
+/** バーの日付（現在の日程 = 開始日 / 終了日）。 */
+function resolveBarDates(task: Task): { start: string | null; end: string | null } {
+  return {
+    start: task.startDate ?? null,
+    end: task.endDate ?? null,
+  };
+}
+
+/**
+ * ガントの 1 行。操作対象のバーは 1 本だけ（現在の日程）とし、
+ * 進捗を塗りで表現する。基準計画は現在のバーの下に薄いグレーバー
+ * （非操作・`pointer-events: none`）として重ねる。
+ */
 export const GanttTimelineRow = memo(({
   taskId,
   task,
   timelineMetrics,
-  baselineLocked,
   taskBarRefs,
   timelineWidth,
   isSelected = false,
@@ -38,7 +49,15 @@ export const GanttTimelineRow = memo(({
   const dragMode = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.mode : null);
   const dragCurrentStartDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentStartDate : null);
   const dragCurrentEndDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentEndDate : null);
+  const showBaseline = useTaskStore((state) => state.projectConfig.showBaseline ?? true);
   const setDragState = useTaskStore((state) => state.setDragState);
+
+  const { start: barStartStr, end: barEndStr } = resolveBarDates(task);
+  const hasBar = !!(barStartStr && barEndStr);
+  const progress = Math.max(0, Math.min(100, task.progress || 0));
+  // 完了（塗りが 100% まで到達）は色でも分かるようにする。
+  // WBS のステータス列（TaskStatusCell）が「完了 = 緑」なので、色の意味を合わせる。
+  const isCompleted = progress >= 100;
 
   return (
     <div
@@ -81,7 +100,7 @@ export const GanttTimelineRow = memo(({
         });
       }}
     >
-      {/* Task Bar */}
+      {/* 選択行 / ホバー行のハイライト帯 */}
       {(isSelected || isHovered) && (
         <div
           aria-hidden="true"
@@ -92,7 +111,7 @@ export const GanttTimelineRow = memo(({
         />
       )}
 
-      {/* Task Bar */}
+      {/* 範囲ドラッグ（draw-range）のプレビュー */}
       {isDragging && dragMode === 'draw-range' && (() => {
         const start = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentStartDate! : dragCurrentEndDate!;
         const end = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentEndDate! : dragCurrentStartDate!;
@@ -109,38 +128,60 @@ export const GanttTimelineRow = memo(({
         );
       })()}
 
-      {/* Task Bar */}
-      {(() => {
-        const planStartStr = task.planStartDate || task.startDate;
-        const planEndStr = task.planEndDate || task.endDate;
-        const hasPlan = !!(planStartStr && planEndStr);
-        const hasActual = !!(task.startDate && task.endDate);
-        if (!hasPlan && !hasActual) return null;
-
+      {hasBar && (() => {
         const { timelineStart, pixelsPerDay } = timelineMetrics;
-        
-        // 1. Plan Bar Metrics
-        const isDraggingPlan = isDragging && !baselineLocked && dragMode !== 'dependency' && dragMode !== 'draw-range';
-        const planStart = isDraggingPlan ? dragCurrentStartDate : (planStartStr ? new Date(planStartStr) : null);
-        const planEnd = isDraggingPlan ? dragCurrentEndDate : (planEndStr ? new Date(planEndStr) : null);
-        const planDiffDays = planStart ? differenceInDays(planStart, timelineStart) : 0;
-        const planOffset = planDiffDays * pixelsPerDay;
-        const planDaySpan = (planStart && planEnd) ? differenceInDays(planEnd, planStart) + 1 : 0;
-        const planWidth = planDaySpan * pixelsPerDay;
 
-        // 2. Actual Bar Metrics
-        const isDraggingActual = isDragging && baselineLocked && dragMode !== 'dependency' && dragMode !== 'draw-range';
-        const taskStart = isDraggingActual ? dragCurrentStartDate : (task.startDate ? new Date(task.startDate) : null);
-        const taskEnd = isDraggingActual ? dragCurrentEndDate : (task.endDate ? new Date(task.endDate) : null);
-        const diffDays = taskStart ? differenceInDays(taskStart, timelineMetrics.timelineStart) : 0;
-        const offset = diffDays * pixelsPerDay;
-        const daySpan = (taskStart && taskEnd) ? differenceInDays(taskEnd, taskStart) + 1 : 0;
-        const width = daySpan * pixelsPerDay;
+        const isDraggingBar = isDragging && dragMode !== 'dependency' && dragMode !== 'draw-range';
+        const barStart = isDraggingBar ? dragCurrentStartDate : new Date(barStartStr!);
+        const barEnd = isDraggingBar ? dragCurrentEndDate : new Date(barEndStr!);
+        const barDiffDays = differenceInDays(barStart!, timelineStart);
+        const barOffset = barDiffDays * pixelsPerDay;
+        const barDaySpan = differenceInDays(barEnd!, barStart!) + 1;
+        const barWidth = barDaySpan * pixelsPerDay;
+
+        // 基準計画バー（非操作のゴースト、予定バーの下）
+        const hasBaseline = showBaseline && !!(task.baselineStartDate && task.baselineEndDate);
+        let baselineOffset = 0;
+        let baselineWidth = 0;
+        if (hasBaseline) {
+          const bStart = new Date(task.baselineStartDate!);
+          const bEnd = new Date(task.baselineEndDate!);
+          baselineOffset = differenceInDays(bStart, timelineStart) * pixelsPerDay;
+          baselineWidth = (differenceInDays(bEnd, bStart) + 1) * pixelsPerDay;
+        }
+
+        const startDrag = (mode: 'move' | 'resize-left' | 'resize-right' | 'dependency') => (e: React.MouseEvent) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setDragState({
+            taskId,
+            mode,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialStartDate: new Date(barStartStr!),
+            initialEndDate: new Date(barEndStr!),
+            currentStartDate: new Date(barStartStr!),
+            currentEndDate: new Date(barEndStr!),
+          });
+        };
 
         return (
           <>
-            {/* Plan Bar (Baseline) */}
-            {hasPlan && planWidth > 0 && (
+            {/* 基準計画バー（現在のバーの下に数 px ずらした薄いグレー） */}
+            {hasBaseline && baselineWidth > 0 && (
+              <div
+                aria-hidden="true"
+                className={clsx(
+                  'absolute pointer-events-none bg-slate-300/80 border border-slate-400/60 rounded-sm z-10',
+                  isParent ? 'top-[20px] h-[4px]' : 'top-[19px] h-[5px]'
+                )}
+                style={{ left: baselineOffset, width: Math.max(0, baselineWidth - 2) }}
+                title={`基準計画: ${task.title} (${task.baselineStartDate} - ${task.baselineEndDate})`}
+              />
+            )}
+
+            {/* 現在の日程バー（唯一の操作対象。進捗を左端から塗る） */}
+            {barWidth > 0 && (
               <div
                 ref={(el) => {
                   if (el) {
@@ -150,42 +191,55 @@ export const GanttTimelineRow = memo(({
                   }
                 }}
                 data-task-id={taskId}
-                data-gantt-bar="plan"
+                data-gantt-bar="schedule"
                 className={clsx(
-                  "absolute text-[9px] flex items-center shadow-sm group z-20 transition-[background-color,color,box-shadow] duration-150",
+                  "absolute flex items-center shadow-sm group z-20 transition-[background-color,color,box-shadow] duration-150",
                   isParent
-                    ? "top-[4px] h-2.5 bg-slate-400/70 cursor-default rounded-full border border-slate-500/50"
+                    ? clsx(
+                        "top-[4px] h-2.5 cursor-default rounded-full border",
+                        isCompleted
+                          ? "bg-green-200/70 border-green-500/60"
+                          : "bg-slate-300/80 border-slate-500/50"
+                      )
                     : [
-                        "top-[3px] h-3.5 rounded-md text-[8px] px-1.5 text-blue-800 bg-blue-100 border border-blue-300 font-medium select-none",
-                        baselineLocked ? "cursor-default" : [
-                          "cursor-pointer hover:bg-brand-600 hover:text-white hover:border-brand-700",
-                          isDraggingPlan && "bg-brand-600 text-white border-brand-700 cursor-grabbing"
-                        ]
+                        "top-[3px] h-3.5 rounded-md border select-none cursor-pointer",
+                        isCompleted
+                          ? "border-green-400 bg-green-100 hover:border-green-500"
+                          : "border-brand-300 bg-brand-100 hover:border-brand-400",
+                        isDraggingBar && "cursor-grabbing border-brand-500 shadow-md"
                       ]
                 )}
-                style={{ left: planOffset, width: Math.max(0, planWidth - 2) }}
-                title={`Plan: ${task.title} (${format(planStart!, 'yyyy-MM-dd')} - ${format(planEnd!, 'yyyy-MM-dd')})`}
+                style={{ left: barOffset, width: Math.max(0, barWidth - 2) }}
+                title={[
+                  task.title,
+                  `開始日: ${format(barStart!, 'yyyy-MM-dd')}`,
+                  `終了日: ${format(barEnd!, 'yyyy-MM-dd')}`,
+                  `期間: ${task.duration ?? ''}日`,
+                  `進捗 ${progress}%${isCompleted ? '（完了）' : ''}`,
+                  hasBaseline ? `基準: ${task.baselineStartDate} - ${task.baselineEndDate}` : '',
+                ].filter(Boolean).join(' / ')}
                 onMouseDown={(e) => {
                   // バー上のクリック/ドラッグを行の draw-range に伝播させない。
-                  // （ベースライン固定中や親タスクではバーを動かせないが、
-                  //   伝播させると行の draw-range が発火して日付が書き換わってしまう）
                   e.stopPropagation();
-                  if (baselineLocked || e.button !== 0 || isParent) return;
-                  const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                  const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                  setDragState({
-                    taskId,
-                    mode: 'move',
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    initialStartDate: new Date(startStr),
-                    initialEndDate: new Date(endStr),
-                    currentStartDate: new Date(startStr),
-                    currentEndDate: new Date(endStr),
-                  });
+                  if (e.button !== 0 || isParent) return;
+                  startDrag('move')(e);
                 }}
               >
-                {/* Downward hanging bracket triangles for parent tasks */}
+                {/* 進捗の塗り（実績期間 ÷ 予定期間）。完了時は緑で塗り切る */}
+                {progress > 0 && (
+                  <div
+                    aria-hidden="true"
+                    className={clsx(
+                      'absolute inset-y-0 left-0 pointer-events-none',
+                      isCompleted
+                        ? (isParent ? 'bg-green-500/80 rounded-full' : 'bg-green-600 rounded-[5px]')
+                        : (isParent ? 'bg-slate-500/70 rounded-l-full' : 'bg-brand-600 rounded-l-[5px]')
+                    )}
+                    style={{ width: `${progress}%` }}
+                  />
+                )}
+
+                {/* 親タスクの下向きブラケット */}
                 {isParent && (
                   <>
                     <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500/70 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
@@ -193,187 +247,45 @@ export const GanttTimelineRow = memo(({
                   </>
                 )}
 
-                {/* Left Resize Handle */}
-                {!isParent && !baselineLocked && (
+                {/* 左端リサイズハンドル */}
+                {!isParent && (
                   <div
-                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                      setDragState({
-                        taskId,
-                        mode: 'resize-left',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: new Date(startStr),
-                        initialEndDate: new Date(endStr),
-                        currentStartDate: new Date(startStr),
-                        currentEndDate: new Date(endStr),
-                      });
-                    }}
+                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 z-10"
+                    onMouseDown={startDrag('resize-left')}
                   />
                 )}
 
-                {/* Right Resize Handle */}
-                {!isParent && !baselineLocked && (
+                {/* 右端リサイズハンドル */}
+                {!isParent && (
                   <div
-                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                      setDragState({
-                        taskId,
-                        mode: 'resize-right',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: new Date(startStr),
-                        initialEndDate: new Date(endStr),
-                        currentStartDate: new Date(startStr),
-                        currentEndDate: new Date(endStr),
-                      });
-                    }}
+                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/30 z-10"
+                    onMouseDown={startDrag('resize-right')}
                   />
                 )}
 
-                {/* Dependency Handle */}
-                {!isParent && !baselineLocked && (
+                {/* 依存線の作成ハンドル */}
+                {!isParent && (
                   <div
                     className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center group-hover:opacity-100"
                     title="Drag to create dependency"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      const startStr = task.planStartDate || task.startDate || format(new Date(), 'yyyy-MM-dd');
-                      const endStr = task.planEndDate || task.endDate || format(new Date(), 'yyyy-MM-dd');
-                      setDragState({
-                        taskId,
-                        mode: 'dependency',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: new Date(startStr),
-                        initialEndDate: new Date(endStr),
-                        currentStartDate: new Date(startStr),
-                        currentEndDate: new Date(endStr),
-                      });
-                    }}
+                    onMouseDown={startDrag('dependency')}
                   >
                     <span className="text-blue-500 text-[10px] font-bold">+</span>
                   </div>
                 )}
 
-                {!isParent && !baselineLocked && (
-                  <span className="px-1 truncate pointer-events-none">
+                {/* タイトル（塗りの上でも読めるよう白フチを付ける） */}
+                {!isParent && (
+                  <span
+                    className={clsx(
+                      'relative z-[5] px-1.5 truncate pointer-events-none text-[9px] font-medium',
+                      isCompleted ? 'text-green-900' : 'text-blue-900'
+                    )}
+                    style={{ textShadow: '0 0 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.7)' }}
+                  >
                     {task.title}
                   </span>
                 )}
-              </div>
-            )}
-
-            {/* Actual Bar */}
-            {baselineLocked && taskStart && taskEnd && width > 0 && (
-              <div
-                ref={(el) => {
-                  // If baseline is locked, actual bar should act as dependency anchor reference!
-                  if (el) {
-                    taskBarRefs.current?.set(taskId, el);
-                  } else {
-                    taskBarRefs.current?.delete(taskId);
-                  }
-                }}
-                data-task-id={taskId}
-                data-gantt-bar="actual"
-                className={clsx(
-                  "absolute text-[8px] flex items-center shadow-sm group z-30 transition-[background-color,color,opacity,box-shadow] duration-150",
-                  isParent
-                    ? "top-[18px] h-2 cursor-default rounded-sm"
-                    : [
-                        "top-[17px] h-2.5 rounded text-amber-950 cursor-pointer hover:shadow-sm",
-                        isDraggingActual && "cursor-grabbing border-amber-600 shadow-md animate-pulse"
-                      ]
-                )}
-                style={{
-                  left: offset,
-                  width: Math.max(0, width - 2),
-                  background: isParent
-                    ? `linear-gradient(to right, #475569 ${task.progress}%, #ffffff ${task.progress}%)`
-                    : `linear-gradient(to right, #f59e0b ${task.progress}%, #ffffff ${task.progress}%)`,
-                  border: isParent
-                    ? '1px solid #475569'
-                    : '1px solid #d97706',
-                }}
-                title={`Actual: ${task.title} (${task.progress}%) (${format(taskStart, 'yyyy-MM-dd')} - ${format(taskEnd, 'yyyy-MM-dd')})`}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  if (e.button !== 0 || isParent) return;
-                  setDragState({
-                    taskId,
-                    mode: 'move',
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    initialStartDate: taskStart,
-                    initialEndDate: taskEnd,
-                    currentStartDate: taskStart,
-                    currentEndDate: taskEnd,
-                  });
-                }}
-              >
-                {/* Downward hanging bracket triangles for parent tasks */}
-                {isParent && (
-                  <>
-                    <div className="absolute left-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-r-[4px] border-r-transparent border-l-[4px] border-l-transparent" />
-                    <div className="absolute right-0 bottom-[-4px] w-0 h-0 border-t-[4px] border-t-slate-500 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent" />
-                  </>
-                )}
-
-                {/* Left Resize Handle */}
-                {!isParent && (
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setDragState({
-                        taskId,
-                        mode: 'resize-left',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: taskStart,
-                        initialEndDate: taskEnd,
-                        currentStartDate: taskStart,
-                        currentEndDate: taskEnd,
-                      });
-                    }}
-                  />
-                )}
-
-                {/* Right Resize Handle */}
-                {!isParent && (
-                  <div
-                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/20 z-10"
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setDragState({
-                        taskId,
-                        mode: 'resize-right',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        initialStartDate: taskStart,
-                        initialEndDate: taskEnd,
-                        currentStartDate: taskStart,
-                        currentEndDate: taskEnd,
-                      });
-                    }}
-                  />
-                )}
-
-                <span className={clsx("px-1 truncate pointer-events-none text-[8px] leading-none", isParent ? "text-slate-800 font-semibold" : "text-amber-950 font-semibold")}>
-                  {task.title}
-                </span>
               </div>
             )}
           </>

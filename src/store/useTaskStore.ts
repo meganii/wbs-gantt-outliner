@@ -17,6 +17,13 @@ import {
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, normalizeHolidayList } from '../utils/projectConfig';
 import { validateProjectState } from '../utils/validateProjectState';
+import {
+  backupBaseline,
+  clearBaselineFields,
+  hasPreviousBaseline,
+  snapshotScheduleToBaseline,
+  swapBaselineWithPrevious,
+} from '../utils/baseline';
 
 export interface ProjectData {
   tasks: Record<string, Task>;
@@ -36,17 +43,14 @@ const initialTask: Task = {
   id: initialTaskId,
   parentId: null,
   title: 'Project Root',
-  startDate: null,
-  endDate: null,
+  startDate: format(new Date(), 'yyyy-MM-dd'),
+  endDate: format(new Date(), 'yyyy-MM-dd'),
   duration: 1,
   progress: 0,
-  status: '',
+  status: '未着手',
   isCollapsed: false,
   children: [],
   dependencies: [],
-  planStartDate: format(new Date(), 'yyyy-MM-dd'),
-  planEndDate: format(new Date(), 'yyyy-MM-dd'),
-  planDuration: 1,
 };
 
 /** 階層の最大深さ（0 始まり。level 4 まで）。addTask の depth 判定と揃える。 */
@@ -62,14 +66,55 @@ function createBlankTask(id: string, title = ''): Task {
     endDate: null,
     duration: 1,
     progress: 0,
-    status: '',
+    status: '未着手',
     isCollapsed: false,
     children: [],
     dependencies: [],
-    planStartDate: null,
-    planEndDate: null,
-    planDuration: 1,
   };
+}
+
+/**
+ * 1 タスクの更新を適用した次の `tasks` を返す。
+ *
+ * 日程（startDate / endDate / duration）は 1 系統だけを持つ。進捗率の変更は日付を
+ * 書き換えず（規則 2）、ステータスだけを進捗率から導出する（規則 7）。
+ * 依存伝播は日程が動いたときだけ行い、親ロールアップは日程・進捗の
+ * いずれかが動いたときに行う（規則 6）。
+ */
+function applyTaskUpdate(
+  state: Pick<TaskStoreState, 'tasks' | 'projectConfig'>,
+  id: string,
+  updates: Partial<Task>
+): Record<string, Task> | null {
+  const oldTask = state.tasks[id];
+  if (!oldTask) {
+    return null;
+  }
+
+  const finalUpdates = applyDateCalculations(oldTask, { ...updates }, state.projectConfig.calendar);
+
+  let tasks: Record<string, Task> = {
+    ...state.tasks,
+    [id]: { ...oldTask, ...finalUpdates },
+  };
+
+  const dateTouched =
+    finalUpdates.startDate !== undefined ||
+    finalUpdates.endDate !== undefined ||
+    finalUpdates.duration !== undefined;
+  const progressTouched =
+    finalUpdates.progress !== undefined || finalUpdates.status !== undefined;
+
+  // 依存伝播は日程の変化のみ（進捗率の入力では後続の日程を動かさない）。
+  if (dateTouched) {
+    tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar);
+  }
+
+  if ((dateTouched || progressTouched) && oldTask.parentId) {
+    tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar);
+  }
+
+  return tasks;
 }
 
 const taskStore = create<TaskStoreState>()(
@@ -320,126 +365,14 @@ const taskStore = create<TaskStoreState>()(
       }),
 
       updateTask: (id, updates) => set((state) => {
-        const oldTask = state.tasks[id];
-        if (!oldTask) {
-          return {};
-        }
-
-        const baselineLocked = state.projectConfig.baselineLocked ?? false;
-        let finalUpdates = { ...updates };
-
-        if (baselineLocked) {
-          // Ignore plan updates when baseline is locked
-          delete finalUpdates.planStartDate;
-          delete finalUpdates.planEndDate;
-          delete finalUpdates.planDuration;
-        } else {
-          // Bidirectional sync before calculation
-          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
-          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
-          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
-
-          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
-          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
-          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
-        }
-
-        // Apply automatic date & duration calculations
-        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
-
-        if (!baselineLocked) {
-          // Sync any calculated values after calculation
-          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
-          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
-          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
-
-          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
-          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
-          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
-        }
-
-        let tasks = {
-          ...state.tasks,
-          [id]: { ...oldTask, ...finalUpdates },
-        };
-
-        if (
-          finalUpdates.endDate !== undefined ||
-          finalUpdates.startDate !== undefined ||
-          finalUpdates.planEndDate !== undefined ||
-          finalUpdates.planStartDate !== undefined ||
-          finalUpdates.progress !== undefined ||
-          finalUpdates.status !== undefined
-        ) {
-          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
-          if (oldTask.parentId) {
-            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar, baselineLocked);
-          }
-        }
-
-        return { tasks };
+        const tasks = applyTaskUpdate(state, id, updates);
+        return tasks ? { tasks } : {};
       }),
 
       endDragUpdate: (id, updates) => set((state) => {
-        const oldTask = state.tasks[id];
-        if (!oldTask) {
-          return { dragState: null, mousePos: null };
-        }
-
-        const baselineLocked = state.projectConfig.baselineLocked ?? false;
-        let finalUpdates = { ...updates };
-
-        if (baselineLocked) {
-          // Ignore plan updates when baseline is locked
-          delete finalUpdates.planStartDate;
-          delete finalUpdates.planEndDate;
-          delete finalUpdates.planDuration;
-        } else {
-          // Bidirectional sync before calculation
-          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
-          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
-          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
-
-          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
-          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
-          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
-        }
-
-        // Apply automatic date & duration calculations
-        finalUpdates = applyDateCalculations(oldTask, finalUpdates, state.projectConfig.calendar);
-
-        if (!baselineLocked) {
-          // Sync any calculated values after calculation
-          if (finalUpdates.planStartDate !== undefined) finalUpdates.startDate = finalUpdates.planStartDate;
-          if (finalUpdates.planEndDate !== undefined) finalUpdates.endDate = finalUpdates.planEndDate;
-          if (finalUpdates.planDuration !== undefined) finalUpdates.duration = finalUpdates.planDuration;
-
-          if (finalUpdates.startDate !== undefined) finalUpdates.planStartDate = finalUpdates.startDate;
-          if (finalUpdates.endDate !== undefined) finalUpdates.planEndDate = finalUpdates.endDate;
-          if (finalUpdates.duration !== undefined) finalUpdates.planDuration = finalUpdates.duration;
-        }
-
-        let tasks = {
-          ...state.tasks,
-          [id]: { ...oldTask, ...finalUpdates },
-        };
-
-        if (
-          finalUpdates.endDate !== undefined ||
-          finalUpdates.startDate !== undefined ||
-          finalUpdates.planEndDate !== undefined ||
-          finalUpdates.planStartDate !== undefined ||
-          finalUpdates.progress !== undefined ||
-          finalUpdates.status !== undefined
-        ) {
-          tasks = propagateDependencyDates(tasks, id, state.projectConfig.calendar, baselineLocked);
-          if (oldTask.parentId) {
-            tasks = recalculateParentDatesRecursive(tasks, oldTask.parentId, state.projectConfig.calendar, baselineLocked);
-          }
-        }
-
+        const tasks = applyTaskUpdate(state, id, updates);
         return {
-          tasks,
+          ...(tasks ? { tasks } : {}),
           dragState: null,
           mousePos: null,
         };
@@ -461,10 +394,9 @@ const taskStore = create<TaskStoreState>()(
         );
 
         let updatedTasks = nextGraph.tasks;
-        const baselineLocked = state.projectConfig.baselineLocked ?? false;
         parentIdsToRecalculate.forEach((parentId) => {
           if (updatedTasks[parentId]) {
-            updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar, baselineLocked);
+            updatedTasks = recalculateParentDatesRecursive(updatedTasks, parentId, state.projectConfig.calendar);
           }
         });
 
@@ -600,8 +532,7 @@ const taskStore = create<TaskStoreState>()(
           dependencies: [...targetTask.dependencies, fromId],
         };
 
-        const baselineLocked = state.projectConfig.baselineLocked ?? false;
-        tasks = propagateDependencyDates(tasks, fromId, state.projectConfig.calendar, baselineLocked);
+        tasks = propagateDependencyDates(tasks, fromId, state.projectConfig.calendar);
 
         return { tasks };
       }),
@@ -648,10 +579,33 @@ const taskStore = create<TaskStoreState>()(
         },
       })),
 
-      setBaselineLocked: (baselineLocked) => set((state) => ({
+      setBaseline: (mode) => set((state) => {
+        const baseTasks = mode === 'update' ? backupBaseline(state.tasks) : state.tasks;
+        return {
+          tasks: snapshotScheduleToBaseline(baseTasks),
+          projectConfig: {
+            ...state.projectConfig,
+            baselineSetAt: new Date().toISOString(),
+          },
+        };
+      }),
+
+      restoreBaseline: () => set((state) => (
+        hasPreviousBaseline(state.tasks) ? { tasks: swapBaselineWithPrevious(state.tasks) } : {}
+      )),
+
+      clearBaseline: () => set((state) => ({
+        tasks: clearBaselineFields(state.tasks),
         projectConfig: {
           ...state.projectConfig,
-          baselineLocked,
+          baselineSetAt: null,
+        },
+      })),
+
+      setShowBaseline: (showBaseline) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          showBaseline,
         },
       })),
 

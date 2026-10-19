@@ -20,7 +20,6 @@ export const useGanttDrag = (
 ) => {
   const calendar = useTaskStore((state) => state.projectConfig.calendar);
   const viewMode = useTaskStore((state) => state.projectConfig.viewMode);
-  const baselineLocked = useTaskStore((state) => state.projectConfig.baselineLocked ?? false);
   const setDragState = useTaskStore((state) => state.setDragState);
   const setMousePos = useTaskStore((state) => state.setMousePos);
 
@@ -119,19 +118,11 @@ export const useGanttDrag = (
         }
 
         const newDuration = getWorkDaysCount(start, end, calendar);
-        if (baselineLocked) {
-          state.endDragUpdate(taskId, {
-            startDate: format(start, 'yyyy-MM-dd'),
-            endDate: format(end, 'yyyy-MM-dd'),
-            duration: newDuration,
-          });
-        } else {
-          state.endDragUpdate(taskId, {
-            planStartDate: format(start, 'yyyy-MM-dd'),
-            planEndDate: format(end, 'yyyy-MM-dd'),
-            planDuration: newDuration,
-          });
-        }
+        state.endDragUpdate(taskId, {
+          startDate: format(start, 'yyyy-MM-dd'),
+          endDate: format(end, 'yyyy-MM-dd'),
+          duration: newDuration,
+        });
       } else {
         const {
           taskId,
@@ -145,19 +136,11 @@ export const useGanttDrag = (
           currentEndDate.getTime() !== initialEndDate.getTime()
         ) {
           const newDuration = getWorkDaysCount(currentStartDate, currentEndDate, calendar);
-          if (baselineLocked) {
-            state.endDragUpdate(taskId, {
-              startDate: format(currentStartDate, 'yyyy-MM-dd'),
-              endDate: format(currentEndDate, 'yyyy-MM-dd'),
-              duration: newDuration,
-            });
-          } else {
-            state.endDragUpdate(taskId, {
-              planStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-              planEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-              planDuration: newDuration,
-            });
-          }
+          state.endDragUpdate(taskId, {
+            startDate: format(currentStartDate, 'yyyy-MM-dd'),
+            endDate: format(currentEndDate, 'yyyy-MM-dd'),
+            duration: newDuration,
+          });
         } else {
           state.setDragState(null);
           state.setMousePos(null);
@@ -175,7 +158,6 @@ export const useGanttDrag = (
   }, [
     calendar,
     viewMode,
-    baselineLocked,
     leftOffset,
     containerRef,
     timelineMetrics,

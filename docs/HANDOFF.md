@@ -4,6 +4,65 @@
 
 ## 現在の状態
 
+- **`状態` 列の初期幅を 60px に変更** (October 19, 2026):
+  - 「進行中」「未着手」の 3 文字がちょうど 1 行で収まる幅にした（実測: 3 文字 = 30px、セル内訳 = 左右 padding 16px + ピル左右 padding 8px + 枠 2px + セル左罫線 1px。最小 57px、余白を見て **60px**）。
+  - 変更: `src/utils/projectConfig.ts` の `DEFAULT_PROJECT_CONFIG.columnWidths.status`（100 → 60）。`bench/generate-tasks.mjs` も同じ値に更新し、フィクスチャを再生成。
+  - 既存の保存済みプロジェクトは `columnWidths` を保持するため 100px のまま（「初期値」の変更）。
+  - 検証: vitest 259 件 / lint 0 / build 通過。`npm run shots` の WBS・統合表示・ガントで 3 状態が折り返さないことを確認（実ブラウザ計測で `進行中` / `未着手` / `完了` すべて 1 行）。
+- **`期間` の編集可を確定（案 A = 現状維持）** (October 19, 2026):
+  - 判断: 「工数（日数）から終了日を算出したい」ケースがあるため、`期間` セルは**編集可**のままとする。入力すると開始日を固定して終了日を稼働日で再計算し、ガントバーも再描画する（MS Project の Duration と同じ）。
+  - 位置づけ: `期間` は「終了日を指定する代替入力」であり、日付と独立した第 2 の真実源にはしない。通常の日付編集後は稼働日数から再計算される。仕様（`docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 規則 5 / 8 と §8 の留保）もこの決定に合わせて更新した。
+  - 既知の境界ケース（未修正・挙動は現状維持）: 開始日が非稼働日のとき / 期間 0 を入力したとき / v3 読み込みは保存済み `duration` を信頼する（日付から再計算しない）。不整合が実害になったら別途対応する。
+  - コード変更なし（ドキュメントのみ）。検証は前エントリの 259 件 / lint 0 / build / e2e 5 件のまま。
+- **表示名を「項目名」「状態」に変更（`feature/plan-actual-2layer`、未 push）** (October 19, 2026):
+  - WBS / 統合表示 / ガント / 表示項目メニューの列見出しを「タスク名」→「**項目名**」、「ステータス」→「**状態**」に変更。Excel 出力のヘッダー（`src/utils/export.ts`）と状態セルのツールチップも合わせた。
+  - 変更点: `src/utils/columns.ts`（`COLUMN_LABELS`。列ヘッダーと表示項目メニューはここを参照）、`src/components/GanttChart.tsx`（ガント左列のハードコード見出し）、`src/utils/export.ts`、`src/components/cells/TaskStatusCell.tsx`。テストは `Phase2Regression.test.tsx` / `GanttChart.test.tsx` の期待値を更新。
+  - 内部の識別子（`taskName` / `status` / `deriveStatus` / `data-field`）は保存形式・セレクタ互換のため変更していない。表示名だけの変更。
+  - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` で WBS・ガントの見出しを目視確認。
+- **予定・実績モデルを 2 層へ移行（実装完了。`feature/plan-actual-2layer`、未 push）** (October 18, 2026):
+  - `docs/PLAN_ACTUAL_DISCUSSION.md` §8 のチェックリストを上から順に実装した。モデル = **基準（基準開始日 / 基準終了日 / 基準期間）+ 現在の日程（開始日 / 終了日 / 期間）+ 進捗率** の 2 層。保存形式は `schemaVersion: 3`。
+  - 主な変更（`git diff --stat` の対象）:
+    - モデル: `src/types.ts` から `planStartDate` / `planEndDate` / `planDuration` / `remainingDuration` を削除。`ColumnId` を `duration`（期間）+ `date`（開始日 / 終了日）に整理。
+    - ストア: `src/store/taskStoreUtils.ts`（`applyDateCalculations` を 1 組の日付 + 進捗率へ整理、`deriveStatus(progress)`、依存伝播・親ロールアップは現行踏襲）と `src/store/useTaskStore.ts`（`applyTaskUpdate` の `dateTouched` / `progressTouched` 分岐、基準計画アクション）。
+    - 移行: `src/utils/planActualMigration.ts`（`CURRENT_SCHEMA_VERSION = 3`、`foldLegacyDates`、`migrateTaskToV3`）+ `src/utils/validateProjectState.ts`（`schemaVersion < 3` で移行 → 警告トースト）。
+    - 表: `src/utils/columns.ts` / `src/utils/projectConfig.ts` / `src/components/TaskTableHeader.tsx` / `src/components/TaskRow.tsx` / `src/components/cells/*`。`TaskPlanDateCell` / `TaskPlanDurationCell` は削除。ステータス列は**表示のみ**（ピル、`<select>` を廃止、`保留` を削除）。列見出しは「期間」「開始日 / 終了日」。
+    - ガント: `src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts` / `src/hooks/useGanttDependencies.ts`。バー属性値を `data-gantt-bar="plan"` → `"schedule"` に改名（テスト・e2e・bench のセレクタも更新）。ツールチップは `タイトル / 開始日 / 終了日 / 期間 / 進捗 N%（完了）(/ 基準: 開始日〜終了日)`。
+    - Excel: `src/utils/export.ts`（日程グループ=青 + 基準グループ=アンバー + 進捗率。バーは基準アンバーを先に描き、日程バーを上に重ねる）。
+  - **規則の解釈で判断が要った点（2026-10-19 決定: 案 A = 現状維持）**: §4.3 規則 5（`期間` は稼働日数からの導出値）/ 規則 8（日付以外を入力にしない）と、**`期間` 列を編集可能にすること**は文言上は両立しませんでした。MS Project と同じく「`期間` は保存フィールド（稼働日数から計算）だが、`期間` を入力すると終了日が動く」挙動を採っています（`applyDateCalculations` の分岐 (1)(2)(3)）。**「工数（日数）から終了日を算出したい」ケースがあるため、この挙動を正式採用**（詳細は上の「`期間` の編集可を確定」エントリ）。
+  - その他の解釈: 進捗率は日付を書き換えない（規則 2）/ 裏方の実績フィールドを持たない（規則 1）/ 親は子の min〜max と進捗ロールアップのみ（規則 6）/ 日付ロックなし（規則 8）/ ステータスは `deriveStatus` で導出（規則 7）。完了バーの緑（`progress >= 100`）は維持。
+  - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **5 件** / `npm run shots`（10 枚。統合表示・WBS で 1 本バー + 進捗塗り + 基準ゴースト + 完了緑を目視）。
+  - 付随更新: `scratch/sample-project.json` を v3（`schemaVersion: 3`、`plan*` 削除、進捗に応じて日付を畳む）へ更新。`bench/generate-tasks.mjs` を v3 形式へ更新し、`bench/fixtures/tasks-100.json` / `tasks-1000.json` を再生成。
+- **予定・実績モデルを 3 層 → 2 層へ見直す方針を決定（実装は別ブランチ）** (October 18, 2026):
+  - 経緯: 「実績をガントに出さないのに裏で持つ意味は?」「基準・予定・実績と 3 観点で見るべきか」というレビューから、Phase 1 の 3 層実装では**実績が入力しても何も起きない（消費者がいない）**ことと、**進捗率と実績日付が二重管理**になっていることを確認した。層の数はアプリが答える問いの数で決まる、という結論。
+  - 決定: 3 層にしない。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率**の 2 層に一本化。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。MS Project の `Start` / `Finish`（Scheduled）の挙動と同じで、一次情報で裏付け済み。
+  - 用語（**採用決定**）: 日付の列名は「予定日付 / 実績日付」をやめて「**開始日 / 終了日**」（英名 Start / Finish）。基準側は「基準開始日 / 基準終了日」とし、「基準日」単独は使わない（MS Project の Status Date / P6 の Data Date と衝突するため）。
+  - **規則も確定した（§4.3 の 1〜8）**: 進捗率は日付を書き換えない（MS Project の `%完了` 入力と同じ。一次情報で確認）/ 実績期間・残り期間は導出で保存しない / 進捗率を戻すと事実は消える（裏方フィールドを持たない）/ 食い違いは自動で直さない / ステータスは進捗率から導出（手入力の二重管理をやめる）/ 着手後も日付は編集可（ロックしない）。
+  - **議論・2 層案・確定した規則・用語対比・復帰点・実装タスク（§8）は `docs/PLAN_ACTUAL_DISCUSSION.md` に保存した。** `docs/PLAN_ACTUAL_MODEL.md` は 3 層の記録として残し、冒頭に不採用の注記を入れた。
+  - **3 層 Phase 1 の実装は復帰点として `feature/plan-actual-model-phase1`（`ad40e59` → `4380ec8` → `2913c0c`、この検討記録を載せた先頭コミットまで）に保存済み。未 push。** 実装そのものの地点は `2913c0c`。2 層の作業ブランチ `feature/plan-actual-2layer` はこの復帰点の先頭から分岐したので、完了バーの緑化（`2913c0c`）も既に含まれている。
+  - 実装は**別ブランチ `feature/plan-actual-2layer`** で行う（3 層の復帰点を汚さないため）。規則 1〜8（§4.3）と用語（§5）は確定済み。**実装タスクは §8 のチェックリストを正とする。**
+- **完了（100%）のガントバーを緑にして、完了を色でも分かるようにした** (October 18, 2026 / `feature/plan-actual-model-phase1` `2913c0c`):
+  - 予定バー 1 本 + 進捗塗りの構成は変えず、`progress >= 100` のときだけ枠と塗りを青（`brand`）から緑（`green`）へ切り替える（葉 = `border-green-400 bg-green-100` + 塗り `bg-green-600`、親 = `border-green-500/60 bg-green-200/70` + 塗り `bg-green-500/80`）。`src/components/GanttTimelineRow.tsx`。
+  - 色は WBS のステータス列（`TaskStatusCell` の「完了 = 緑 / 進行中 = 青 / 未着手 = グレー」）に合わせた。判断は `progress >= 100` の 1 条件なので、ステータスだけ「完了」で進捗が 100% でないタスクは緑にならない（＝不整合が色で見える）。
+  - 塗り切り時に角がはみ出していたのを直し、塗り側の角丸を完了時のみ `rounded-[5px]`（親は `rounded-full`）にした。ツールチップは `進捗 100%（完了）`。タイトルの文字色も完了時は `text-green-900`。
+  - テスト: `src/components/GanttBarCompletion.test.tsx` を追加（未着工 / 進行中 / 完了 / 親ロールアップ完了の 4 状態）。
+  - 検証: vitest / lint / build / e2e 通過。`npm run shots` のガントで緑（完了）・青の部分塗り（進行中）・無塗り（未着工）を目視確認。
+- **予定・実績モデル Phase 1（モデルと言葉の整理）実装済み** (October 18, 2026 / `feature/plan-actual-model-phase1` `ad40e59`・`4380ec8`。**この 3 層モデルは不採用になり、上の 2 層案へ移行する**):
+  - 背景/要望: 「予定 / 実績」の使い分けが直感的でない。既定（基準計画固定 OFF）では `plan*` ⇄ `startDate` 等が双方向同期され常に同値になるため実績を記録できず、固定 ON では予定・実績の二重管理と UI 意味反転が発生する。
+  - Oracle Primavera P6 / Microsoft Project の用語と実装を調査（基準計画 = 不変スナップショット、予定 = 現在の見込み、実績 = 開始/終了、総期間 = 実績期間 + 残り期間、進捗率 = 実績 ÷ 総期間、基準日 = データ日）し、3 層モデルへの再設計を **`docs/PLAN_ACTUAL_MODEL.md`** に提案としてまとめた。**Phase 1（このエントリ末尾の「Phase 1 の実装」）まで実装済み**。§8 の未決事項のうち ③〜⑥（残り期間列 / 進捗基準日 / ステータス導出 / 予定編集ロック）は Phase 2 以降。
+  - 主な提案: 「基準計画固定」トグル廃止 → 「基準計画として登録」メニュー、plan⇔actual の双方向同期廃止、`remainingDuration` / `baseline*` の追加、実績期間を導出値化（Phase 2）、旧ファイルの移行規則（`baselineLocked=true` は 基準計画 = 旧 plan / 予定 = 旧 actual に変換、`schemaVersion: 2` を付与）。
+  - 再ベースライン（承認済み計画の変更）は「基準計画を更新」で上書きし、旧基準を `previousBaseline*` へ 1 世代退避して「基準計画を元に戻す」で復帰できる形（`docs/PLAN_ACTUAL_MODEL.md` §5.8）。通常のリスケジュールでは基準計画に触らない、という運用ルールを UI 文言にも明記する方針。
+  - ガントのバーは「予定バー 1 本 + 進捗塗り + 基準計画の薄いグレーバー（非操作・予定バーの下に数 px。案 B 採用 2026-10-18）」に集約する方針（実績専用バーは廃止し、実績は塗り・ツールチップ・任意のマーカーで表現。§5.5）。`taskBarRefs` / 依存線アンカー / drag-range ガードは統合バーへ寄せる。
+  - **Phase 1 の実装**:
+    - `src/types.ts`: `Task` に `remainingDuration` / `baselineStartDate|EndDate|Duration` / `previousBaseline*` を追加（実績は `startDate` / `endDate` であることをコメントで明示）。`ProjectConfig` から `baselineLocked` を削除し `baselineSetAt` / `showBaseline` を追加。ストアは `setBaselineLocked` を削除し `setBaseline('register' | 'update')` / `restoreBaseline` / `clearBaseline` / `setShowBaseline` を追加。
+    - 双方向同期の廃止: `useTaskStore.applyTaskUpdate` を新設して `updateTask` / `endDragUpdate` を集約。予定（`plan*`）の編集は予定のみ、実績（`startDate` / `endDate` / `duration`）の編集は実績のみを変える。依存伝播（`propagateDependencyDates`）と親ロールアップ（`recalculateParentDatesRecursive`）は予定のみを更新し、親の実績は子の実績から別途ロールアップする（`baselineLocked` 分岐は全廃）。
+    - 実績入力の補完規則（Phase 1 の暫定）: 実績開始日が空のまま実績期間 / 実績終了日を入力した場合は、**予定開始日を実績開始日とみなす**（`taskStoreUtils.applyDateCalculations`）。予定側から実績を推測する処理は残していない。
+    - 基準計画: `src/utils/baseline.ts`（スナップショット / 1 世代退避 / 入れ替え / クリアの純粋関数）を新設。`AppHeader` の「基準計画」メニューから 登録 / 更新 / 元に戻す（previous が無ければ disabled）/ 表示・非表示 / 削除 + 登録日時（`baselineSetAt`）を操作。
+    - 旧ファイル移行: `src/utils/planActualMigration.ts` + `validateProjectState`（`schemaVersion < 2` で全タスクを移行）。`baselineLocked === true` は「基準計画 = 旧 `plan*` / 予定 = 旧 `startDate` 等」、それ以外は「予定 = 旧 `plan*`（無ければ実績で補完）/ 実績 = 進捗から復元」で変換し、`schemaVersion: 2` を付与。旧形式を読み込むと警告トーストで通知する。
+    - ガント: 操作対象を **予定バー 1 本**（無ければ実績）に集約し、`progress%` 幅の進捗塗り（`bg-brand-600`）を左端から重ねる。基準計画は予定バーの下に数 px ずらした薄いグレーの非操作ゴースト（`pointer-events-none`、`showBaseline` で出し分け）。実績専用バーは廃止。`data-gantt-bar="plan"` / `taskBarRefs` / drag-range ガードは統合バーへ引き継ぎ、予定・実績列の表示トグル制限（`baselineLocked` による無効化）も撤去した。
+    - **注意（今回踏んだ罠）**: 統合バーに `overflow-hidden` を付けると、バー右外側に置いた依存ハンドル（`-right-6`）がクリップされてクリックが行の `draw-range` に抜け、予定が「クリックした 1 日」に書き換わる（`e2e/dependency-auto-calculation.spec.ts` が検出）。**バーに `overflow-hidden` を付けないこと**（進捗塗りは `rounded-l-*` で角を合わせている）。
+    - Phase 2 送り: `remainingDuration` は型のみ（列・計算は未実装）、実績期間 `duration` は保存フィールドのまま（§5.2 の「導出値化」は残り期間と合わせて実施）。進捗基準日 / ステータス導出 / 差異列は未着手。
+    - 検証: `npm test -- --run` **257 件（29 ファイル）** / `npm run test:e2e` **5 件**（旧 `e2e/baseline-lock.spec.ts` を新モデルの `e2e/baseline.spec.ts` に置換）/ `npm run lint` 0 / `npm run build` 通過。ガントの見え方は DOM 実測（1 本バー + 進捗塗り 60% = 118/198px + 基準計画ゴーストの位置ずれ）と `npm run shots` で確認。
+    - 付随更新: 目視確認用の `scratch/sample-project.json` を v2 形式（`schemaVersion: 2` / `showBaseline: true` / `baselineSetAt` / 進捗に応じた実績 / 「設計」フェーズの基準計画を 3 営業日早くした遅延例）へ更新。旧形式のままだと毎回移行警告が出て、基準計画ゴーストが写らないため。
 - **ヘッダーのラベル整理（「設定」ボタン化 / 保存・読込・出力の 2 文字統一）** (October 18, 2026, 未コミット):
   - 背景/要望: ヘッダーは青基調だが、「基準計画固定」「実績バー」のオレンジは今回対象外（ユーザー判断で変更しない）。一方で「プロジェクト」ボタンが何を意味するか分かりにくく（中身は祝日設定のみ）、ファイル操作（保存 / 読み込み / エクスポート）の語長が揃っていなかった。
   - `AppHeader.tsx`: 「プロジェクト」→ **「設定」**（歯車アイコン `Settings`、`aria-label="設定"`）に変更し、ドロップダウンのメニューは維持（項目は従来どおり「祝日設定」）。将来項目が増えても破綻しない形。
@@ -296,10 +355,16 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 17, 2026 / JSON インポートのバリデーション強化後)
+## 直近の検証結果 (October 18, 2026 / 予定・実績モデル Phase 1 実装後)
 
-- `npm test -- --run` : **242テスト全件合格** (28ファイル。テキスト列の複数行ペースト / 一括入力のテスト 19 件追加で 223 → 242。内訳: `cellPastePlan`(8) / `setTaskFieldValues`(6) / テキスト列・タスク名の貼り付け(5) ほか。複数行ペースト一括登録の `parseTaskPaste`(12) / `addTasks`(9) / セル paste(5)、JSON インポート検証の `validateProjectState`(25) 等を含む)
-- `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright 1.64.1 / chromium。新規環境では `npx playwright install chromium` が必要)
+- `npm test -- --run` : **259テスト全件合格** (30ファイル。Phase 1 で旧「双方向同期 / 基準計画固定」テストを「予定と実績は独立 / 基準計画の登録・更新・復元・削除 / 旧 JSON の移行」に置き換え、`validateProjectState` の移行ケース 3 件と `useProjectFileHandlers` の旧形式読み込み 1 件、完了バーの色 `GanttBarCompletion`(2) を追加)
+- `npm run test:e2e` : **E2Eテスト全5件合格** (Playwright / chromium。旧 `e2e/baseline-lock.spec.ts`（基準計画固定の検証）は削除し、新モデルの `e2e/baseline.spec.ts`（予定と実績が独立 / 登録後は基準計画が不変 / 更新後は元に戻せる）に置き換えた)
+- `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
+- `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
+- `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
+- `npm run lint` : **0件合格** (`eslint.config.js` に生成物の ignores を追加し、ソース側の違反も全件解消。内訳は下記「ESLint 違反の全件解消」参照)
+- デバッグ用テストの整理は October 17, 2026 に完了（下記「現在の状態」参照）。旧 `src/store/verify_bug.test.ts` は非干渉テスト `src/store/updateTaskIsolation.test.ts` に再編、旧 `e2e/reproduce-bug.spec.ts` は削除した。
+- 注: 「現在の状態」の各修正エントリに書かれた検証件数（112 / 110 / 106 など）はその修正時点の記録。最新値は上記のとおり。
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run bench` : 通過 (`bench/README.md` に計測結果。Step 1: 1,430ms → 423ms / Step 4-A/4-B の合計: duration 確定 402ms → 0ms、タイトル確定 1,053ms → 約 180ms、ドラッグ確定 456ms → 約 22〜42ms。`bench/decompose.spec.ts` は `DECOMPOSE=1` のときだけ実行)
 - `npm run package` : 通過 (electron-forge。`out/wbs-gantt-outliner-darwin-arm64/` に生成、app.asar に `package-lock.json` は混入していない)
@@ -309,11 +374,19 @@
 
 ## 次に着手する優先課題
 
-1. **祝日変更時のスケジュール自動再計算方針の整理と実装**
+1. **予定・実績モデルを 2 層へ移行（別ブランチ `feature/plan-actual-2layer`）** — 仕様は `docs/PLAN_ACTUAL_DISCUSSION.md` §4〜§5 を正とする
+   - 方針: 3 層は不採用。**基準（基準開始日 / 基準終了日）+ 現在の日程（開始日 / 終了日）+ 進捗率** の 2 層にする。日付の役割は進捗率で決まる（0% = 両方予定 / 1〜99% = 開始が実績・終了が予定 / 100% = 両方実績）。
+   - **規則 1〜8 と用語は確定済み**（`docs/PLAN_ACTUAL_DISCUSSION.md` §4.3 / §5）。要旨: 進捗率は日付を書き換えない（MS Project の `%完了` と同じ）/ 実績期間・残り期間は導出（保存しない）/ 進捗率を戻すと事実は消える / 食い違いは自動で直さない / ステータスは進捗率から導出 / 着手後も日付は編集可。
+   - **実装タスク（モデル / ストア / 移行 / 表 / ガント / Excel / テスト / ドキュメント / 検証）は §8 のチェックリストを正とする。**
+   - 主な作業: `plan*` と `startDate` 等の統合、表の列の統合（予定期間 / 予定日付 / 実績期間 / 実績日付 → 期間 / 開始日 / 終了日）、`planActualMigration.ts` の書き直し（v1 / v2 の 3 層データを進捗率で 2 層へ畳む）、Excel 出力の整理、ガントを「バー = 開始日〜終了日 / 塗り = 進捗率 / ゴースト = 基準」に整理。
+   - 3 層の復帰点は `feature/plan-actual-model-phase1`（`2913c0c`）。完了バーの緑化は cherry-pick で引き継ぐ。
+   - 参考: 3 層案の原本は `docs/PLAN_ACTUAL_MODEL.md`（冒頭に不採用の注記あり）。
+2. **祝日変更時のスケジュール自動再計算方針の整理と実装**
    - 現在は祝日設定を変更しても既存タスクの日付は自動シフトしない。祝日が追加/削除された際、タスクの「稼働日数（Duration）」を維持したまま日付範囲を自動スライドするオプションをストアに実装する。
    - **注意: 以前ここに「設計の詳細は `implementation_plan.md` に記録済み」と書かれていたが、当該ファイルはリポジトリ内に存在しない（October 17, 2026 時点で確認）。** 仕様の再定義から始めること。
-2. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
+3. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
    - 旧 #2「JSON インポートの互換性・異常値バリデーション強化」は October 17, 2026 に完了（上記「現在の状態」参照）。
+   - D8 は Phase 1 で一部前進した（`applyTaskUpdate` への集約。`addDependency` は未統合）。
    - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（過去に D1 の非対称を生んだ二重化の解消）。
    - D9: 行高 `32` の定数化（`useGanttDependencies` 以外は未対応）、未使用 `taskBarRefs` の削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
    - D10: zundo の `partialize` と `equality` のズレ。「データ変更時だけ履歴化し、その時点の選択/フォーカスを一緒に保存する」意図的な設計とも読めるため、まずバグか仕様かを切り分ける。
@@ -349,7 +422,7 @@
 ## 注意点
 
 - **ガントの `draw-range`（タイムライン余白をクリック/ドラッグして予定を描く）は、単クリックでも確定する**（クリックした日 1 日分の予定を設定する）。October 17, 2026 にユーザー判断で「移動ゼロなら確定しない」ガードを撤去し、この挙動に戻した。**同じガードを再導入しないこと**（再導入すると日セルの単クリックで予定が反映されなくなる）。バー上のクリックが行の `draw-range` に伝播して日付が壊れる経路は、次項の `stopPropagation` / `data-gantt-bar` で塞ぐ（この 2 つは D1 撤回後も有効）。
-- **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで日付が書き換わる（ベースライン固定中は実績日が壊れる）。
+- **バー／ハンドルの `onMouseDown` は早期 return する場合も `stopPropagation()` を維持する**こと。また `GanttTimelineRow.tsx` のバーから `data-gantt-bar` 属性を消さないこと。どちらかが欠けると行の `draw-range` が発火し、クリックだけで予定が「クリックした 1 日」に書き換わる。**あわせてバーに `overflow-hidden` を付けないこと**（バー右外側に置いた依存ハンドルがクリップされ、同じ経路で予定が壊れる。末尾の「予定・実績モデル Phase 1」の注意を参照）。
 - **行の並べ替え（dnd-kit）のセンサーは `src/hooks/useRowSortSensors.ts` に集約**している。KeyboardSensor を復活させないこと（Enter はタスク確定/追加に割り当て済みで衝突する）。PointerSensor の `distance: 5` も、微小なクリックで並べ替えが始まらないためのしきい値なので外さないこと。
 - パッケージマネージャは **npm**（October 17, 2026 に pnpm から復帰）。`pnpm` 前提のコマンドや `pnpm-lock.yaml` / `.npmrc`（`node-linker=hoisted`）を再導入しないこと。ロックファイルは `package-lock.json` のみ。
 - npm 11 は install script を既定で実行しない。install script を持つ依存を追加した場合は `npm install-scripts approve <pkg>` で承認する（`package.json` の `allowScripts` に記録される）。現在は `esbuild` と `electron-winstaller` のみ承認済み。
@@ -381,7 +454,11 @@ lint 対応で `src/renderer.d.ts` / `electron/preload.ts` の IPC 引数を `an
 
 ## 次の作業で最初に見るとよい場所
 
+- **`docs/PLAN_ACTUAL_DISCUSSION.md`（予定・実績モデルの 3 層 → 2 層見直しの検討記録。次の作業の正。復帰点と未決規則もここ）**
 - `src/store/useTaskStore.ts`
+- `src/utils/baseline.ts` / `src/utils/planActualMigration.ts`（基準計画の純粋関数 / 旧形式の移行。Phase 1 で新設。3 層の記録は `docs/PLAN_ACTUAL_MODEL.md` §5〜§6、2 層への移行方針は `docs/PLAN_ACTUAL_DISCUSSION.md` §4）
+- `src/components/AppHeader.tsx`（「基準計画」メニュー。登録 / 更新 / 元に戻す / 表示 / 削除）
+- `src/components/GanttTimelineRow.tsx`（1 本バー + 進捗塗り + 基準計画ゴースト。`overflow-hidden` を付けない注意は上記「注意点」参照）
 - `src/utils/parseTaskPaste.ts` / `src/utils/parseTaskPaste.test.ts`（複数行ペーストのパース。ストアの `addTasks` とセットで扱う）
 - `src/store/taskStoreUtils.ts`
 - `src/store/useTaskStore.test.ts`

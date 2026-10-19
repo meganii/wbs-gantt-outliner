@@ -5,17 +5,35 @@ export interface Task {
   description?: string;
   assignee?: string;
   deliverables?: string;
-  startDate: string | null; // ISO 8601 YYYY-MM-DD
-  endDate: string | null;   // ISO 8601 YYYY-MM-DD
-  duration: number;  // Workdays
+  /**
+   * 現在の日程（開始）。ISO 8601 YYYY-MM-DD。
+   * 進捗率 0% は「予定（見込み）」、1% 以上は「実績」として読む（役割は進捗率が決める）。
+   */
+  startDate: string | null;
+  /**
+   * 現在の日程（終了）。ISO 8601 YYYY-MM-DD。
+   * 進捗率 100% は「実績」、1〜99% は「予定（見込み）」として読む。
+   */
+  endDate: string | null;
+  /**
+   * 期間（稼働日数）。開始日〜終了日から導出される値で、独立した入力は持たない
+   * （期間セルからの入力は終了日を動かすだけで、保存値は常に稼働日数）。
+   */
+  duration: number;
   progress: number;  // 0-100
+  /** ステータス。進捗率から導出される表示用の値（手入力しない）。 */
   status?: string;
   isCollapsed: boolean;
   children: string[]; // Ordered list of child IDs
   dependencies: string[]; // Array of Task IDs
-  planStartDate?: string | null; // ISO 8601 YYYY-MM-DD (Plan / Baseline)
-  planEndDate?: string | null;   // ISO 8601 YYYY-MM-DD (Plan / Baseline)
-  planDuration?: number;         // Workdays (Plan / Baseline)
+  /** 基準計画（登録時のスナップショット）。通常運用では不変。 */
+  baselineStartDate?: string | null;
+  baselineEndDate?: string | null;
+  baselineDuration?: number | null;
+  /** 1 世代前の基準計画（「基準計画を更新」の退避先）。 */
+  previousBaselineStartDate?: string | null;
+  previousBaselineEndDate?: string | null;
+  previousBaselineDuration?: number | null;
 }
 
 /** 複数行ペースト / 一括入力の対象になるテキスト列。 */
@@ -28,8 +46,6 @@ export type ColumnId =
   | 'deliverables'
   | 'status'
   | 'progress'
-  | 'planDuration'
-  | 'planDate'
   | 'duration'
   | 'date';
 
@@ -48,12 +64,13 @@ export interface ProjectConfig {
     deliverables: number;
     status: number;
     progress: number;
-    planDuration: number;
-    planDate: number;
     duration: number;
     date: number;
   };
-  baselineLocked?: boolean;
+  /** 「基準計画として登録」した日時（ISO 8601）。未登録は null。 */
+  baselineSetAt?: string | null;
+  /** ガントで基準計画バーを表示するか（既定 true）。 */
+  showBaseline?: boolean;
   timelineRange?: {
     start: string; // ISO date YYYY-MM-DD
     end: string;   // ISO date YYYY-MM-DD
@@ -71,9 +88,6 @@ export type TaskFocusableField =
   | 'deliverables'
   | 'status'
   | 'progress'
-  | 'planDuration'
-  | 'planStartDate'
-  | 'planEndDate'
   | 'duration'
   | 'startDate'
   | 'endDate';
@@ -148,7 +162,18 @@ export interface TaskStoreState {
   setCalendarHolidays: (holidays: string[]) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
-  setBaselineLocked: (baselineLocked: boolean) => void;
+  /**
+   * 現在の予定を基準計画として保存する。
+   * `register` は初回登録（既存の基準計画は上書き）、
+   * `update` は再ベースライン（既存の基準計画を 1 世代前へ退避してから上書き）。
+   */
+  setBaseline: (mode: 'register' | 'update') => void;
+  /** 1 世代前の基準計画と入れ替える（更新の取り消し）。 */
+  restoreBaseline: () => void;
+  /** 基準計画（現行・1 世代前）をすべて削除する。 */
+  clearBaseline: () => void;
+  /** ガントの基準計画バー表示を切り替える。 */
+  setShowBaseline: (showBaseline: boolean) => void;
   setVisibleColumns: (columns: ColumnId[]) => void;
   setIntegratedColumns: (columns: ColumnId[]) => void;
   setDragState: (dragState: GanttDragState | null) => void;

@@ -14,9 +14,6 @@ const snapshot = (id: string) => {
     startDate: task.startDate,
     endDate: task.endDate,
     duration: task.duration,
-    planStartDate: task.planStartDate,
-    planEndDate: task.planEndDate,
-    planDuration: task.planDuration,
   };
 };
 
@@ -34,22 +31,22 @@ describe('Gantt drag guards', () => {
     vi.useRealTimers();
   });
 
-  it('sets a one-day plan on a single click (no movement) in the timeline area', () => {
+  it('sets a one-day schedule on a single click (no movement) in the timeline area', () => {
     act(() => {
       useTaskStore.getState().setViewMode('Day');
     });
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Click To Plan',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-27',
-        planDuration: 3,
+        title: 'Click To Schedule',
+        startDate: '2026-05-25',
+        endDate: '2026-05-27',
+        duration: 3,
       });
     });
 
     const { container } = render(<GanttChart showNames />);
-    // 予定バーが無い余白（行全体のドラッグ面）を対象にする
+    // バーが無い余白（行全体のドラッグ面）を対象にする
     const rowArea = container.querySelector('.cursor-crosshair') as HTMLDivElement;
     expect(rowArea).not.toBeNull();
 
@@ -59,14 +56,14 @@ describe('Gantt drag guards', () => {
     fireEvent.mouseUp(window);
 
     const after = snapshot(rootId);
-    // クリックした日 1 日分の予定に確定する
-    expect(after.planStartDate).not.toBe(before.planStartDate);
-    expect(after.planStartDate).toBe(after.planEndDate);
-    expect(after.planDuration).toBe(1);
+    // クリックした日 1 日分の日程に確定する
+    expect(after.startDate).not.toBe(before.startDate);
+    expect(after.startDate).toBe(after.endDate);
+    expect(after.duration).toBe(1);
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 
-  it('creates a one-day plan by a single click on a task that has no plan', () => {
+  it('creates a one-day schedule by a single click on a task that has no dates', () => {
     act(() => {
       useTaskStore.getState().setViewMode('Day');
     });
@@ -76,7 +73,7 @@ describe('Gantt drag guards', () => {
       useTaskStore.getState().addTask(rootId, 'after');
       newId = useTaskStore.getState().focusedTaskId!;
     });
-    expect(useTaskStore.getState().tasks[newId].planStartDate).toBeNull();
+    expect(useTaskStore.getState().tasks[newId].startDate).toBeNull();
 
     const { container } = render(<GanttChart showNames />);
     const rowArea = container.querySelector(
@@ -88,33 +85,32 @@ describe('Gantt drag guards', () => {
     fireEvent.mouseUp(window);
 
     const after = snapshot(newId);
-    expect(after.planStartDate).toBeTruthy();
-    expect(after.planStartDate).toBe(after.planEndDate);
-    expect(after.planDuration).toBe(1);
+    expect(after.startDate).toBeTruthy();
+    expect(after.startDate).toBe(after.endDate);
+    expect(after.duration).toBe(1);
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 
-  it('does not rewrite dates when the plan bar is clicked while the baseline is locked', () => {
+  it('does not rewrite dates when the schedule bar is clicked (the bar consumes the click)', () => {
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Locked Plan Bar',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-27',
-        planDuration: 3,
+        title: 'Schedule Bar Click',
+        startDate: '2026-05-25',
+        endDate: '2026-05-27',
+        duration: 3,
       });
-      useTaskStore.getState().setBaselineLocked(true);
     });
 
     const { container } = render(<GanttChart showNames />);
-    const planBar = container.querySelector(
-      `[data-task-id="${rootId}"].bg-blue-100`
+    const scheduleBar = container.querySelector(
+      `[data-task-id="${rootId}"][data-gantt-bar="schedule"]`
     ) as HTMLDivElement;
-    expect(planBar).not.toBeNull();
+    expect(scheduleBar).not.toBeNull();
 
     const before = snapshot(rootId);
 
-    fireEvent.mouseDown(planBar, { button: 0, clientX: 300, clientY: 50 });
+    fireEvent.mouseDown(scheduleBar, { button: 0, clientX: 300, clientY: 50 });
     fireEvent.mouseUp(window);
 
     // draw-range が発火していないこと（=行のハンドラに伝播していないこと）
@@ -122,41 +118,39 @@ describe('Gantt drag guards', () => {
     expect(snapshot(rootId)).toEqual(before);
   });
 
-  it('does not rewrite dates when the actual bar is clicked while the baseline is locked', () => {
+  it('renders a single movable bar and a non-interactive baseline ghost', () => {
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
-        title: 'Locked Actual Bar',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-27',
-        planDuration: 3,
+        title: 'Baseline Ghost',
         startDate: '2026-05-25',
         endDate: '2026-05-27',
         duration: 3,
       });
-      useTaskStore.getState().setBaselineLocked(true);
+      useTaskStore.getState().setBaseline('register');
     });
 
     const { container } = render(<GanttChart showNames />);
-    const actualBar = container.querySelector('[title^="Actual:"]') as HTMLDivElement;
-    expect(actualBar).not.toBeNull();
 
-    const before = snapshot(rootId);
+    // 操作可能なバーは現在の日程バー 1 本だけ
+    const bars = container.querySelectorAll('[data-gantt-bar]');
+    expect(bars).toHaveLength(1);
+    expect(bars[0].getAttribute('data-gantt-bar')).toBe('schedule');
 
-    fireEvent.mouseDown(actualBar, { button: 0, clientX: 300, clientY: 50 });
-    fireEvent.mouseUp(window);
-
-    expect(snapshot(rootId)).toEqual(before);
+    // 基準計画は非操作のゴーストとして表示される
+    const baselineGhost = container.querySelector('[title^="基準計画:"]') as HTMLDivElement;
+    expect(baselineGhost).not.toBeNull();
+    expect(baselineGhost.className).toContain('pointer-events-none');
   });
 
-  it('still commits a plan range when the timeline area is actually dragged', () => {
+  it('still commits a schedule range when the timeline area is actually dragged', () => {
     const rootId = useTaskStore.getState().rootIds[0];
     act(() => {
       useTaskStore.getState().updateTask(rootId, {
         title: 'Real Draw Range',
-        planStartDate: '2026-05-25',
-        planEndDate: '2026-05-27',
-        planDuration: 3,
+        startDate: '2026-05-25',
+        endDate: '2026-05-27',
+        duration: 3,
       });
     });
 
@@ -173,7 +167,7 @@ describe('Gantt drag guards', () => {
     const after = snapshot(rootId);
     expect(after).not.toEqual(before);
     // 開始 <= 終了 になること
-    expect(after.planStartDate! <= after.planEndDate!).toBe(true);
+    expect(after.startDate! <= after.endDate!).toBe(true);
     expect(useTaskStore.getState().dragState).toBeNull();
   });
 });

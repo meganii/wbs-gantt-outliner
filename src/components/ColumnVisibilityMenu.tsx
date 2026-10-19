@@ -1,5 +1,5 @@
 import type { ColumnId } from '../types';
-import { COLUMN_LABELS, COLUMN_ORDER, PLAN_COLUMNS } from '../utils/columns';
+import { COLUMN_LABELS, COLUMN_ORDER } from '../utils/columns';
 
 /**
  * 表示項目のトグル一覧。列ヘッダーの右クリックメニューと
@@ -8,13 +8,11 @@ import { COLUMN_LABELS, COLUMN_ORDER, PLAN_COLUMNS } from '../utils/columns';
 export function ColumnVisibilityMenu({
   columns,
   onChange,
-  baselineLocked,
   className,
   style,
 }: {
   columns: ColumnId[];
   onChange: (columns: ColumnId[]) => void;
-  baselineLocked: boolean;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -43,9 +41,7 @@ export function ColumnVisibilityMenu({
       </div>
       {COLUMN_LABELS.map(({ id, label }) => {
         const isChecked = columns.includes(id);
-        const isTaskName = id === 'taskName';
-        const isPlanColumn = PLAN_COLUMNS.includes(id);
-        const isDisabled = isTaskName || (isPlanColumn && baselineLocked);
+        const isDisabled = id === 'taskName';
 
         return (
           <label
@@ -69,9 +65,6 @@ export function ColumnVisibilityMenu({
               onChange={() => {}}
             />
             <span>{label}</span>
-            {isPlanColumn && baselineLocked && (
-              <span className="ml-auto text-[10px] text-amber-600 font-normal">(固定中)</span>
-            )}
           </label>
         );
       })}

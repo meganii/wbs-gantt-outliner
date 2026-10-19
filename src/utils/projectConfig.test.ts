@@ -45,12 +45,27 @@ describe('mergeProjectConfig', () => {
     expect(result.timelineRange).toEqual({ start: '2026-01-01', end: '2026-06-30' });
   });
 
-  it('coerces a non-boolean baselineLocked to the default and warns on visibleColumns', () => {
+  it('drops the legacy baselineLocked key and keeps defaults for baseline config', () => {
     const warnings: string[] = [];
     const result = mergeProjectConfig({ baselineLocked: 'yes', visibleColumns: 'all' }, warnings);
-    expect(result.baselineLocked).toBe(false);
+    expect('baselineLocked' in result).toBe(false);
+    expect(result.showBaseline).toBe(true);
+    expect(result.baselineSetAt).toBeNull();
     expect(warnings.join('\n')).toContain('visibleColumns');
     expect(result.visibleColumns).toEqual(DEFAULT_PROJECT_CONFIG.visibleColumns);
+  });
+
+  it('keeps a valid baselineSetAt string and rejects empty/non-string values', () => {
+    const result = mergeProjectConfig({ baselineSetAt: '2026-10-18T00:00:00.000Z' });
+    expect(result.baselineSetAt).toBe('2026-10-18T00:00:00.000Z');
+
+    expect(mergeProjectConfig({ baselineSetAt: '' }).baselineSetAt).toBeNull();
+    expect(mergeProjectConfig({ baselineSetAt: 123 as unknown as string }).baselineSetAt).toBeNull();
+  });
+
+  it('honors an explicit showBaseline flag', () => {
+    expect(mergeProjectConfig({ showBaseline: false }).showBaseline).toBe(false);
+    expect(mergeProjectConfig({ showBaseline: true }).showBaseline).toBe(true);
   });
 
   it('defaults integratedColumns to the compact set and repairs invalid values', () => {

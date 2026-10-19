@@ -47,9 +47,9 @@ test.describe('Parent Task Roll-up E2E Tests', () => {
     await page.waitForTimeout(200);
 
     // 8. Set Child 1 planned date: 2026-06-01 to 2026-06-03 (3 workdays: Mon, Tue, Wed)
-    const planStartDateInputs = page.locator('input[data-field="planStartDate"]');
-    const planEndDateInputs = page.locator('input[data-field="planEndDate"]');
-    const planDurationInputs = page.locator('input[data-field="planDuration"]');
+    const startDateInputs = page.locator('input[data-field="startDate"]');
+    const endDateInputs = page.locator('input[data-field="endDate"]');
+    const durationInputs = page.locator('input[data-field="duration"]');
 
     // Index 0: Project Root
     // Index 1: Parent Task (ReadOnly dates because it is a parent task now!)
@@ -57,21 +57,21 @@ test.describe('Parent Task Roll-up E2E Tests', () => {
     // Index 3: Child 2
 
     // Set Child 1 Dates
-    await planStartDateInputs.nth(2).fill('2026-06-01');
-    await planEndDateInputs.nth(2).fill('2026-06-03');
-    await planEndDateInputs.nth(2).press('Enter');
+    await startDateInputs.nth(2).fill('2026-06-01');
+    await endDateInputs.nth(2).fill('2026-06-03');
+    await endDateInputs.nth(2).press('Enter');
 
     await page.waitForTimeout(200);
 
     // Assert Parent Task date matches Child 1 because it is currently the only child
-    await expect(planStartDateInputs.nth(1)).toHaveValue('06/01');
-    await expect(planEndDateInputs.nth(1)).toHaveValue('06/03');
-    await expect(planDurationInputs.nth(1)).toHaveValue('3');
+    await expect(startDateInputs.nth(1)).toHaveValue('06/01');
+    await expect(endDateInputs.nth(1)).toHaveValue('06/03');
+    await expect(durationInputs.nth(1)).toHaveValue('3');
 
     // Set Child 2 Dates: 2026-06-04 to 2026-06-08 (3 workdays: Thu, Fri, Mon - skipping 06 and 07 weekend)
-    await planStartDateInputs.nth(3).fill('2026-06-04');
-    await planEndDateInputs.nth(3).fill('2026-06-08');
-    await planEndDateInputs.nth(3).press('Enter');
+    await startDateInputs.nth(3).fill('2026-06-04');
+    await endDateInputs.nth(3).fill('2026-06-08');
+    await endDateInputs.nth(3).press('Enter');
 
     await page.waitForTimeout(300);
 
@@ -79,13 +79,13 @@ test.describe('Parent Task Roll-up E2E Tests', () => {
     // Start date should be min(Child 1, Child 2) = 2026-06-01
     // End date should be max(Child 1, Child 2) = 2026-06-08
     // Duration should be total workdays from 2026-06-01 to 2026-06-08 = 6 workdays (Mon-Fri = 5, plus Mon = 1)
-    await expect(planStartDateInputs.nth(1)).toHaveValue('06/01');
-    await expect(planEndDateInputs.nth(1)).toHaveValue('06/08');
-    await expect(planDurationInputs.nth(1)).toHaveValue('6');
+    await expect(startDateInputs.nth(1)).toHaveValue('06/01');
+    await expect(endDateInputs.nth(1)).toHaveValue('06/08');
+    await expect(durationInputs.nth(1)).toHaveValue('6');
 
     // 10. Verify Parent Task date inputs are ReadOnly
-    await expect(planStartDateInputs.nth(1)).toHaveAttribute('readonly');
-    await expect(planEndDateInputs.nth(1)).toHaveAttribute('readonly');
+    await expect(startDateInputs.nth(1)).toHaveAttribute('readonly');
+    await expect(endDateInputs.nth(1)).toHaveAttribute('readonly');
 
     console.log('Parent task roll-up E2E test passed successfully!');
   });

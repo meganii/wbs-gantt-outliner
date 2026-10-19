@@ -3,12 +3,12 @@
  *
  * - `Math.random()` / 現在時刻を使わない（同じ入力なら常に同じ JSON になる）。
  * - 3 階層（フェーズ → グループ → リーフ）のツリーを生成し、各リーフに
- *   予定日付・実績日付・進捗・一部の依存関係を割り当てる。
- * - 出力形式はアプリの保存形式（`{ tasks, rootIds, projectConfig }`）に合わせている。
+ *   日程（`startDate`/`endDate`）・進捗・一部の依存関係を割り当てる。
+ * - 出力形式はアプリの保存形式（`{ schemaVersion, tasks, rootIds, projectConfig }`）に
+ *   合わせている（v3: 基準計画 + 現在の日程 + 進捗率の 2 層モデル）。
  */
 
 const BASE_DATE = new Date(2026, 9, 5); // 2026-10-05 (月)
-const STATUSES = ['未着手', '進行中', '完了'];
 const DEFAULT_PROJECT_CONFIG = {
   calendar: { workDays: [1, 2, 3, 4, 5], holidays: [] },
   viewMode: 'Day',
@@ -17,14 +17,11 @@ const DEFAULT_PROJECT_CONFIG = {
     description: 256,
     assignee: 128,
     deliverables: 192,
-    status: 100,
+    status: 60,
     progress: 80,
-    planDuration: 64,
-    planDate: 224,
     duration: 64,
     date: 224,
   },
-  baselineLocked: false,
   visibleColumns: [
     'taskName',
     'description',
@@ -32,12 +29,17 @@ const DEFAULT_PROJECT_CONFIG = {
     'deliverables',
     'status',
     'progress',
-    'planDuration',
-    'planDate',
     'duration',
     'date',
   ],
 };
+
+/** 進捗率からステータスを導出する（アプリの deriveStatus と同じ規則）。 */
+function deriveStatus(progress) {
+  if (progress >= 100) return '完了';
+  if (progress > 0) return '進行中';
+  return '未着手';
+}
 
 function pad(n) {
   return String(n).padStart(2, '0');
@@ -138,13 +140,10 @@ export function generateProjectData(count = 1000) {
           endDate: formatDate(end),
           duration: LEAF_DURATION,
           progress,
-          status: STATUSES[Math.floor(progress / 34)],
+          status: deriveStatus(progress),
           isCollapsed: false,
           children: [],
           dependencies,
-          planStartDate: formatDate(start),
-          planEndDate: formatDate(end),
-          planDuration: LEAF_DURATION,
         };
 
         childIds.push(leafId);
@@ -163,13 +162,10 @@ export function generateProjectData(count = 1000) {
         endDate: formatDate(groupMaxEnd),
         duration: LEAF_DURATION,
         progress: 0,
-        status: '',
+        status: deriveStatus(0),
         isCollapsed: false,
         children: childIds,
         dependencies: [],
-        planStartDate: formatDate(groupMinStart),
-        planEndDate: formatDate(groupMaxEnd),
-        planDuration: LEAF_DURATION,
       };
 
       groupIds.push(groupId);
@@ -188,19 +184,16 @@ export function generateProjectData(count = 1000) {
       endDate: formatDate(phaseMaxEnd),
       duration: LEAF_DURATION,
       progress: 0,
-      status: '',
+      status: deriveStatus(0),
       isCollapsed: false,
       children: groupIds,
       dependencies: [],
-      planStartDate: formatDate(phaseMinStart),
-      planEndDate: formatDate(phaseMaxEnd),
-      planDuration: LEAF_DURATION,
     };
 
     rootIds.push(phaseId);
   }
 
-  return { tasks, rootIds, projectConfig: DEFAULT_PROJECT_CONFIG };
+  return { schemaVersion: 3, tasks, rootIds, projectConfig: DEFAULT_PROJECT_CONFIG };
 }
 
 export const PROJECT_CONFIG = DEFAULT_PROJECT_CONFIG;
