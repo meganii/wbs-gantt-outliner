@@ -17,7 +17,7 @@ const DEFAULT_PROJECT_CONFIG = {
     description: 256,
     assignee: 128,
     deliverables: 192,
-    status: 100,
+    status: 60,
     progress: 80,
     duration: 64,
     date: 224,
