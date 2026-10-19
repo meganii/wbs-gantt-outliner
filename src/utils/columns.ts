@@ -8,11 +8,11 @@ import type { ColumnId } from '../types';
  * 予定・実績で列を分けない。
  */
 export const COLUMN_LABELS: { id: ColumnId; label: string }[] = [
-  { id: 'taskName', label: 'タスク名' },
+  { id: 'taskName', label: '項目名' },
   { id: 'description', label: '説明' },
   { id: 'assignee', label: '担当者' },
   { id: 'deliverables', label: '成果物' },
-  { id: 'status', label: 'ステータス' },
+  { id: 'status', label: '状態' },
   { id: 'progress', label: '進捗率' },
   { id: 'duration', label: '期間' },
   { id: 'date', label: '開始日 / 終了日' },

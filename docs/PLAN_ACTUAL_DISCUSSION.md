@@ -126,7 +126,7 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 | 現在の日程（終了） | 終了日 | Finish | Finish（Scheduled Finish） | Finish |
 | 稼働日数 | 期間 | Duration | Duration | At Completion Duration |
 | 進捗率 | 進捗率 | % Complete | % Complete | Activity % Complete |
-| 状態 | ステータス（未着手 / 進行中 / 完了） | Status | （Status 列は持たず % と実績から判断） | Activity Status |
+| 状態 | 状態（未着手 / 進行中 / 完了） | Status | （Status 列は持たず % と実績から判断） | Activity Status |
 | 当初計画（不変） | 基準開始日 / 基準終了日（基準計画） | Baseline Start / Finish | Baseline Start / Finish | Primary Baseline Planned Start / Finish |
 | 差異 | 開始差異 / 終了差異 / 期間差異 | Start / Finish / Duration Variance | Start / Finish / Duration Variance | Progress Line など |
 | 進捗基準日（未導入） | 基準日 | Status Date | Status Date | Data Date |
@@ -136,6 +136,7 @@ git switch -c restore-3layer feature/plan-actual-model-phase1
 **命名方針**
 
 - 日付の列名は「予定日付 / 実績日付」をやめて「**開始日 / 終了日**」にする。1 つのフィールドの役割が進捗率で変わるため、どちらかの名前を付けると嘘になる（MS Project も同じ理由で `Start` / `Finish` という中立名）。
+- 行の名前は「**項目名**」（旧「タスク名」）。WBS の 1 行を「タスク」ではなく「項目」として扱う（2026-10-19 変更）。状態列の表示名は「**状態**」（旧「ステータス」）。内部の識別子（`taskName` / `status` / `deriveStatus`）は互換のため変更しない。
 - 基準側は「**基準開始日 / 基準終了日**」。「**基準日**」を単独で使わない（MS Project の 基準日 = Status Date、P6 の データ日 = Data Date と衝突する）。
 - 「予定」は列名から外し、「未着手のときの開始日 / 終了日は予定」という**状態の説明**に限定して使う。
 

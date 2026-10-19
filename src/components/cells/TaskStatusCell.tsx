@@ -81,7 +81,7 @@ export const TaskStatusCell = memo(({
         tabIndex={0}
         data-task-id={taskId}
         data-field="status"
-        title="ステータスは進捗率から自動計算されます"
+        title="状態は進捗率から自動計算されます"
         onFocus={() => useTaskStore.getState().setFocusedTaskCell(taskId, 'status')}
         onKeyDown={handleKeyDown}
         className={clsx(

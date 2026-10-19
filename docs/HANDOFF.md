@@ -4,6 +4,11 @@
 
 ## 現在の状態
 
+- **表示名を「項目名」「状態」に変更（`feature/plan-actual-2layer`、未 push）** (October 19, 2026):
+  - WBS / 統合表示 / ガント / 表示項目メニューの列見出しを「タスク名」→「**項目名**」、「ステータス」→「**状態**」に変更。Excel 出力のヘッダー（`src/utils/export.ts`）と状態セルのツールチップも合わせた。
+  - 変更点: `src/utils/columns.ts`（`COLUMN_LABELS`。列ヘッダーと表示項目メニューはここを参照）、`src/components/GanttChart.tsx`（ガント左列のハードコード見出し）、`src/utils/export.ts`、`src/components/cells/TaskStatusCell.tsx`。テストは `Phase2Regression.test.tsx` / `GanttChart.test.tsx` の期待値を更新。
+  - 内部の識別子（`taskName` / `status` / `deriveStatus` / `data-field`）は保存形式・セレクタ互換のため変更していない。表示名だけの変更。
+  - 検証: `npm test -- --run` **259 件（30 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` で WBS・ガントの見出しを目視確認。
 - **予定・実績モデルを 2 層へ移行（実装完了。`feature/plan-actual-2layer`、未 push）** (October 18, 2026):
   - `docs/PLAN_ACTUAL_DISCUSSION.md` §8 のチェックリストを上から順に実装した。モデル = **基準（基準開始日 / 基準終了日 / 基準期間）+ 現在の日程（開始日 / 終了日 / 期間）+ 進捗率** の 2 層。保存形式は `schemaVersion: 3`。
   - 主な変更（`git diff --stat` の対象）:

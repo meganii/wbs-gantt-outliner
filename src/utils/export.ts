@@ -65,11 +65,11 @@ export async function buildExcelExportFile({
   // 3. Define Columns — 現在の日程 1 組 + 基準計画 1 組 + 進捗率
   const fixedColumns = [
     { header: 'WBS番号', key: 'wbsNumber', width: 10 },
-    { header: 'タスク名', key: 'wbs', width: 40 },
+    { header: '項目名', key: 'wbs', width: 40 },
     { header: '説明', key: 'description', width: 40 },
     { header: '担当者', key: 'assignee', width: 15 },
     { header: '成果物', key: 'deliverables', width: 25 },
-    { header: 'ステータス', key: 'status', width: 15 },
+    { header: '状態', key: 'status', width: 15 },
     { header: '進捗率', key: 'progress', width: 10 },
     // Current schedule (現在の日程)
     { header: '開始日', key: 'startDate', width: 12 },

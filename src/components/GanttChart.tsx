@@ -326,13 +326,13 @@ export const GanttChart = ({
               className="flex items-center pl-4 pr-2"
               style={{ width: columnWidths.taskName }}
             >
-              タスク名
+              項目名
             </div>
             <div
               className="flex items-center justify-center border-l border-line"
               style={{ width: columnWidths.status }}
             >
-              ステータス
+              状態
             </div>
             <div
               className="flex items-center justify-center border-l border-line"

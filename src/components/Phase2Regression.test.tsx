@@ -83,12 +83,12 @@ describe('Phase 2: ガント表現', () => {
     expect(weekendCells.length).toBeGreaterThan(0);
   });
 
-  it('ガント左列にステータスと進捗のヘッダーを表示する', () => {
+  it('ガント左列に状態と進捗のヘッダーを表示する', () => {
     seedTask();
     const { container } = render(<GanttChart showNames />);
     const text = container.textContent ?? '';
-    expect(text).toContain('タスク名');
-    expect(text).toContain('ステータス');
+    expect(text).toContain('項目名');
+    expect(text).toContain('状態');
     expect(text).toContain('進捗率');
   });
 
