@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import type { Milestone, ProjectConfig, Task, TaskStoreState } from '../types';
 import {
   deleteTasksAndCleanup,
+  moveTasksByDaysInGraph,
   propagateDependencyDates,
   recalculateParentDatesRecursive,
   applyDateCalculations,
@@ -415,6 +416,16 @@ const taskStore = create<TaskStoreState>()(
 
       updateTask: (id, updates) => set((state) => {
         const tasks = applyTaskUpdate(state, id, updates);
+        return tasks ? { tasks } : {};
+      }),
+
+      moveTasksByDays: (taskIds, deltaDays) => set((state) => {
+        const tasks = moveTasksByDaysInGraph(
+          state.tasks,
+          taskIds,
+          deltaDays,
+          state.projectConfig.calendar
+        );
         return tasks ? { tasks } : {};
       }),
 

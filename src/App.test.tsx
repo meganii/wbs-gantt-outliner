@@ -102,6 +102,35 @@ describe('App collapse controls', () => {
     expect(ganttBtn.className).not.toContain('bg-white');
   });
 
+  it('clears the selection with Escape in every view', () => {
+    render(<App />);
+
+    const rootId = useTaskStore.getState().rootIds[0];
+
+    // 既定の統合表示
+    act(() => {
+      useTaskStore.getState().setSelectedTaskIds([rootId]);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([]);
+
+    // ガントチャート
+    fireEvent.click(screen.getByRole('button', { name: 'ガントチャート' }));
+    act(() => {
+      useTaskStore.getState().setSelectedTaskIds([rootId]);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([]);
+
+    // WBS
+    fireEvent.click(screen.getByRole('button', { name: 'WBS' }));
+    act(() => {
+      useTaskStore.getState().setSelectedTaskIds([rootId]);
+    });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useTaskStore.getState().selectedTaskIds).toEqual([]);
+  });
+
   it('switches views via switch-view IPC event', () => {
     render(<App />);
 

@@ -121,6 +121,13 @@ export interface GanttDragState {
   currentStartDate: Date;
   currentEndDate: Date;
   targetTaskId?: string;
+  /**
+   * move で同時に動かす葉タスクのスナップショット（開始時点の選択から作る）。
+   * 単一移動でも 1 件入る。resize / draw-range / dependency では未設定。
+   */
+  affectedTaskIds?: string[];
+  /** move プレビューの移動日数（カレンダー日）。ドラッグ中に更新する。 */
+  deltaDays?: number;
 }
 
 export interface TaskStoreState {
@@ -174,6 +181,12 @@ export interface TaskStoreState {
     values: Array<string | null | undefined>
   ) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
+  /**
+   * 複数の葉タスクを同じカレンダー日数だけまとめて移動する。
+   * 1 回の set で全タスクを更新するため Undo は 1 エントリ。
+   * 親・日付なし・選択外は動かさず、依存伝播と親ロールアップは既存規則に従う。
+   */
+  moveTasksByDays: (taskIds: string[], deltaDays: number) => void;
   endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;
   toggleCollapse: (id: string) => void;

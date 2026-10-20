@@ -538,6 +538,7 @@ export const GanttChart = ({
                   timelineWidth={timeRange.length * CELL_WIDTH}
                   isSelected={isSelected}
                   isHovered={isHovered}
+                  onSelect={handleSelectionChange}
                 />
               </div>
             );

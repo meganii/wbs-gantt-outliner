@@ -13,6 +13,14 @@ export function useKeyboardShortcuts({ setView }: UseKeyboardShortcutsProps) {
         return;
       }
 
+      // Escape: 選択解除（WBS / 統合表示 / ガントの全ビュー共通）。
+      // セル編集中の Escape は各セル側でも処理するが、バー選択など
+      // フォーカスが入力欄に無い状態でも解除できるようにここで受ける。
+      if (e.key === 'Escape') {
+        useTaskStore.getState().setSelectedTaskIds([]);
+        return;
+      }
+
       // キーボードショートカットはCtrl/Cmd押しを前提としている
       // そのため、Ctrl/Cmd が押されていないときは無視する
       const isCmdOrCtrl = e.ctrlKey || e.metaKey;
