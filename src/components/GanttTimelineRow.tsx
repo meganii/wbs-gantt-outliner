@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
-import { addDays, differenceInDays, format } from 'date-fns';
+import { addDays, differenceInDays } from 'date-fns';
 import clsx from 'clsx';
 import type { Task } from '../types';
 import { useTaskStore } from '../store/useTaskStore';
+import { useHoverTooltip } from './HoverTooltip';
 
 export interface GanttTimelineRowProps {
   taskId: string;
@@ -58,6 +59,28 @@ export const GanttTimelineRow = memo(({
   // 完了（塗りが 100% まで到達）は色でも分かるようにする。
   // WBS のステータス列（TaskStatusCell）が「完了 = 緑」なので、色の意味を合わせる。
   const isCompleted = progress >= 100;
+  const isDraggingBar = isDragging && dragMode !== 'dependency' && dragMode !== 'draw-range';
+
+  const barTooltip = useHoverTooltip<HTMLDivElement>({
+    content:
+      barStartStr && barEndStr ? (
+        <div className="space-y-0.5">
+          <div className="max-w-[300px] break-words font-medium">{task.title}</div>
+          <div>開始日: {barStartStr}</div>
+          <div>終了日: {barEndStr}</div>
+          <div>期間: {task.duration}日</div>
+          <div>
+            進捗 {progress}%{isCompleted ? '（完了）' : ''}
+          </div>
+          {showBaseline && task.baselineStartDate && task.baselineEndDate ? (
+            <div>
+              基準: {task.baselineStartDate} - {task.baselineEndDate}
+            </div>
+          ) : null}
+        </div>
+      ) : null,
+    enabled: hasBar && !isDraggingBar,
+  });
 
   return (
     <div
@@ -131,7 +154,6 @@ export const GanttTimelineRow = memo(({
       {hasBar && (() => {
         const { timelineStart, pixelsPerDay } = timelineMetrics;
 
-        const isDraggingBar = isDragging && dragMode !== 'dependency' && dragMode !== 'draw-range';
         const barStart = isDraggingBar ? dragCurrentStartDate : new Date(barStartStr!);
         const barEnd = isDraggingBar ? dragCurrentEndDate : new Date(barEndStr!);
         const barDiffDays = differenceInDays(barStart!, timelineStart);
@@ -184,12 +206,14 @@ export const GanttTimelineRow = memo(({
             {barWidth > 0 && (
               <div
                 ref={(el) => {
+                  barTooltip.anchorRef.current = el;
                   if (el) {
                     taskBarRefs.current?.set(taskId, el);
                   } else {
                     taskBarRefs.current?.delete(taskId);
                   }
                 }}
+                {...barTooltip.triggerProps}
                 data-task-id={taskId}
                 data-gantt-bar="schedule"
                 className={clsx(
@@ -210,14 +234,6 @@ export const GanttTimelineRow = memo(({
                       ]
                 )}
                 style={{ left: barOffset, width: Math.max(0, barWidth - 2) }}
-                title={[
-                  task.title,
-                  `開始日: ${format(barStart!, 'yyyy-MM-dd')}`,
-                  `終了日: ${format(barEnd!, 'yyyy-MM-dd')}`,
-                  `期間: ${task.duration ?? ''}日`,
-                  `進捗 ${progress}%${isCompleted ? '（完了）' : ''}`,
-                  hasBaseline ? `基準: ${task.baselineStartDate} - ${task.baselineEndDate}` : '',
-                ].filter(Boolean).join(' / ')}
                 onMouseDown={(e) => {
                   // バー上のクリック/ドラッグを行の draw-range に伝播させない。
                   e.stopPropagation();
@@ -263,11 +279,12 @@ export const GanttTimelineRow = memo(({
                   />
                 )}
 
-                {/* 依存線の作成ハンドル */}
+                {/* 依存線の作成ハンドル。ハンドル上ではバー情報ではなく操作説明（title）を優先する。 */}
                 {!isParent && (
                   <div
                     className="absolute -right-6 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-crosshair opacity-0 hover:scale-125 transition-all z-50 shadow-sm flex items-center justify-center group-hover:opacity-100"
                     title="Drag to create dependency"
+                    onPointerEnter={barTooltip.triggerProps.onPointerLeave}
                     onMouseDown={startDrag('dependency')}
                   >
                     <span className="text-blue-500 text-[10px] font-bold">+</span>
@@ -291,6 +308,7 @@ export const GanttTimelineRow = memo(({
           </>
         );
       })()}
+      {barTooltip.tooltip}
     </div>
   );
 }, (prevProps, nextProps) => {

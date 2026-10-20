@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Outliner } from '../Outliner';
 import { getTemporalState, useTaskStore } from '../../store/useTaskStore';
+import { TOOLTIP_DELAY_MS } from '../HoverTooltip';
 
 const initialState = useTaskStore.getState();
 
@@ -56,6 +57,38 @@ describe('TaskDateCell', () => {
     fireEvent.focus(input);
     expect(input.value).toBe('10/05');
     expect(input.value).not.toContain('2026');
+  });
+
+  it(`ホバーから ${TOOLTIP_DELAY_MS}ms 後にフル日付のツールチップを表示する`, () => {
+    vi.useFakeTimers();
+    const id = useTaskStore.getState().rootIds[0];
+    act(() => {
+      useTaskStore.getState().updateTask(id, {
+        startDate: '2026-10-05',
+        endDate: '2026-10-09',
+      });
+    });
+
+    const { container } = render(<Outliner showDetails />);
+    const input = fieldInput(container, id, 'startDate');
+    const wrapper = container.querySelector<HTMLElement>(
+      `[data-date-cell="${id}"] [data-date-field-wrapper="startDate"]`
+    )!;
+
+    // 標準 title は併用しない（約 500ms のネイティブツールチップを避ける）。
+    expect(input).not.toHaveAttribute('title');
+
+    fireEvent.pointerOver(wrapper, { pointerType: 'mouse' });
+    act(() => vi.advanceTimersByTime(TOOLTIP_DELAY_MS - 1));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    act(() => vi.advanceTimersByTime(1));
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toHaveTextContent('開始日: 2026/10/05');
+    expect(tooltip).toHaveTextContent('クリックで入力 / カレンダーから選択');
+
+    fireEvent.pointerOut(wrapper, { pointerType: 'mouse' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   it('commits MM/DD using the year of the existing value', () => {

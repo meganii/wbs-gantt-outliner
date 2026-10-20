@@ -4,6 +4,13 @@
 
 ## 現在の状態
 
+- **日付セル / ガントバーに 150ms のホバーツールチップを追加** (October 20, 2026 / `feature/compact-date-input`):
+  - ブラウザ標準の `title` ツールチップ（Chromium 既定は約 500ms）をやめ、共通の `useHoverTooltip` で **150ms** 後に表示する。日付セルは `YYYY/MM/DD` と操作ヒント、ガントバーはタイトル / 開始日 / 終了日 / 期間 / 進捗（完了） / 基準計画をまとめて表示する。
+  - ツールチップは `position: fixed` + Portal で描画し、`TaskDateCell` の `overflow-hidden` に切れないようにした。画面端では上下・左右をクランプする。`pointer-events: none` のため下のセル / バー操作を邪魔しない。
+  - マウスアウト・スクロール・リサイズ・Esc・pointerdown で即座に閉じる。ガントのバードラッグ中は表示を無効化し、依存線作成ハンドル上ではバー情報を閉じて操作説明（`title`）を優先する。
+  - 変更: 新規 `src/components/HoverTooltip.tsx` / `src/components/HoverTooltipPortal.tsx`、`src/components/cells/TaskDateCell.tsx`、`src/components/GanttTimelineRow.tsx`。
+  - テスト: 新規 `src/components/HoverTooltip.test.tsx` / `src/components/GanttTooltip.test.tsx` / `e2e/tooltip.spec.ts`。`src/components/cells/DateCell.test.tsx` に 150ms 表示、`src/components/GanttBarCompletion.test.tsx` は `title` 依存を外して色・塗りで完了を検証する形に更新。
+  - 検証: `npm test -- --run` **301 件（34 ファイル）** / `npm run test:e2e` **7 件** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` 10 枚生成。実ブラウザで WBS 日付セルとガントバーのツールチップ位置・内容を目視確認。
 - **日付セルを MM/DD 表示 + ネイティブ日付ピッカー + 複数行ペーストへ刷新** (October 20, 2026 / `feature/compact-date-input`):
   - 表示・編集中をともに `MM/DD` に統一し、年はツールチップ / `aria-label`（`YYYY/MM/DD`）とネイティブピッカーで補う。`TaskDateCell` は固定幅の入力欄をやめ、開始日・終了日・カレンダーボタンを `minmax(0, 1fr)` のグリッドに収めた。列を狭めてもオーバーフローせず、空欄は `--/--` を表示する。
   - 直接入力は `YYYY/MM/DD` / `YYYY-MM-DD` / `YYYYMMDD` / `MM/DD` / `MM-DD` / `MMDD` を受け付ける。`parseInputDate` に `notBefore` / `notAfter` を追加し、終了日の `MM/DD` が開始日より前なら翌年、開始日が空で終了日を追い越すなら前年として解決する。貼り付け時は即パースして `MM/DD` に正規化する（コピペは維持）。
@@ -369,14 +376,14 @@
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
 
-## 直近の検証結果 (October 20, 2026 / 日付セル刷新後)
+## 直近の検証結果 (October 20, 2026 / 日付セル・ツールチップ刷新後)
 
-- `npm test -- --run` : **292テスト全件合格** (32ファイル。開始日 / 終了日の独立ハイライトを含む)
-- `npm run test:e2e` : **E2Eテスト全6件合格** (Playwright / chromium。既存の日付入力 `fill('2026-06-01')` → `06/01` の経路と、新規 `e2e/date-cell.spec.ts` の 128px レイアウト・複数行ペースト・開始日 / 終了日の独立ハイライトを含む)
+- `npm test -- --run` : **301テスト全件合格** (34ファイル。開始日 / 終了日の独立ハイライト、150ms ツールチップ、ガントバーの日程・進捗・基準表示を含む)
+- `npm run test:e2e` : **E2Eテスト全7件合格** (Playwright / chromium。既存の日付入力 `fill('2026-06-01')` → `06/01` の経路、`e2e/date-cell.spec.ts` の 128px レイアウト・複数行ペースト・開始日 / 終了日の独立ハイライト、新規 `e2e/tooltip.spec.ts` の日付セル / ガントバーツールチップを含む)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run lint` : **0件合格**
 - `npm run shots` : 10枚生成。WBS の日付列が 128px で溢れず、親タスクは読み取り専用、葉はカレンダーアイコン付きで表示されることを目視確認
-- 既知の手動確認事項: ネイティブ日付ピッカーの見た目・開閉はブラウザ依存のため E2E では操作せず、`showPicker()` の呼び出しと `change` の反映のみ自動テストしている。
+- 既知の手動確認事項: ネイティブ日付ピッカーの見た目・開閉はブラウザ依存のため E2E では操作せず、`showPicker()` の呼び出しと `change` の反映のみ自動テストしている。ツールチップの 150ms 待ちはユニットテスト、位置・見た目は実ブラウザで確認している。
 
 ## 直近の検証結果 (October 18, 2026 / 予定・実績モデル Phase 1 実装後)
 

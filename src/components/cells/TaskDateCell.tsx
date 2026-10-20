@@ -7,6 +7,7 @@ import { useNotificationStore } from '../../store/useNotificationStore';
 import { useTaskCellKeyboard } from '../../hooks/useTaskCellKeyboard';
 import { cellPropsEqual } from './cellPropsEqual';
 import { activeColumnClass, useIsActiveColumn } from './cellHighlight';
+import { useHoverTooltip } from '../HoverTooltip';
 import { formatFullDate, formatToShow, formatToEdit, parseIsoDateStrict } from '../../utils/date';
 import { getVisualTaskOrder } from '../../utils/cellPaste';
 import { planDatePaste, resolveDateInput, type DateField } from '../../utils/datePaste';
@@ -66,6 +67,29 @@ export const TaskDateCell = memo(({
   const isActiveEnd = useIsActiveColumn(taskId, 'endDate');
 
   const isReadOnly = isParent;
+
+  const buildTooltipContent = (field: DateField) => {
+    const label = field === 'startDate' ? '開始日' : '終了日';
+    const value = field === 'startDate' ? startValue : endValue;
+    return (
+      <div className="space-y-0.5">
+        <div className="font-medium">
+          {label}: {value ? formatFullDate(value) : '未設定'}
+        </div>
+        <div className="text-slate-300">
+          {isReadOnly ? '子タスクから自動計算されます' : 'クリックで入力 / カレンダーから選択'}
+        </div>
+      </div>
+    );
+  };
+
+  // ブラウザ標準の title（約 500ms）ではなく、150ms で表示する共通ツールチップ。
+  const startTooltip = useHoverTooltip<HTMLDivElement>({
+    content: buildTooltipContent('startDate'),
+  });
+  const endTooltip = useHoverTooltip<HTMLDivElement>({
+    content: buildTooltipContent('endDate'),
+  });
 
   // Sync state when focus changes or stored dates change
   // (effect 内での setState を避け、レンダー中に state を調整する)
@@ -346,19 +370,11 @@ export const TaskDateCell = memo(({
 
   const width = columnWidths.date;
 
-  const fieldTitle = (field: DateField) => {
-    const label = field === 'startDate' ? '開始日' : '終了日';
-    if (isReadOnly) {
-      return `${label}は子タスクから自動計算されます`;
-    }
-    const value = field === 'startDate' ? startValue : endValue;
-    return `${label}: ${value ? formatFullDate(value) : '未設定'}（クリックで入力 / カレンダーから選択）`;
-  };
-
   const renderField = (field: DateField) => {
     const isStart = field === 'startDate';
     const isFocused = isStart ? isFocusedStart : isFocusedEnd;
     const isActiveField = isStart ? isActiveStart : isActiveEnd;
+    const tooltip = isStart ? startTooltip : endTooltip;
     const value = isStart ? startValue : endValue;
     const localValue = isStart ? localStart : localEnd;
     const inputRef = isStart ? startDateRef : endDateRef;
@@ -371,6 +387,8 @@ export const TaskDateCell = memo(({
 
     return (
       <div
+        ref={tooltip.anchorRef}
+        {...tooltip.triggerProps}
         data-date-field-wrapper={field}
         className={clsx(
           'relative flex min-w-0 items-center gap-0.5 rounded-sm',
@@ -408,7 +426,6 @@ export const TaskDateCell = memo(({
             data-task-id={taskId}
             data-field={field}
             aria-label={`${label}${value ? ` ${formatFullDate(value)}` : ' 未設定'}`}
-            title={fieldTitle(field)}
             className={clsx(
               'w-full min-w-0 cursor-pointer bg-transparent text-center text-[10px] text-gray-700 outline-none',
               isReadOnly
@@ -424,7 +441,6 @@ export const TaskDateCell = memo(({
             type="button"
             onClick={() => openPicker(field)}
             aria-label={`${label}のカレンダーを開く`}
-            title={`${label}をカレンダーから選択`}
             className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-400"
           >
             <CalendarDays size={11} />
@@ -444,6 +460,7 @@ export const TaskDateCell = memo(({
             className="pointer-events-none absolute right-0 bottom-0 h-8 w-8 opacity-0"
           />
         )}
+        {tooltip.tooltip}
       </div>
     );
   };
