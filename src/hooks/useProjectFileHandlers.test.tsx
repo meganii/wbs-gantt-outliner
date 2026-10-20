@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useProjectFileHandlers } from './useProjectFileHandlers';
 import { useNotificationStore } from '../store/useNotificationStore';
-import { useTaskStore } from '../store/useTaskStore';
+import { getTemporalState, useTaskStore } from '../store/useTaskStore';
+import { CURRENT_SCHEMA_VERSION } from '../utils/planActualMigration';
 import type { Task } from '../types';
 
 const initialState = useTaskStore.getState();
@@ -52,6 +53,32 @@ describe('useProjectFileHandlers.handleLoad', () => {
     expect(notifications).toHaveLength(1);
     expect(notifications[0].level).toBe('info');
     expect(useTaskStore.getState().tasks['x'].title).toBe('X');
+    expect(useTaskStore.getState().milestones).toEqual([]);
+  });
+
+  it('restores milestones when a v4 project is loaded', async () => {
+    stubIpc(
+      JSON.stringify({
+        tasks: { x: validTask() },
+        rootIds: ['x'],
+        schemaVersion: 4,
+        milestones: [
+          { id: 'm1', title: '設計凍結', date: '2026-10-20' },
+        ],
+      })
+    );
+
+    const { result } = renderHook(() => useProjectFileHandlers());
+    await act(async () => {
+      await result.current.handleLoad();
+    });
+
+    const notifications = useNotificationStore.getState().notifications;
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].level).toBe('info');
+    expect(useTaskStore.getState().milestones).toEqual([
+      { id: 'm1', title: '設計凍結', date: '2026-10-20' },
+    ]);
   });
 
   it('migrates a legacy project and notifies a warning', async () => {
@@ -153,5 +180,48 @@ describe('useProjectFileHandlers.handleLoad', () => {
     });
 
     expect(useNotificationStore.getState().notifications).toHaveLength(0);
+  });
+});
+
+describe('useProjectFileHandlers.handleSave', () => {
+  beforeEach(() => {
+    act(() => {
+      useTaskStore.setState(initialState, true);
+      getTemporalState().clear();
+    });
+  });
+
+  it('writes the current schema version and milestones', async () => {
+    const invoke = vi.fn().mockResolvedValue(true);
+    window.ipcRenderer = {
+      invoke,
+      send: vi.fn(),
+      on: vi.fn(),
+    } as unknown as typeof window.ipcRenderer;
+
+    act(() => {
+      useTaskStore.getState().addMilestone({
+        title: '設計凍結',
+        date: '2026-10-20',
+      });
+    });
+
+    const { result } = renderHook(() => useProjectFileHandlers());
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    const [channel, content] = invoke.mock.calls[0];
+    expect(channel).toBe('save-file');
+
+    const payload = JSON.parse(content);
+    expect(payload.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(payload.milestones).toEqual([
+      expect.objectContaining({ title: '設計凍結', date: '2026-10-20' }),
+    ]);
+    expect(payload.tasks).toBeDefined();
+    expect(payload.rootIds).toBeDefined();
+    expect(payload.projectConfig).toBeDefined();
   });
 });

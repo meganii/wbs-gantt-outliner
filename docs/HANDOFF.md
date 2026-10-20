@@ -4,6 +4,20 @@
 
 ## 現在の状態
 
+- **ガント上部のマイルストーン（Phase 1: 独立データ・表示のみ）** (October 20, 2026 / `feature/milestones` `508a01d`):
+  - 要望: スケジュールの上部に「マイルストーン」を置きたい。まずは**表示のみ**で、タスクの日付を自動で動かさない。マイルストーンはタスクとは**独立したデータ**として管理する。配置は**日付ヘッダーの直下**。
+  - モデル: `src/types.ts` に `Milestone { id, title, date: 'YYYY-MM-DD', note? }` を追加し、ストアのトップレベル `milestones: Milestone[]` に保持（`projectConfig` には入れない）。追加・更新・削除は `addMilestone` / `updateMilestone` / `deleteMilestone`。`setShowMilestones` は `projectConfig.showMilestones`（既定 `true`）を更新する。
+  - 表示: ガント／統合表示のヘッダー直下に高さ 28px の `MilestoneLane` を置く。**縦スクロールコンテナの外**に置き、横スクロールだけを `viewportRef` 経由でヘッダーと同期する。0 件または `showMilestones=false` のときはバンド自体を出さない。
+  - 見た目: 日付位置に紫のダイヤ。Day 表示では「タイトル MM/DD」を出し、Week / Month / Year ではダイヤ＋ツールチップのみ。同日の複数件は 1 つのダイヤに `+N` を付ける。ラベルが隣と重なる場合はダイヤだけにする。`TimelineGridBackground` に紫の破線ガイドを描き、ダイヤと同じ日付位置に揃える。
+  - 操作: ダイヤをクリック = 編集、バンドの空白をダブルクリック = その日付で新規追加、サブツールバーの「マイルストーン」= 管理ダイアログ（追加・編集・削除・表示トグル）。Phase 1 では**バンド上のドラッグ移動は行わない**（日付はダイアログで編集）。
+  - タイムライン範囲: `useGanttTimeline` の範囲計算にマイルストーンの最小・最大日を含めた。タスクより遠い未来のマイルストーンでも表示される（サンプルの `2026-12-18` で確認）。
+  - 保存・移行: `schemaVersion` を **4** に更新（`src/utils/planActualMigration.ts`）。v3 → v4 は `milestones: []` を足すだけの**無警告の加算移行**とし、タスク形式の移行は `schemaVersion < 3` のときだけ実行する。`normalizeMilestones`（`src/utils/milestones.ts`）が読み込み時に日付不正の除外、ID 欠損・重複の補完、空タイトルの既定値化を行い、警告トーストに件数を出す。
+  - **既存の穴も修正**: `useProjectFileHandlers.handleSave` が `schemaVersion` を書き出していなかったため、保存→読込で v1 扱いの移行が走る可能性があった。保存時に `CURRENT_SCHEMA_VERSION` と `milestones` を明示するようにした。
+  - 変更: `src/types.ts` / `src/store/useTaskStore.ts` / `src/utils/milestones.ts`（新規）/ `src/utils/validateProjectState.ts` / `src/utils/projectConfig.ts` / `src/utils/planActualMigration.ts` / `src/hooks/useGanttTimeline.ts` / `src/hooks/useProjectFileHandlers.ts` / `src/components/MilestoneLane.tsx`（新規）/ `src/components/MilestoneDialog.tsx`（新規）/ `src/components/GanttChart.tsx` / `src/components/IntegratedView.tsx` / `src/components/TimelineGridBackground.tsx` / `src/components/SubToolbar.tsx`。
+  - テスト: 新規 `src/utils/milestones.test.ts` / `src/store/milestones.test.ts` / `src/components/MilestoneLane.test.tsx` / `src/components/MilestoneDialog.test.tsx` / `src/hooks/useGanttTimeline.test.ts` / `e2e/milestone.spec.ts`。既存の `validateProjectState.test.ts` と `useProjectFileHandlers.test.tsx` に v4・保存ペイロードのケースを追加。
+  - 検証: `npm test -- --run` **333 件（39 ファイル）** / `npm run test:e2e` **8 件**（新規 1 件を含む）/ `npm run lint` 0 / `npm run build` 通過 / `npm run shots` 12 枚（マイルストーンダイアログを含む）。実ブラウザでバンド・ダイヤ・破線ガイド・横スクロール同期・追加/編集/削除を目視確認。
+  - 付随更新: `scratch/sample-project.json` を v4 にし、`要件定義完了 (2026-10-20)` / `設計レビュー完了 (2026-11-10)` / `リリース判定 (2026-12-18)` の 3 件を追加。`scratch/screenshot.mjs` にマイルストーンダイアログの撮影を追加。
+  - Phase 1 の対象外（次フェーズ候補）: タスクとのリンク（「このタスク完了時に達成」）、期限警告、後方スケジューリング／フェーズシフト、バンド上でのドラッグ移動、Excel 出力へのマイルストーンシート追加。Excel 出力は現状タスクのみ。
 - **日付セル / ガントバーに 150ms のホバーツールチップを追加** (October 20, 2026 / `feature/compact-date-input`):
   - ブラウザ標準の `title` ツールチップ（Chromium 既定は約 500ms）をやめ、共通の `useHoverTooltip` で **150ms** 後に表示する。日付セルは `YYYY/MM/DD` と操作ヒント、ガントバーはタイトル / 開始日 / 終了日 / 期間 / 進捗（完了） / 基準計画をまとめて表示する。
   - ツールチップは `position: fixed` + Portal で描画し、`TaskDateCell` の `overflow-hidden` に切れないようにした。画面端では上下・左右をクランプする。`pointer-events: none` のため下のセル / バー操作を邪魔しない。

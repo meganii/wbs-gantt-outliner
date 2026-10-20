@@ -497,4 +497,59 @@ describe('validateProjectState', () => {
       expect(result.warnings.join('\n')).not.toContain('旧形式');
     });
   });
+
+  describe('マイルストーン（v4）', () => {
+    it('keeps valid milestones sorted by date', () => {
+      const tasks = { x: makeTask({ id: 'x' }) };
+      const result = validateProjectState({
+        tasks,
+        rootIds: ['x'],
+        schemaVersion: 4,
+        milestones: [
+          { id: 'm2', title: 'B', date: '2026-10-20' },
+          { id: 'm1', title: 'A', date: '2026-10-18', note: 'メモ' },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.milestones.map((m) => m.id)).toEqual(['m1', 'm2']);
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('treats missing milestones in a v3 file as an empty list without warnings', () => {
+      const tasks = { x: makeTask({ id: 'x' }) };
+      const result = validateProjectState({
+        tasks,
+        rootIds: ['x'],
+        schemaVersion: 3,
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.milestones).toEqual([]);
+      expect(result.warnings).toEqual([]);
+    });
+
+    it('repairs duplicate IDs and drops milestones with invalid dates', () => {
+      const tasks = { x: makeTask({ id: 'x' }) };
+      const result = validateProjectState({
+        tasks,
+        rootIds: ['x'],
+        schemaVersion: 4,
+        milestones: [
+          { id: 'dup', title: 'A', date: '2026-10-18' },
+          { id: 'dup', title: 'B', date: '2026-10-20' },
+          { id: 'bad', title: 'C', date: '2026-02-30' },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.milestones).toHaveLength(2);
+      expect(result.milestones.map((m) => m.id)).toEqual(['dup', 'dup-2']);
+      expect(result.warnings.join('\n')).toContain('不正なマイルストーン 1 件を除外');
+      expect(result.warnings.join('\n')).toContain('ID 欠損・重複 1 件を補完');
+    });
+  });
 });

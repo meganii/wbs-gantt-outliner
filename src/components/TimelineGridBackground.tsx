@@ -1,7 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
-import { differenceInDays, isSameDay, startOfDay } from 'date-fns';
-import type { WorkCalendar } from '../types';
+import { differenceInDays, isSameDay, isValid, parseISO, startOfDay } from 'date-fns';
+import type { Milestone, WorkCalendar } from '../types';
 import { isHoliday } from '../utils/date';
 
 export interface TimelineGridBackgroundProps {
@@ -14,6 +14,8 @@ export interface TimelineGridBackgroundProps {
   /** 1 日あたりのピクセル幅（今日ラインの位置計算に使う）。 */
   pixelsPerDay: number;
   leftOffset?: number;
+  /** マイルストーンの縦ガイド線を描くためのデータ。 */
+  milestones?: Milestone[];
 }
 
 /**
@@ -32,6 +34,7 @@ export const TimelineGridBackground = React.forwardRef<HTMLDivElement, TimelineG
   timelineWidth,
   pixelsPerDay,
   leftOffset = 0,
+  milestones = [],
 }, ref) => {
   const timelineStart = timeRange[0];
   const today = startOfDay(new Date());
@@ -40,6 +43,23 @@ export const TimelineGridBackground = React.forwardRef<HTMLDivElement, TimelineG
     : 0;
   const showTodayLine =
     viewMode === 'Day' && pixelsPerDay > 0 && todayOffset >= 0 && todayOffset <= timelineWidth;
+
+  // マイルストーンの縦ガイド。日付セルの中央に合わせてダイヤと位置を揃える。
+  const milestoneLines = timelineStart && pixelsPerDay > 0
+    ? milestones.flatMap((milestone) => {
+        const date = parseISO(milestone.date);
+        if (!isValid(date)) {
+          return [];
+        }
+        const offset =
+          differenceInDays(date, startOfDay(timelineStart)) * pixelsPerDay +
+          pixelsPerDay / 2;
+        if (offset < 0 || offset > timelineWidth) {
+          return [];
+        }
+        return [{ id: milestone.id, offset }];
+      })
+    : [];
 
   return (
     <div
@@ -72,6 +92,17 @@ export const TimelineGridBackground = React.forwardRef<HTMLDivElement, TimelineG
           );
         })}
       </div>
+
+      {/* マイルストーンの縦ガイド（今日ラインより細い破線） */}
+      {milestoneLines.map((line) => (
+        <div
+          key={line.id}
+          className="absolute top-0 bottom-0 w-px border-l border-dashed border-violet-400/70"
+          style={{ left: line.offset }}
+          data-milestone-guide={line.id}
+          aria-hidden="true"
+        />
+      ))}
 
       {/* 今日ライン */}
       {showTodayLine && (

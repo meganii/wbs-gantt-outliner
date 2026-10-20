@@ -36,6 +36,18 @@ export interface Task {
   previousBaselineDuration?: number | null;
 }
 
+/**
+ * プロジェクト直下のマイルストーン（チェックポイント）。
+ * タスクとは独立したデータで、Phase 1 ではタスクの日程計算に影響しない。
+ */
+export interface Milestone {
+  id: string;
+  title: string;
+  /** ISO 8601 YYYY-MM-DD。 */
+  date: string;
+  note?: string;
+}
+
 /** 複数行ペースト / 一括入力の対象になるテキスト列。 */
 export type PasteTextField = 'title' | 'description' | 'assignee' | 'deliverables';
 
@@ -71,6 +83,8 @@ export interface ProjectConfig {
   baselineSetAt?: string | null;
   /** ガントで基準計画バーを表示するか（既定 true）。 */
   showBaseline?: boolean;
+  /** ガント上部のマイルストーンバンドを表示するか（既定 true）。 */
+  showMilestones?: boolean;
   timelineRange?: {
     start: string; // ISO date YYYY-MM-DD
     end: string;   // ISO date YYYY-MM-DD
@@ -112,6 +126,8 @@ export interface GanttDragState {
 export interface TaskStoreState {
   tasks: Record<string, Task>;
   rootIds: string[];
+  /** スケジュール上部に表示するチェックポイント（タスクとは独立）。 */
+  milestones: Milestone[];
   projectConfig: ProjectConfig;
   focusedTaskId: string | null;
   focusedTaskField: TaskFocusableField | null;
@@ -170,6 +186,16 @@ export interface TaskStoreState {
   addDependency: (fromId: string, toId: string) => void;
   removeDependency: (fromId: string, toId: string) => void;
   setCalendarHolidays: (holidays: string[]) => void;
+  /** マイルストーンを追加し、生成した ID を返す（不正な日付なら追加しない）。 */
+  addMilestone: (input: { title: string; date: string; note?: string }) => string;
+  /** マイルストーンを更新する（日付が不正なら何もしない。`note: ''` でメモを削除）。 */
+  updateMilestone: (
+    id: string,
+    updates: Partial<Pick<Milestone, 'title' | 'date' | 'note'>>
+  ) => void;
+  deleteMilestone: (id: string) => void;
+  /** ガント上部のマイルストーンバンド表示を切り替える。 */
+  setShowMilestones: (showMilestones: boolean) => void;
   setViewMode: (viewMode: ProjectConfig['viewMode']) => void;
   setColumnWidth: (columnId: keyof ProjectConfig['columnWidths'], width: number) => void;
   /**

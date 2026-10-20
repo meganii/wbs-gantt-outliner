@@ -125,5 +125,16 @@ if (await dialog.count()) {
   await dialog.screenshot({ path: join(outDir, 'dialog-closeup.png') });
 }
 
+// マイルストーンダイアログ（サンプルに 3 件登録済み）
+await page.keyboard.press('Escape');
+await page.waitForTimeout(200);
+await page.getByRole('button', { name: 'マイルストーン', exact: true }).click();
+await page.waitForTimeout(300);
+await shot('milestone-dialog');
+const milestoneDialog = page.getByRole('dialog', { name: 'マイルストーン' });
+if (await milestoneDialog.count()) {
+  await milestoneDialog.screenshot({ path: join(outDir, 'milestone-dialog-closeup.png') });
+}
+
 await browser.close();
-console.log(`done: ${VIEWS.length + 7} screenshots -> ${outDir}`);
+console.log(`done: ${VIEWS.length + 9} screenshots -> ${outDir}`);

@@ -8,8 +8,9 @@ import { deriveStatus } from '../store/taskStoreUtils';
  * - v1: バージョンなし（`plan*` ⇄ `startDate`/`endDate` の双方向同期 + 基準計画固定トグル）
  * - v2: 3 層モデル（基準計画 / 予定 `plan*` / 実績 `startDate`/`endDate`）
  * - v3: 2 層モデル（基準計画 + 現在の日程 `startDate`/`endDate` + 進捗率）
+ * - v4: プロジェクト直下のマイルストーン（`milestones`）を追加（タスク形式は v3 のまま）
  */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 /** 現在の日程（startDate / endDate）を進捗率で畳むための入力。 */
 interface FoldDatesInput {
