@@ -40,6 +40,7 @@ interface RowContainerProps {
   isHovered: boolean;
   taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   onHoverTaskChange: ((taskId: string | null) => void) | undefined;
+  onSelect?: (taskId: string, multi: boolean, range: boolean) => void;
 }
 
 const RowContainer = ({
@@ -54,6 +55,7 @@ const RowContainer = ({
   isHovered,
   taskBarRefs,
   onHoverTaskChange,
+  onSelect,
 }: RowContainerProps) => {
   const { timelineWidth, timelineMetrics } = useTimelineContext();
 
@@ -80,6 +82,7 @@ const RowContainer = ({
         timelineWidth={timelineWidth}
         isSelected={isSelected}
         isHovered={isHovered}
+        onSelect={onSelect}
       />
     </div>
   );
@@ -442,6 +445,7 @@ export const IntegratedView = ({
                         isHovered={isHovered}
                         taskBarRefs={taskBarRefs}
                         onHoverTaskChange={onHoverTaskChange}
+                        onSelect={handleSelectionChange}
                       />
                     )}
                   />

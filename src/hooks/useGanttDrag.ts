@@ -49,6 +49,7 @@ export const useGanttDrag = (
       if (currentDragState.mode === 'move') {
         newDragState.currentStartDate = addDays(currentDragState.initialStartDate, deltaDays);
         newDragState.currentEndDate = addDays(currentDragState.initialEndDate, deltaDays);
+        newDragState.deltaDays = deltaDays;
       } else if (currentDragState.mode === 'resize-left') {
         const newStart = addDays(currentDragState.initialStartDate, deltaDays);
         if (newStart <= currentDragState.initialEndDate) {
@@ -123,6 +124,14 @@ export const useGanttDrag = (
           endDate: format(end, 'yyyy-MM-dd'),
           duration: newDuration,
         });
+      } else if (currentDragState.mode === 'move' && currentDragState.affectedTaskIds?.length) {
+        const { affectedTaskIds, deltaDays = 0 } = currentDragState;
+        if (deltaDays !== 0) {
+          // 複数タスクを 1 回の set でまとめて移動する（Undo 1 エントリ）。
+          state.moveTasksByDays(affectedTaskIds, deltaDays);
+        }
+        state.setDragState(null);
+        state.setMousePos(null);
       } else {
         const {
           taskId,

@@ -4,6 +4,19 @@
 
 ## 現在の状態
 
+- **ガントバーの複数選択と一括移動** (October 20, 2026 / `feature/gantt-multi-move`):
+  - 要望: ガント／統合表示で複数の葉タスクのバーを選択し、1 本をドラッグすると同じ日数だけまとめて移動する。ドラッグ中は選択中の全バーが同じ日数だけ動くプレビューにし、Undo 1 回で全体を戻す。
+  - 選択 UX: 左ペインの行選択をそのまま利用。バー直接でも **Cmd/Ctrl+クリック = トグル**、**Shift+クリック = 表示順の範囲選択**。修飾キー付きクリックは選択のみでドラッグを開始しない。修飾キーなしで未選択バーをクリックするとその 1 件を選択して移動開始、選択済みバーなら選択を維持したまま一括移動する。親バーは選択・ハイライトできるが移動対象外（選択に親が含まれても葉だけ動かし、親は移動後のロールアップで更新）。
+  - 見た目: 選択中のバーに `ring-2 ring-brand-500`（親は `ring-brand-500/70`）のアウトライン。ドラッグ中は `affectedTaskIds` の全バーが `deltaDays` でプレビューされ、アンカーのバー上に `+2日` の小さなバッジを出す。選択外の後続・親はドラッグ中には動かず、ドロップ後に再計算する。
+  - 型: `GanttDragState` に `affectedTaskIds`（move 開始時の葉 ID スナップショット）と `deltaDays`（プレビュー日数）を追加。resize / draw-range / dependency では未設定のままで、従来どおりアンカー 1 件だけを操作する。
+  - ストア: `moveTasksByDays(taskIds, deltaDays)` を追加し、`taskStoreUtils.moveTasksByDaysInGraph` で **1 回の `set`** にまとめる。カレンダー日シフト（`addDays`）と `duration` の稼働日数再計算は既存の単一移動と同じ。親・日付なし・不正日付・重複 ID・0 日は対象外（変更なしなら `null` を返して `set` しない）。基準計画（`baseline*`）には触れない。
+  - 依存伝播: `DatePropagationOptions.pinnedTaskIds` を追加し、明示移動したタスクは依存伝播で日付を書き換えず、その後続だけを伝播する。複数起点は `propagateDependencyDatesFrom` で 1 キューにまとめる。親が依存で動くときの `shiftDescendants` も pinned をスキップするため、**選択中の子タスクが親シフトに巻き込まれない**。`recalculateParentDatesRecursive` にも同じ options を通し、全更新後に親をロールアップする。既存の単一移動・依存伝播・Undo はオプション未指定のまま従来動作。
+  - UI 配線: `GanttTimelineRow` に `onSelect(taskId, multi, range)` を追加し、`GanttChart` / `IntegratedView` の既存 `handleSelectionChange` を渡す。選択状態は `selectedTaskIds` を唯一の真実源にし、移動後も維持する。セル同様、関数 props は `memo` 比較で無視されるため、コールバック側は store の `getState()` と ref を読む既存方針のまま。
+  - 既知の挙動: 既存の単一移動と同じカレンダー日シフトのため、週末だけに移動したタスクは `duration` が 0 になり得る（例: 金〜土へ +1 日）。これは今回の変更で導入したものではなく、既存仕様を踏襲した結果。
+  - 変更: `src/types.ts` / `src/components/GanttTimelineRow.tsx` / `src/hooks/useGanttDrag.ts` / `src/store/useTaskStore.ts` / `src/store/taskStoreUtils.ts` / `src/components/GanttChart.tsx` / `src/components/IntegratedView.tsx`。
+  - テスト: 新規 `src/store/moveTasksByDays.test.ts`（7 件: 複数葉の同時移動と 1 set / 1 Undo、親を含む選択、選択同士の依存の非二重移動、選択外後続の伝播、no-op、週末・祝日の duration 再計算、親シフト時の選択子の固定）/ `src/components/GanttMultiMove.test.tsx`（5 件: 全バープレビューとドロップ、アウトライン、Cmd/Ctrl トグル、親バーの選択のみ、Shift 範囲選択）/ `e2e/gantt-multi-move.spec.ts`（親 + 葉 3 + 依存で、ガントと統合表示の両方で複数選択 → ドラッグ → 後続伝播 → 親ロールアップ → Undo 1 回をバー位置で検証）。
+  - 検証: `npm test -- --run` **345 件（41 ファイル）** / `npm run test:e2e` **9 件** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` 12 枚生成。
+  - 対象外（次フェーズ候補）: 矩形（マーキー）選択、複数バーの同時リサイズ、親バー直接ドラッグによる子孫一括移動、依存違反の警告・自動スナップ、キーボードでの日付ナッジ、マイルストーンの移動、ドラッグ中の自動スクロール。
 - **ガント上部のマイルストーン（Phase 1: 独立データ・表示のみ）** (October 20, 2026 / `feature/milestones` `508a01d`):
   - 要望: スケジュールの上部に「マイルストーン」を置きたい。まずは**表示のみ**で、タスクの日付を自動で動かさない。マイルストーンはタスクとは**独立したデータ**として管理する。配置は**日付ヘッダーの直下**。
   - モデル: `src/types.ts` に `Milestone { id, title, date: 'YYYY-MM-DD', note? }` を追加し、ストアのトップレベル `milestones: Milestone[]` に保持（`projectConfig` には入れない）。追加・更新・削除は `addMilestone` / `updateMilestone` / `deleteMilestone`。`setShowMilestones` は `projectConfig.showMilestones`（既定 `true`）を更新する。

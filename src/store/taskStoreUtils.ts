@@ -1,10 +1,19 @@
-import { format, parseISO, isValid } from 'date-fns';
+import { addDays, format, parseISO, isValid } from 'date-fns';
 import type { ProjectConfig, Task } from '../types';
 import { addWorkDays, calculateEndDate, getWorkDaysCount } from '../utils/date';
 
 export interface TaskGraphState {
   tasks: Record<string, Task>;
   rootIds: string[];
+}
+
+/**
+ * 依存伝播・親シフトの制御オプション。
+ * `pinnedTaskIds` は「明示的に移動したタスク」で、依存や親の移動に巻き込まれても
+ * 日付を書き換えない（選択タスクの相対日付を保つ）。
+ */
+export interface DatePropagationOptions {
+  pinnedTaskIds?: ReadonlySet<string>;
 }
 
 /**
@@ -119,7 +128,8 @@ export function shiftDescendants(
   tasks: Record<string, Task>,
   parentId: string,
   newParentStart: Date,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  options: DatePropagationOptions = {}
 ): Record<string, Task> {
   const nextTasks = { ...tasks };
   const parent = nextTasks[parentId];
@@ -143,8 +153,10 @@ export function shiftDescendants(
   const descendantIds = getDescendantIds(parentId);
   if (descendantIds.length === 0) return nextTasks;
 
-  // 2. Shift each descendant
+  // 2. Shift each descendant（明示移動したタスクは固定する）
   descendantIds.forEach((descId) => {
+    if (options.pinnedTaskIds?.has(descId)) return;
+
     const descTask = nextTasks[descId];
     if (!descTask || !descTask.startDate) return;
 
@@ -168,19 +180,49 @@ export function shiftDescendants(
   return nextTasks;
 }
 
+/**
+ * 依存関係をたどって後続タスクの日程を伝播する。
+ * `pinnedTaskIds` は明示移動したタスクで、日付を固定したままその後続だけを伝播する
+ * （一括移動で選択タスク同士の依存が二重に動かないようにするため）。
+ */
 export function propagateDependencyDates(
   tasks: Record<string, Task>,
   changedTaskId: string,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  options: DatePropagationOptions = {}
 ): Record<string, Task> {
+  return propagateDependencyDatesFrom(tasks, [changedTaskId], calendar, options);
+}
+
+/**
+ * 複数の起点から依存伝播を行う（一括移動用）。
+ * 起点の後続を 1 つのキューにまとめ、同じタスクを複数回動かさない。
+ */
+export function propagateDependencyDatesFrom(
+  tasks: Record<string, Task>,
+  changedTaskIds: Iterable<string>,
+  calendar: ProjectConfig['calendar'],
+  options: DatePropagationOptions = {}
+): Record<string, Task> {
+  const pinned = options.pinnedTaskIds;
   let nextTasks = { ...tasks };
+  const changedIds = Array.from(changedTaskIds);
   const dependents = Object.values(nextTasks)
-    .filter((task) => task.dependencies.includes(changedTaskId))
+    .filter((task) => changedIds.some((changedId) => task.dependencies.includes(changedId)))
     .map((task) => task.id);
 
   const queue = [...dependents];
   const visited = new Set(dependents);
   const parentsToRecalculate = new Set<string>();
+
+  const enqueueDependents = (taskId: string) => {
+    Object.values(nextTasks).forEach((task) => {
+      if (task.dependencies.includes(taskId) && !visited.has(task.id)) {
+        queue.push(task.id);
+        visited.add(task.id);
+      }
+    });
+  };
 
   while (queue.length > 0) {
     const currentId = queue.shift();
@@ -190,6 +232,12 @@ export function propagateDependencyDates(
 
     const currentTask = nextTasks[currentId];
     if (!currentTask) {
+      continue;
+    }
+
+    // 明示移動したタスクは日付を固定する（後続への伝播だけ続ける）。
+    if (pinned?.has(currentId)) {
+      enqueueDependents(currentId);
       continue;
     }
 
@@ -229,8 +277,8 @@ export function propagateDependencyDates(
         };
         const descIds = getDescendantIds(currentId);
 
-        // Shift them
-        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar);
+        // Shift them（選択中の子タスクは固定する）
+        nextTasks = shiftDescendants(nextTasks, currentId, newStartDate, calendar, options);
 
         // Add shifted descendants to queue and visited set so their dependents propagate
         descIds.forEach((descId) => {
@@ -259,23 +307,90 @@ export function propagateDependencyDates(
         parentsToRecalculate.add(nextTasks[currentId].parentId!);
       }
 
-      Object.values(nextTasks).forEach((task) => {
-        if (task.dependencies.includes(currentId) && !visited.has(task.id)) {
-          queue.push(task.id);
-          visited.add(task.id);
-        }
-      });
+      enqueueDependents(currentId);
     }
   }
 
   // Final pass: Recalculate parent dates for all modified tasks
   parentsToRecalculate.forEach((parentId) => {
     if (nextTasks[parentId]) {
-      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar);
+      nextTasks = recalculateParentDatesRecursive(nextTasks, parentId, calendar, options);
     }
   });
 
   return nextTasks;
+}
+
+/**
+ * 葉タスクを同じカレンダー日数だけまとめて移動した `tasks` を返す。
+ *
+ * - 親・日付なし・不正日付・重複は対象外。
+ * - `duration` は移動後の開始日・終了日から稼働日数で再計算する（単一移動と同じ）。
+ * - 移動するタスク同士の依存は再伝播で動かさない（相対日付を保つ）。
+ * - 選択外の後続には伝播し、全更新後に親をロールアップする。
+ * - 基準計画（baseline*）には触れない。
+ *
+ * 変更が無い場合（0 日・対象なし）は `null` を返す。
+ */
+export function moveTasksByDaysInGraph(
+  tasks: Record<string, Task>,
+  taskIds: Iterable<string>,
+  deltaDays: number,
+  calendar: ProjectConfig['calendar']
+): Record<string, Task> | null {
+  if (!Number.isFinite(deltaDays) || deltaDays === 0) {
+    return null;
+  }
+
+  const nextTasks = { ...tasks };
+  const pinnedTaskIds = new Set<string>();
+  const movedTaskIds: string[] = [];
+  const parentIdsToRecalculate = new Set<string>();
+
+  Array.from(new Set(taskIds)).forEach((id) => {
+    const task = nextTasks[id];
+    if (!task || task.children.length > 0) return;
+    if (!task.startDate || !task.endDate) return;
+
+    const start = parseISO(task.startDate);
+    const end = parseISO(task.endDate);
+    if (!isValid(start) || !isValid(end)) return;
+
+    const newStart = addDays(start, deltaDays);
+    const newEnd = addDays(end, deltaDays);
+
+    nextTasks[id] = {
+      ...task,
+      startDate: format(newStart, 'yyyy-MM-dd'),
+      endDate: format(newEnd, 'yyyy-MM-dd'),
+      duration: getWorkDaysCount(newStart, newEnd, calendar),
+    };
+    pinnedTaskIds.add(id);
+    movedTaskIds.push(id);
+
+    if (task.parentId) {
+      parentIdsToRecalculate.add(task.parentId);
+    }
+  });
+
+  if (movedTaskIds.length === 0) {
+    return null;
+  }
+
+  const options: DatePropagationOptions = { pinnedTaskIds };
+
+  // 変更した全タスクの後続をまとめて 1 回伝播する。
+  let nextGraph = propagateDependencyDatesFrom(nextTasks, movedTaskIds, calendar, options);
+
+  // 移動したタスク自身の親（およびその祖先）をロールアップする。
+  // 依存伝播で動いたタスクの親は propagateDependencyDatesFrom 側で再計算済み。
+  parentIdsToRecalculate.forEach((parentId) => {
+    if (nextGraph[parentId]) {
+      nextGraph = recalculateParentDatesRecursive(nextGraph, parentId, calendar, options);
+    }
+  });
+
+  return nextGraph;
 }
 
 export function normalizeProjectState(
@@ -330,7 +445,8 @@ export function normalizeProjectState(
 export function recalculateParentDatesRecursive(
   tasks: Record<string, Task>,
   parentId: string,
-  calendar: ProjectConfig['calendar']
+  calendar: ProjectConfig['calendar'],
+  options: DatePropagationOptions = {}
 ): Record<string, Task> {
   let nextTasks = { ...tasks };
   let currentParentId: string | null = parentId;
@@ -431,7 +547,7 @@ export function recalculateParentDatesRecursive(
       nextTasks[currentParentId] = updatedParent;
 
       // Propagate dependency dates for this parent
-      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar);
+      nextTasks = propagateDependencyDates(nextTasks, currentParentId, calendar, options);
 
       // Move up to the grandparent
       currentParentId = updatedParent.parentId;

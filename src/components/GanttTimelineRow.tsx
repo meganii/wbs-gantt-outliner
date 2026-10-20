@@ -19,6 +19,11 @@ export interface GanttTimelineRowProps {
   isSelected?: boolean;
   /** ホバー中の行かどうか。 */
   isHovered?: boolean;
+  /**
+   * 行選択の更新（左ペインのクリックと同じ規則）。
+   * multi = Cmd/Ctrl、range = Shift。バー上の修飾キー付きクリックで使う。
+   */
+  onSelect?: (taskId: string, multi: boolean, range: boolean) => void;
 }
 
 /** バーの日付（現在の日程 = 開始日 / 終了日）。 */
@@ -42,14 +47,24 @@ export const GanttTimelineRow = memo(({
   timelineWidth,
   isSelected = false,
   isHovered = false,
+  onSelect,
 }: GanttTimelineRowProps) => {
   const isParent = task.children.length > 0;
 
   // Selective, fine-grained Zustand subscriptions
-  const isDragging = useTaskStore((state) => state.dragState?.taskId === taskId);
+  const isDragAnchor = useTaskStore((state) => state.dragState?.taskId === taskId);
   const dragMode = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.mode : null);
   const dragCurrentStartDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentStartDate : null);
   const dragCurrentEndDate = useTaskStore((state) => state.dragState?.taskId === taskId ? state.dragState.currentEndDate : null);
+  // move 中のプレビュー日数。アンカーと affectedTaskIds の全行が同じ日数で動く。
+  const moveDeltaDays = useTaskStore((state) => {
+    const drag = state.dragState;
+    if (!drag || drag.mode !== 'move') return null;
+    if (drag.taskId === taskId || drag.affectedTaskIds?.includes(taskId)) {
+      return drag.deltaDays ?? 0;
+    }
+    return null;
+  });
   const showBaseline = useTaskStore((state) => state.projectConfig.showBaseline ?? true);
   const setDragState = useTaskStore((state) => state.setDragState);
 
@@ -59,7 +74,8 @@ export const GanttTimelineRow = memo(({
   // 完了（塗りが 100% まで到達）は色でも分かるようにする。
   // WBS のステータス列（TaskStatusCell）が「完了 = 緑」なので、色の意味を合わせる。
   const isCompleted = progress >= 100;
-  const isDraggingBar = isDragging && dragMode !== 'dependency' && dragMode !== 'draw-range';
+  const isMovePreview = moveDeltaDays !== null;
+  const isDraggingBar = isMovePreview || (isDragAnchor && dragMode !== 'dependency' && dragMode !== 'draw-range');
 
   const barTooltip = useHoverTooltip<HTMLDivElement>({
     content:
@@ -135,7 +151,7 @@ export const GanttTimelineRow = memo(({
       )}
 
       {/* 範囲ドラッグ（draw-range）のプレビュー */}
-      {isDragging && dragMode === 'draw-range' && (() => {
+      {isDragAnchor && dragMode === 'draw-range' && (() => {
         const start = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentStartDate! : dragCurrentEndDate!;
         const end = dragCurrentStartDate! < dragCurrentEndDate! ? dragCurrentEndDate! : dragCurrentStartDate!;
         const diffDays = differenceInDays(start, timelineMetrics.timelineStart);
@@ -154,8 +170,16 @@ export const GanttTimelineRow = memo(({
       {hasBar && (() => {
         const { timelineStart, pixelsPerDay } = timelineMetrics;
 
-        const barStart = isDraggingBar ? dragCurrentStartDate : new Date(barStartStr!);
-        const barEnd = isDraggingBar ? dragCurrentEndDate : new Date(barEndStr!);
+        const barStart = isMovePreview
+          ? addDays(new Date(barStartStr!), moveDeltaDays!)
+          : isDraggingBar
+            ? dragCurrentStartDate
+            : new Date(barStartStr!);
+        const barEnd = isMovePreview
+          ? addDays(new Date(barEndStr!), moveDeltaDays!)
+          : isDraggingBar
+            ? dragCurrentEndDate
+            : new Date(barEndStr!);
         const barDiffDays = differenceInDays(barStart!, timelineStart);
         const barOffset = barDiffDays * pixelsPerDay;
         const barDaySpan = differenceInDays(barEnd!, barStart!) + 1;
@@ -172,7 +196,10 @@ export const GanttTimelineRow = memo(({
           baselineWidth = (differenceInDays(bEnd, bStart) + 1) * pixelsPerDay;
         }
 
-        const startDrag = (mode: 'move' | 'resize-left' | 'resize-right' | 'dependency') => (e: React.MouseEvent) => {
+        const startDrag = (
+          mode: 'move' | 'resize-left' | 'resize-right' | 'dependency',
+          affectedTaskIds?: string[]
+        ) => (e: React.MouseEvent) => {
           e.stopPropagation();
           e.preventDefault();
           setDragState({
@@ -184,6 +211,9 @@ export const GanttTimelineRow = memo(({
             initialEndDate: new Date(barEndStr!),
             currentStartDate: new Date(barStartStr!),
             currentEndDate: new Date(barEndStr!),
+            ...(mode === 'move'
+              ? { affectedTaskIds, deltaDays: 0 }
+              : {}),
           });
         };
 
@@ -223,13 +253,15 @@ export const GanttTimelineRow = memo(({
                         "top-[4px] h-2.5 cursor-default rounded-full border",
                         isCompleted
                           ? "bg-green-200/70 border-green-500/60"
-                          : "bg-slate-300/80 border-slate-500/50"
+                          : "bg-slate-300/80 border-slate-500/50",
+                        isSelected && "ring-2 ring-brand-500/70 ring-offset-1"
                       )
                     : [
                         "top-[3px] h-3.5 rounded-md border select-none cursor-pointer",
                         isCompleted
                           ? "border-green-400 bg-green-100 hover:border-green-500"
                           : "border-brand-300 bg-brand-100 hover:border-brand-400",
+                        isSelected && "ring-2 ring-brand-500 ring-offset-1",
                         isDraggingBar && "cursor-grabbing border-brand-500 shadow-md"
                       ]
                 )}
@@ -237,8 +269,47 @@ export const GanttTimelineRow = memo(({
                 onMouseDown={(e) => {
                   // バー上のクリック/ドラッグを行の draw-range に伝播させない。
                   e.stopPropagation();
-                  if (e.button !== 0 || isParent) return;
-                  startDrag('move')(e);
+                  if (e.button !== 0) return;
+
+                  const isMulti = e.metaKey || e.ctrlKey;
+                  const isRange = e.shiftKey;
+
+                  // 修飾キー付きクリックは選択だけを行い、ドラッグは開始しない。
+                  if (isMulti || isRange) {
+                    e.preventDefault();
+                    onSelect?.(taskId, isMulti, isRange);
+                    return;
+                  }
+
+                  // 親バーは選択できるが移動できない（日付は子からロールアップ）。
+                  if (isParent) {
+                    onSelect?.(taskId, false, false);
+                    return;
+                  }
+
+                  const store = useTaskStore.getState();
+                  const wasSelected = store.selectedTaskIds.includes(taskId);
+                  if (wasSelected) {
+                    // 選択済みバーは選択を維持して一括移動する。
+                    store.setFocusedTaskId(taskId);
+                  } else {
+                    onSelect?.(taskId, false, false);
+                  }
+
+                  // 選択は store を唯一の真実源とし、開始時点の葉 ID を固定する。
+                  const latest = useTaskStore.getState();
+                  const affectedTaskIds = latest.selectedTaskIds.filter((id) => {
+                    const selectedTask = latest.tasks[id];
+                    return !!selectedTask
+                      && selectedTask.children.length === 0
+                      && !!selectedTask.startDate
+                      && !!selectedTask.endDate;
+                  });
+                  if (!affectedTaskIds.includes(taskId)) {
+                    affectedTaskIds.push(taskId);
+                  }
+
+                  startDrag('move', affectedTaskIds)(e);
                 }}
               >
                 {/* 進捗の塗り（実績期間 ÷ 予定期間）。完了時は緑で塗り切る */}
@@ -301,6 +372,16 @@ export const GanttTimelineRow = memo(({
                     style={{ textShadow: '0 0 2px rgba(255,255,255,0.9), 0 0 3px rgba(255,255,255,0.7)' }}
                   >
                     {task.title}
+                  </span>
+                )}
+
+                {/* 移動日数のプレビュー（アンカーのバー上に小さく表示） */}
+                {isDragAnchor && isMovePreview && moveDeltaDays !== 0 && (
+                  <span
+                    data-gantt-delta-badge=""
+                    className="absolute -top-4 left-1/2 -translate-x-1/2 z-50 whitespace-nowrap rounded bg-slate-900/90 px-1.5 py-0.5 text-[10px] font-medium text-white pointer-events-none"
+                  >
+                    {moveDeltaDays! > 0 ? '+' : ''}{moveDeltaDays}日
                   </span>
                 )}
               </div>
