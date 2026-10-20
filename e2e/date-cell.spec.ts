@@ -64,6 +64,27 @@ test.describe('日付セル（MM/DD + カレンダー + 複数行ペースト）
     // 2 行を選択して複数行ペースト → 視覚順に 1 行ずつ割り当てる。
     await startInputs.nth(1).click();
     await startInputs.nth(2).click({ modifiers: ['Shift'] });
+    await page.waitForTimeout(100);
+
+    const readDateHighlights = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-date-cell]')).map((cell) => ({
+          start:
+            cell
+              .querySelector('[data-date-field-wrapper="startDate"]')
+              ?.className.includes('bg-brand-200') ?? false,
+          end:
+            cell
+              .querySelector('[data-date-field-wrapper="endDate"]')
+              ?.className.includes('bg-brand-200') ?? false,
+        }))
+      );
+
+    // 開始日にフォーカス中は、開始日だけが帯状に強調される。
+    const startHighlights = await readDateHighlights();
+    expect(startHighlights.some((highlight) => highlight.start)).toBe(true);
+    expect(startHighlights.every((highlight) => !highlight.end)).toBe(true);
+
     await startInputs.nth(1).evaluate((element) => {
       const data = new DataTransfer();
       data.setData('text/plain', '2026-07-01\n2026-07-02');
@@ -74,5 +95,14 @@ test.describe('日付セル（MM/DD + カレンダー + 複数行ペースト）
 
     await expect(startInputs.nth(1)).toHaveValue('07/01');
     await expect(startInputs.nth(2)).toHaveValue('07/02');
+
+    // 終了日にフォーカスすると、開始日ではなく終了日だけが強調される。
+    await endInputs.nth(1).click();
+    await endInputs.nth(2).click({ modifiers: ['Shift'] });
+    await page.waitForTimeout(100);
+
+    const endHighlights = await readDateHighlights();
+    expect(endHighlights.some((highlight) => highlight.end)).toBe(true);
+    expect(endHighlights.every((highlight) => !highlight.start)).toBe(true);
   });
 });

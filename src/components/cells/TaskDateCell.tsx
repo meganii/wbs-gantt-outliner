@@ -14,9 +14,6 @@ import type { ProjectConfig, Task } from '../../types';
 
 type ColumnWidths = ProjectConfig['columnWidths'];
 
-/** 日付列のフォーカス対象フィールド（開始/終了のどちらでも列として強調する）。 */
-const DATE_FIELDS = ['startDate', 'endDate'] as const;
-
 interface TaskDateCellProps {
   taskId: string;
   task: Task;
@@ -62,9 +59,11 @@ export const TaskDateCell = memo(({
     (state) => state.focusedTaskId === taskId && state.focusedTaskField === 'endDate'
   );
 
-  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する
-  // （開始/終了どちらのフィールドでも同じ列として扱う）。
-  const isActiveColumn = useIsActiveColumn(taskId, DATE_FIELDS);
+  // 複数行選択中は、フォーカス中の列を選択行にまたがる帯として強調する。
+  // 日付は 1 セルに開始日 / 終了日が同居するが、コピー & ペーストの対象は
+  // フォーカス中のフィールドだけなので、開始日と終了日を独立した列として扱う。
+  const isActiveStart = useIsActiveColumn(taskId, 'startDate');
+  const isActiveEnd = useIsActiveColumn(taskId, 'endDate');
 
   const isReadOnly = isParent;
 
@@ -359,6 +358,7 @@ export const TaskDateCell = memo(({
   const renderField = (field: DateField) => {
     const isStart = field === 'startDate';
     const isFocused = isStart ? isFocusedStart : isFocusedEnd;
+    const isActiveField = isStart ? isActiveStart : isActiveEnd;
     const value = isStart ? startValue : endValue;
     const localValue = isStart ? localStart : localEnd;
     const inputRef = isStart ? startDateRef : endDateRef;
@@ -370,7 +370,13 @@ export const TaskDateCell = memo(({
     const label = isStart ? '開始日' : '終了日';
 
     return (
-      <div className="relative flex min-w-0 items-center gap-0.5">
+      <div
+        data-date-field-wrapper={field}
+        className={clsx(
+          'relative flex min-w-0 items-center gap-0.5 rounded-sm',
+          isActiveField && activeColumnClass
+        )}
+      >
         <div className="relative h-full min-w-0 flex-1">
           {!isFocused && (
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center select-none text-[10px] font-medium text-gray-600">
@@ -404,7 +410,7 @@ export const TaskDateCell = memo(({
             aria-label={`${label}${value ? ` ${formatFullDate(value)}` : ' 未設定'}`}
             title={fieldTitle(field)}
             className={clsx(
-              'w-full min-w-0 cursor-pointer bg-transparent text-center text-[10px] text-gray-700 outline-none focus:bg-gray-50',
+              'w-full min-w-0 cursor-pointer bg-transparent text-center text-[10px] text-gray-700 outline-none',
               isReadOnly
                 ? 'cursor-not-allowed select-none font-semibold text-gray-400'
                 : 'text-gray-600 hover:text-gray-900',
@@ -447,7 +453,7 @@ export const TaskDateCell = memo(({
       data-date-cell={taskId}
       className={clsx(
         'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-1 overflow-hidden border-l border-gray-100 px-1 text-xs text-gray-500 opacity-50 transition-opacity group-hover:opacity-100',
-        isActiveColumn && activeColumnClass
+        (isActiveStart || isActiveEnd) && '!opacity-100'
       )}
       style={{ width, minWidth: width, maxWidth: width }}
     >
