@@ -114,6 +114,27 @@ describe('Gantt multi move', () => {
     expect(useTaskStore.getState().tasks.b.startDate).toBe('2026-06-03');
   });
 
+  it('deselects a selected bar on a plain click when multiple tasks are selected', () => {
+    const { container } = renderChart(['a', 'b']);
+    const barA = findBar(container, 'a');
+
+    fireEvent.mouseDown(barA, { button: 0, clientX: 200, clientY: 50 });
+    // ドラッグせずに離すと、そのバーだけ選択解除する
+    fireEvent.mouseUp(window);
+
+    expect(useTaskStore.getState().selectedTaskIds).toEqual(['b']);
+    expect(useTaskStore.getState().dragState).toBeNull();
+    expect(useTaskStore.getState().tasks.a.startDate).toBe('2026-06-01');
+    expect(useTaskStore.getState().tasks.b.startDate).toBe('2026-06-03');
+    expect(getTemporalState().pastStates).toHaveLength(0);
+
+    // 単一選択のバーはクリックしても選択を維持する
+    const barB = findBar(container, 'b');
+    fireEvent.mouseDown(barB, { button: 0, clientX: 200, clientY: 50 });
+    fireEvent.mouseUp(window);
+    expect(useTaskStore.getState().selectedTaskIds).toEqual(['b']);
+  });
+
   it('selects a parent bar but never starts a move drag', () => {
     act(() => {
       useTaskStore.setState({

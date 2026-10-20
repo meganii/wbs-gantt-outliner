@@ -125,10 +125,17 @@ export const useGanttDrag = (
           duration: newDuration,
         });
       } else if (currentDragState.mode === 'move' && currentDragState.affectedTaskIds?.length) {
-        const { affectedTaskIds, deltaDays = 0 } = currentDragState;
+        const { taskId, affectedTaskIds, deltaDays = 0 } = currentDragState;
         if (deltaDays !== 0) {
           // 複数タスクを 1 回の set でまとめて移動する（Undo 1 エントリ）。
           state.moveTasksByDays(affectedTaskIds, deltaDays);
+        } else if (
+          state.selectedTaskIds.length > 1 &&
+          state.selectedTaskIds.includes(taskId)
+        ) {
+          // 複数選択中に選択済みバーを動かさずクリックしたら、その 1 件を選択解除する
+          // （ドラッグした場合は選択を維持したまま一括移動する）。
+          state.setSelectedTaskIds(state.selectedTaskIds.filter((id) => id !== taskId));
         }
         state.setDragState(null);
         state.setMousePos(null);
