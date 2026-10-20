@@ -53,6 +53,32 @@ describe('useProjectFileHandlers.handleLoad', () => {
     expect(notifications).toHaveLength(1);
     expect(notifications[0].level).toBe('info');
     expect(useTaskStore.getState().tasks['x'].title).toBe('X');
+    expect(useTaskStore.getState().milestones).toEqual([]);
+  });
+
+  it('restores milestones when a v4 project is loaded', async () => {
+    stubIpc(
+      JSON.stringify({
+        tasks: { x: validTask() },
+        rootIds: ['x'],
+        schemaVersion: 4,
+        milestones: [
+          { id: 'm1', title: '設計凍結', date: '2026-10-20' },
+        ],
+      })
+    );
+
+    const { result } = renderHook(() => useProjectFileHandlers());
+    await act(async () => {
+      await result.current.handleLoad();
+    });
+
+    const notifications = useNotificationStore.getState().notifications;
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].level).toBe('info');
+    expect(useTaskStore.getState().milestones).toEqual([
+      { id: 'm1', title: '設計凍結', date: '2026-10-20' },
+    ]);
   });
 
   it('migrates a legacy project and notifies a warning', async () => {
