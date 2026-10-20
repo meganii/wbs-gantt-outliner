@@ -24,6 +24,17 @@ function titleInput(container: HTMLElement, taskId: string): HTMLInputElement {
   )!;
 }
 
+/** 日付セル内の開始日 / 終了日それぞれのフィールド枠を返す。 */
+function dateFieldWrapper(
+  container: HTMLElement,
+  taskId: string,
+  field: 'startDate' | 'endDate'
+): HTMLElement | null {
+  return container.querySelector<HTMLElement>(
+    `[data-date-cell="${taskId}"] [data-date-field-wrapper="${field}"]`
+  );
+}
+
 /** ストアに count 件のタスクを直列に作り、その ID を表示順で返す。 */
 function seedTasks(count: number): string[] {
   const ids: string[] = [useTaskStore.getState().rootIds[0]];
@@ -111,6 +122,42 @@ describe('複数行選択時のフォーカス列ハイライト', () => {
       expect(wrapper.className).toContain('bg-brand-200');
       // opacity-50 を !opacity-100 で上書きする
       expect(wrapper.className).toContain('!opacity-100');
+    }
+  });
+
+  it('日付列は開始日にフォーカスすると開始日だけを帯状に強調する', () => {
+    const [firstId, secondId, thirdId] = seedTasks(3);
+    const { container } = render(<Outliner showDetails />);
+    selectRange(container, firstId, thirdId);
+
+    fireEvent.focus(
+      container.querySelector<HTMLInputElement>(
+        `input[data-task-id="${firstId}"][data-field="startDate"]`
+      )!
+    );
+
+    expect(useTaskStore.getState().focusedTaskField).toBe('startDate');
+    for (const id of [firstId, secondId, thirdId]) {
+      expect(dateFieldWrapper(container, id, 'startDate')!.className).toContain('bg-brand-200');
+      expect(dateFieldWrapper(container, id, 'endDate')!.className).not.toContain('bg-brand-200');
+    }
+  });
+
+  it('日付列は終了日にフォーカスすると終了日だけを帯状に強調する', () => {
+    const [firstId, secondId, thirdId] = seedTasks(3);
+    const { container } = render(<Outliner showDetails />);
+    selectRange(container, firstId, thirdId);
+
+    fireEvent.focus(
+      container.querySelector<HTMLInputElement>(
+        `input[data-task-id="${firstId}"][data-field="endDate"]`
+      )!
+    );
+
+    expect(useTaskStore.getState().focusedTaskField).toBe('endDate');
+    for (const id of [firstId, secondId, thirdId]) {
+      expect(dateFieldWrapper(container, id, 'endDate')!.className).toContain('bg-brand-200');
+      expect(dateFieldWrapper(container, id, 'startDate')!.className).not.toContain('bg-brand-200');
     }
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount, formatToShow, formatToEdit, parseInputDate, parseIsoDateStrict } from './date';
+import { isHoliday, isWorkDay, addWorkDays, calculateEndDate, getWorkDaysCount, formatToShow, formatToEdit, formatFullDate, parseInputDate, parseIsoDateStrict } from './date';
 
 
 describe('date utils', () => {
@@ -121,9 +121,16 @@ describe('date utils', () => {
     });
 
     describe('formatToEdit', () => {
-      it('should format YYYY-MM-DD to YYYY/MM/DD', () => {
-        expect(formatToEdit('2026-06-10')).toBe('2026/06/10');
+      it('should format YYYY-MM-DD to MM/DD (same as the display format)', () => {
+        expect(formatToEdit('2026-06-10')).toBe('06/10');
         expect(formatToEdit('')).toBe('');
+      });
+    });
+
+    describe('formatFullDate', () => {
+      it('should format YYYY-MM-DD to YYYY/MM/DD', () => {
+        expect(formatFullDate('2026-06-10')).toBe('2026/06/10');
+        expect(formatFullDate('')).toBe('');
       });
     });
 
@@ -159,6 +166,30 @@ describe('date utils', () => {
         expect(parseInputDate('13/10')).toBeNull();
         expect(parseInputDate('invalid')).toBeNull();
         expect(parseInputDate('')).toBeNull();
+      });
+
+      it('should roll a month/day to the next year when it is before notBefore', () => {
+        expect(
+          parseInputDate('01/05', '2026-12-30', { notBefore: '2026-12-30' })
+        ).toBe('2027-01-05');
+        expect(
+          parseInputDate('12/31', '2026-01-01', { notBefore: '2026-12-30' })
+        ).toBe('2026-12-31');
+      });
+
+      it('should roll a month/day to the previous year when it is after notAfter', () => {
+        expect(
+          parseInputDate('12/31', '2027-01-05', { notAfter: '2027-01-05' })
+        ).toBe('2026-12-31');
+        expect(
+          parseInputDate('01/10', '2027-01-05', { notAfter: '2027-01-05' })
+        ).toBe('2026-01-10');
+      });
+
+      it('should not roll an explicitly-year-specified date', () => {
+        expect(
+          parseInputDate('2026/01/05', '2026-12-30', { notBefore: '2026-12-30' })
+        ).toBe('2026-01-05');
       });
     });
 

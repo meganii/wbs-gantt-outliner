@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
-import { COLUMN_LABEL, CENTERED_COLUMNS } from '../utils/columns';
+import { COLUMN_LABEL, CENTERED_COLUMNS, COLUMN_MIN_WIDTHS } from '../utils/columns';
 import type { ColumnId } from '../types';
 
 interface TaskTableHeaderProps {
@@ -58,7 +58,7 @@ export const TaskTableHeader = ({
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const delta = moveEvent.clientX - startX;
-      setColumnWidth(columnId, Math.max(50, startWidth + delta));
+      setColumnWidth(columnId, Math.max(COLUMN_MIN_WIDTHS[columnId], startWidth + delta));
     };
 
     const onMouseUp = () => {

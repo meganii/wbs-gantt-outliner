@@ -81,7 +81,75 @@ export function formatDateString(year: number, month: number, day: number): stri
   return `${year}-${pad(month)}-${pad(day)}`;
 }
 
-export function parseInputDate(text: string, referenceDateString?: string | null): string | null {
+export interface ParseInputDateOptions {
+  /**
+   * MM/DD 入力の結果がこの日付より前なら翌年として解釈する（終了日向け）。
+   * 明示的に年を入力した場合は適用しない。
+   */
+  notBefore?: string | null;
+  /**
+   * MM/DD 入力の結果がこの日付より後なら前年として解釈する
+   * （開始日が空のとき、終了日を追い越さないようにするため）。
+   * 明示的に年を入力した場合は適用しない。
+   */
+  notAfter?: string | null;
+}
+
+function getIsoYear(dateString: string): number | null {
+  const match = dateString.match(/^(\d{4})-\d{2}-\d{2}$/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * 年を補った MM/DD を、notBefore / notAfter の範囲に収まる年で解決する。
+ * 2/29 など、年を動かすと存在しない日付になる場合は null を返す。
+ */
+function resolveMonthDay(
+  month: number,
+  day: number,
+  referenceYear: number,
+  options: ParseInputDateOptions
+): string | null {
+  const build = (year: number) =>
+    isValidDate(year, month, day) ? formatDateString(year, month, day) : null;
+
+  let resolved = build(referenceYear);
+  if (!resolved) return null;
+
+  if (options.notBefore) {
+    if (resolved < options.notBefore) {
+      const boundaryYear = getIsoYear(options.notBefore);
+      if (boundaryYear === null) return null;
+      resolved =
+        build(boundaryYear) ??
+        build(boundaryYear + 1);
+      if (!resolved) return null;
+      if (resolved < options.notBefore) {
+        resolved = build(boundaryYear + 1);
+      }
+    }
+  } else if (options.notAfter) {
+    if (resolved > options.notAfter) {
+      const boundaryYear = getIsoYear(options.notAfter);
+      if (boundaryYear === null) return null;
+      resolved =
+        build(boundaryYear) ??
+        build(boundaryYear - 1);
+      if (!resolved) return null;
+      if (resolved > options.notAfter) {
+        resolved = build(boundaryYear - 1);
+      }
+    }
+  }
+
+  return resolved;
+}
+
+export function parseInputDate(
+  text: string,
+  referenceDateString?: string | null,
+  options: ParseInputDateOptions = {}
+): string | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
@@ -106,9 +174,9 @@ export function parseInputDate(text: string, referenceDateString?: string | null
   // Determine reference year
   let refYear = new Date().getFullYear();
   if (referenceDateString) {
-    const refMatch = referenceDateString.match(/^(\d{4})-\d{2}-\d{2}$/);
-    if (refMatch) {
-      refYear = parseInt(refMatch[1], 10);
+    const refYearFromReference = getIsoYear(referenceDateString);
+    if (refYearFromReference !== null) {
+      refYear = refYearFromReference;
     }
   }
 
@@ -117,7 +185,7 @@ export function parseInputDate(text: string, referenceDateString?: string | null
   if (match) {
     const month = parseInt(match[1], 10);
     const day = parseInt(match[2], 10);
-    return isValidDate(refYear, month, day) ? formatDateString(refYear, month, day) : null;
+    return resolveMonthDay(month, day, refYear, options);
   }
 
   // 4. Check MMDD
@@ -125,7 +193,7 @@ export function parseInputDate(text: string, referenceDateString?: string | null
   if (match) {
     const month = parseInt(match[1], 10);
     const day = parseInt(match[2], 10);
-    return isValidDate(refYear, month, day) ? formatDateString(refYear, month, day) : null;
+    return resolveMonthDay(month, day, refYear, options);
   }
 
   return null;
@@ -156,11 +224,19 @@ export function formatToShow(dateStr: string | null | undefined): string {
   return `${match[2]}/${match[3]}`;
 }
 
+/**
+ * インライン編集時の表示形式。表示と同じ MM/DD に揃え、
+ * 入力欄の幅を 5 文字分に収める（年はツールチップ / カレンダーで補う）。
+ */
 export function formatToEdit(dateStr: string | null | undefined): string {
+  return formatToShow(dateStr);
+}
+
+/** ツールチップや aria-label 用のフル日付（YYYY/MM/DD）。 */
+export function formatFullDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return '';
-  // Return YYYY/MM/DD
   return `${match[1]}/${match[2]}/${match[3]}`;
 }
 

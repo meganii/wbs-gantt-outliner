@@ -147,6 +147,16 @@ export interface TaskStoreState {
     field: PasteTextField,
     values: string[] | string
   ) => void;
+  /**
+   * 複数タスクの開始日 / 終了日を 1 回の set でまとめて更新する。
+   * values が 1 要素なら全行に同一値、複数要素なら ids の順に対応させる。
+   * null / undefined の行は変更しない（不正な貼り付け値をスキップするため）。
+   */
+  setTaskDateValues: (
+    ids: string[],
+    field: 'startDate' | 'endDate',
+    values: Array<string | null | undefined>
+  ) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   endDragUpdate: (id: string, updates: Partial<Task>) => void;
   deleteTask: (ids: string | string[]) => void;

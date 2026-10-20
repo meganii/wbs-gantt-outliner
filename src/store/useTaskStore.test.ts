@@ -718,6 +718,70 @@ describe('useTaskStore', () => {
     });
   });
 
+  describe('setColumnWidth', () => {
+    it('clamps the date column to the compact minimum width', () => {
+      act(() => {
+        useTaskStore.getState().setColumnWidth('date', 50);
+      });
+      expect(useTaskStore.getState().projectConfig.columnWidths.date).toBe(112);
+    });
+  });
+
+  describe('setTaskDateValues', () => {
+    it('updates multiple rows in one undo entry and recalculates the end date', () => {
+      const { rootIds } = useTaskStore.getState();
+      const rootId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(rootId, 'after');
+        useTaskStore.getState().addTask(rootId, 'after');
+      });
+
+      const [, firstId, secondId] = useTaskStore.getState().rootIds;
+      getTemporalState().clear();
+
+      act(() => {
+        useTaskStore.getState().setTaskDateValues(
+          [firstId, secondId],
+          'startDate',
+          ['2026-06-01', '2026-06-03']
+        );
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[firstId].startDate).toBe('2026-06-01');
+      expect(tasks[firstId].endDate).toBe('2026-06-01');
+      expect(tasks[secondId].startDate).toBe('2026-06-03');
+      expect(tasks[secondId].endDate).toBe('2026-06-03');
+      expect(getTemporalState().pastStates).toHaveLength(1);
+    });
+
+    it('skips parent tasks and null values', () => {
+      const { rootIds } = useTaskStore.getState();
+      const parentId = rootIds[0];
+
+      act(() => {
+        useTaskStore.getState().addTask(parentId, 'inside');
+      });
+
+      const childId = useTaskStore.getState().tasks[parentId].children[0];
+
+      act(() => {
+        useTaskStore.getState().setTaskDateValues(
+          [parentId, childId],
+          'startDate',
+          [null, '2026-07-01']
+        );
+      });
+
+      const { tasks } = useTaskStore.getState();
+      expect(tasks[childId].startDate).toBe('2026-07-01');
+      // 親は子からロールアップされる（直接指定した値にはならない）。
+      expect(tasks[parentId].startDate).toBe('2026-07-01');
+      expect(tasks[parentId].children).toEqual([childId]);
+    });
+  });
+
   describe('loadProjectState', () => {
     it('should merge missing project config fields with defaults', () => {
       act(() => {
@@ -740,7 +804,7 @@ describe('useTaskStore', () => {
       expect(projectConfig.viewMode).toBe('Week');
       expect(projectConfig.calendar.holidays).toEqual([]);
       expect(projectConfig.columnWidths.taskName).toBe(320);
-      expect(projectConfig.columnWidths.date).toBe(224);
+      expect(projectConfig.columnWidths.date).toBe(128);
     });
 
     it('should reject structurally invalid input without modifying the store', () => {

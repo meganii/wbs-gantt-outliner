@@ -33,3 +33,19 @@ export const CENTERED_COLUMNS: ColumnId[] = [
   'duration',
   'date',
 ];
+
+/**
+ * 列幅の下限。列リサイズ / 読み込み時のクランプに使う。
+ * 日付列は MM/DD × 2 + カレンダーボタン × 2 が収まる幅を下限にし、
+ * それ以外は従来どおり 50px を維持する。
+ */
+export const COLUMN_MIN_WIDTHS: Record<ColumnId, number> = {
+  taskName: 50,
+  description: 50,
+  assignee: 50,
+  deliverables: 50,
+  status: 50,
+  progress: 50,
+  duration: 50,
+  date: 112,
+};

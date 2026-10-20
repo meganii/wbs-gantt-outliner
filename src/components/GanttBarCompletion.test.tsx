@@ -75,7 +75,6 @@ describe('gantt bar completion color', () => {
     expect(completedFill.className).toContain('bg-green-600');
     expect(completedFill.className).not.toContain('bg-brand-600');
     expect(completedFill.style.width).toBe('100%');
-    expect(completedBar.getAttribute('title')).toContain('進捗 100%（完了）');
   });
 
   it('親タスクは子がすべて完了（ロールアップ 100%）のとき緑になる', () => {

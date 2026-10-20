@@ -20,7 +20,7 @@ const DEFAULT_PROJECT_CONFIG = {
     status: 60,
     progress: 80,
     duration: 64,
-    date: 224,
+    date: 128,
   },
   visibleColumns: [
     'taskName',

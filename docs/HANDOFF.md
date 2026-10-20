@@ -4,6 +4,24 @@
 
 ## 現在の状態
 
+- **日付セル / ガントバーに 150ms のホバーツールチップを追加** (October 20, 2026 / `feature/compact-date-input`):
+  - ブラウザ標準の `title` ツールチップ（Chromium 既定は約 500ms）をやめ、共通の `useHoverTooltip` で **150ms** 後に表示する。日付セルは `YYYY/MM/DD` と操作ヒント、ガントバーはタイトル / 開始日 / 終了日 / 期間 / 進捗（完了） / 基準計画をまとめて表示する。
+  - ツールチップは `position: fixed` + Portal で描画し、`TaskDateCell` の `overflow-hidden` に切れないようにした。画面端では上下・左右をクランプする。`pointer-events: none` のため下のセル / バー操作を邪魔しない。
+  - マウスアウト・スクロール・リサイズ・Esc・pointerdown で即座に閉じる。ガントのバードラッグ中は表示を無効化し、依存線作成ハンドル上ではバー情報を閉じて操作説明（`title`）を優先する。
+  - 変更: 新規 `src/components/HoverTooltip.tsx` / `src/components/HoverTooltipPortal.tsx`、`src/components/cells/TaskDateCell.tsx`、`src/components/GanttTimelineRow.tsx`。
+  - テスト: 新規 `src/components/HoverTooltip.test.tsx` / `src/components/GanttTooltip.test.tsx` / `e2e/tooltip.spec.ts`。`src/components/cells/DateCell.test.tsx` に 150ms 表示、`src/components/GanttBarCompletion.test.tsx` は `title` 依存を外して色・塗りで完了を検証する形に更新。
+  - 検証: `npm test -- --run` **301 件（34 ファイル）** / `npm run test:e2e` **7 件** / `npm run lint` 0 / `npm run build` 通過 / `npm run shots` 10 枚生成。実ブラウザで WBS 日付セルとガントバーのツールチップ位置・内容を目視確認。
+- **日付セルを MM/DD 表示 + ネイティブ日付ピッカー + 複数行ペーストへ刷新** (October 20, 2026 / `feature/compact-date-input`):
+  - 表示・編集中をともに `MM/DD` に統一し、年はツールチップ / `aria-label`（`YYYY/MM/DD`）とネイティブピッカーで補う。`TaskDateCell` は固定幅の入力欄をやめ、開始日・終了日・カレンダーボタンを `minmax(0, 1fr)` のグリッドに収めた。列を狭めてもオーバーフローせず、空欄は `--/--` を表示する。
+  - 直接入力は `YYYY/MM/DD` / `YYYY-MM-DD` / `YYYYMMDD` / `MM/DD` / `MM-DD` / `MMDD` を受け付ける。`parseInputDate` に `notBefore` / `notAfter` を追加し、終了日の `MM/DD` が開始日より前なら翌年、開始日が空で終了日を追い越すなら前年として解決する。貼り付け時は即パースして `MM/DD` に正規化する（コピペは維持）。
+  - カレンダーは `input[type=date]` を各フィールドの近くに透明配置し、`showPicker()` で開く（非対応環境は `click()` にフォールバック）。終了日ピッカーには `min=開始日` を設定。
+  - 複数行ペーストは、既存の `planValuePaste`（複数行選択 + 1 値 → 全行同一 / N 値 → 順次、1 行 + 複数行 → 下方向充填）を日付にも適用。空行と親タスクはスキップし、不正値は警告トーストで件数を通知する。ストアには `setTaskDateValues` を追加し、1 回の `set`（1 Undo）で反映する。
+  - 日付列の既定幅を **224 → 128px**、最小幅を **112px** に変更。`COLUMN_MIN_WIDTHS` で全列の下限を一元管理し、読み込み時は「保存値が旧既定値 224 の日付列だけ」128 へ移行する（意図的に 300px 等へ広げた値は維持）。列リサイズ / `setColumnWidth` も下限へクランプする。
+  - 変更: `src/utils/date.ts`（`formatToEdit` / `formatFullDate` / `parseInputDate`）、`src/utils/columns.ts`、`src/utils/projectConfig.ts`、`src/store/useTaskStore.ts`、`src/types.ts`、`src/components/TaskTableHeader.tsx`、`src/components/cells/TaskDateCell.tsx`、`src/utils/cellPastePlan.ts`（`planValuePaste` を抽出）、新規 `src/utils/datePaste.ts`。
+  - 複数行選択時のフォーカス列ハイライトは、開始日と終了日を**独立した列**として扱う。以前は日付セル全体を帯状に強調していたため、両方の日付に貼り付くように見えていた。現在はフォーカス中のフィールド（開始日 or 終了日）だけを強調し、実際のペースト対象とも一致する。
+  - 親タスクはカレンダーボタンを表示しないが、ボタンと同じ 15px の余白を確保して、葉タスクと開始日 / 終了日の入力中心を揃えた（E2E で親 / 葉の入力幅一致を検証）。
+  - 検証: `npm test -- --run` **292 件（32 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **6 件** / `npm run shots` で WBS の日付列（親は読み取り専用、葉はカレンダーアイコン付き）を目視確認。テスト追加: `src/components/cells/DateCell.test.tsx` / `src/components/ActiveColumnHighlight.test.tsx`（開始日 / 終了日の独立ハイライト） / `src/utils/datePaste.test.ts` / `e2e/date-cell.spec.ts` / `src/utils/date.test.ts` / `src/utils/projectConfig.test.ts` / `src/store/useTaskStore.test.ts`。
+  - 付随更新: `bench/generate-tasks.mjs` と `bench/fixtures/tasks-100.json` / `tasks-1000.json` の日付列幅を 128 に更新。
 - **2 層モデル・表示名・状態列幅を main にマージ済み** (October 20, 2026):
   - PR #45（`feature/plan-actual-2layer` → `main`）をマージ（マージコミット `18cb8c0`）。ローカルの作業ブランチとリモートブランチは削除し、`main` 上で vitest 259 件 / 30 ファイルを再確認した。
   - 3 層 Phase 1 の実装コミットは PR #45 の履歴として `main` に取り込まれた（最終状態は 2 層）。復帰点 `feature/plan-actual-model-phase1` はローカルに残置（不要なら `git branch -d feature/plan-actual-model-phase1` で削除可）。
@@ -358,6 +376,15 @@
     - Enter キーなどを長押しした際に、OS のキーリピート機能によって `keydown`イベントが毎秒 30〜50 回連続発火し、描画処理（Paint & Composite）が追いつかずに画面が完全にフリーズ（レンダリング飢餓）してしまう問題に対応。
     - `src/components/cells/TaskOutlineCell.tsx` 内のキーボード操作判定（Enter, Backspace, Delete）に対して、React 標準の `e.repeat === true`（キーが押し続けられている状態）のときは処理を即時中断（アーリーリターン）するガードを追加。
     - これにより、長押しによる無駄な空タスクの大量誤生成を防ぐと同時に、描画のフリーズを 100% 回避し、UI スレッドが常に完全にスムーズに反応する優れた UX を実現。
+
+## 直近の検証結果 (October 20, 2026 / 日付セル・ツールチップ刷新後)
+
+- `npm test -- --run` : **301テスト全件合格** (34ファイル。開始日 / 終了日の独立ハイライト、150ms ツールチップ、ガントバーの日程・進捗・基準表示を含む)
+- `npm run test:e2e` : **E2Eテスト全7件合格** (Playwright / chromium。既存の日付入力 `fill('2026-06-01')` → `06/01` の経路、`e2e/date-cell.spec.ts` の 128px レイアウト・複数行ペースト・開始日 / 終了日の独立ハイライト・親 / 葉の入力幅一致、新規 `e2e/tooltip.spec.ts` の日付セル / ガントバーツールチップを含む)
+- `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
+- `npm run lint` : **0件合格**
+- `npm run shots` : 10枚生成。WBS の日付列が 128px で溢れず、親タスクは読み取り専用、葉はカレンダーアイコン付きで表示されることを目視確認
+- 既知の手動確認事項: ネイティブ日付ピッカーの見た目・開閉はブラウザ依存のため E2E では操作せず、`showPicker()` の呼び出しと `change` の反映のみ自動テストしている。ツールチップの 150ms 待ちはユニットテスト、位置・見た目は実ブラウザで確認している。
 
 ## 直近の検証結果 (October 18, 2026 / 予定・実績モデル Phase 1 実装後)
 

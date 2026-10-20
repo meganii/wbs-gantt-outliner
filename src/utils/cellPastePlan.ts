@@ -26,18 +26,34 @@ export interface PlanCellPasteParams {
   visualOrder: string[];
 }
 
-export function planCellPaste({
+export interface PlanValuePasteParams {
+  /** 貼り付け先セルを持つタスク。 */
+  taskId: string;
+  /** 貼り付ける値（1 行分ずつ）。 */
+  values: string[];
+  /** クリップボードのテキストが複数行か。 */
+  isMultiLine: boolean;
+  /** 現在選択されているタスク ID。 */
+  selectedTaskIds: string[];
+  /** 表示中のタスク ID を視覚順に並べたもの。 */
+  visualOrder: string[];
+}
+
+/**
+ * 値の配列を「どの行にどの値を入れるか」へ変換する。
+ * テキスト列と日付列で共通利用する。
+ */
+export function planValuePaste({
   taskId,
-  text,
+  values,
+  isMultiLine,
   selectedTaskIds,
   visualOrder,
-}: PlanCellPasteParams): CellPastePlan | null {
-  const parsed = parseTaskPaste(text);
-  if (parsed.length === 0) {
+}: PlanValuePasteParams): CellPastePlan | null {
+  if (values.length === 0) {
     return null;
   }
 
-  const isMultiLine = /[\r\n]/.test(text);
   const multiSelected = selectedTaskIds.length > 1 && selectedTaskIds.includes(taskId);
 
   if (multiSelected) {
@@ -47,16 +63,16 @@ export function planCellPaste({
       return null;
     }
 
-    if (parsed.length === 1) {
+    if (values.length === 1) {
       // 単一の値 → 選択行すべてに同一値
-      return { targetIds: targets, values: targets.map(() => parsed[0].title) };
+      return { targetIds: targets, values: targets.map(() => values[0]) };
     }
 
     // 複数の値 → 選択行へ順に割り当て（余った行は変更しない）
-    const count = Math.min(targets.length, parsed.length);
+    const count = Math.min(targets.length, values.length);
     return {
       targetIds: targets.slice(0, count),
-      values: parsed.slice(0, count).map((line) => line.title),
+      values: values.slice(0, count),
     };
   }
 
@@ -71,9 +87,29 @@ export function planCellPaste({
     return null;
   }
 
-  const targets = visualOrder.slice(start, start + parsed.length);
+  const targets = visualOrder.slice(start, start + values.length);
   return {
     targetIds: targets,
-    values: parsed.slice(0, targets.length).map((line) => line.title),
+    values: values.slice(0, targets.length),
   };
+}
+
+export function planCellPaste({
+  taskId,
+  text,
+  selectedTaskIds,
+  visualOrder,
+}: PlanCellPasteParams): CellPastePlan | null {
+  const parsed = parseTaskPaste(text);
+  if (parsed.length === 0) {
+    return null;
+  }
+
+  return planValuePaste({
+    taskId,
+    values: parsed.map((line) => line.title),
+    isMultiLine: /[\r\n]/.test(text),
+    selectedTaskIds,
+    visualOrder,
+  });
 }
