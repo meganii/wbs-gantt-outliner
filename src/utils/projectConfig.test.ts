@@ -16,7 +16,7 @@ describe('mergeProjectConfig', () => {
     });
     expect(result.viewMode).toBe('Month');
     expect(result.columnWidths.taskName).toBe(320);
-    expect(result.columnWidths.date).toBe(224);
+    expect(result.columnWidths.date).toBe(128);
     expect(result.calendar.workDays).toEqual([0, 1, 2, 3, 4]);
   });
 
@@ -24,8 +24,26 @@ describe('mergeProjectConfig', () => {
     const warnings: string[] = [];
     const result = mergeProjectConfig({ columnWidths: { taskName: 'wide', date: -5 } }, warnings);
     expect(result.columnWidths.taskName).toBe(200);
-    expect(result.columnWidths.date).toBe(224);
+    expect(result.columnWidths.date).toBe(128);
     expect(warnings.join('\n')).toContain('列幅');
+  });
+
+  it('migrates only the legacy date column width to the compact default', () => {
+    expect(
+      mergeProjectConfig({ columnWidths: { date: 224 } }).columnWidths.date
+    ).toBe(128);
+    expect(
+      mergeProjectConfig({ columnWidths: { date: 300 } }).columnWidths.date
+    ).toBe(300);
+  });
+
+  it('clamps column widths to their per-column minimum', () => {
+    const result = mergeProjectConfig({
+      columnWidths: { date: 50, duration: 20, taskName: 40 },
+    });
+    expect(result.columnWidths.date).toBe(112);
+    expect(result.columnWidths.duration).toBe(50);
+    expect(result.columnWidths.taskName).toBe(50);
   });
 
   it('drops an invalid timelineRange and records a warning', () => {

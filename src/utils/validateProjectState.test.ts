@@ -86,7 +86,7 @@ describe('validateProjectState', () => {
       expect(result.tasks['x'].progress).toBe(30);
       expect(result.projectConfig.viewMode).toBe('Week');
       expect(result.projectConfig.columnWidths.taskName).toBe(320);
-      expect(result.projectConfig.columnWidths.date).toBe(224);
+      expect(result.projectConfig.columnWidths.date).toBe(128);
     });
   });
 

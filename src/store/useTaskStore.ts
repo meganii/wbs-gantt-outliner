@@ -16,6 +16,7 @@ import {
   hasDependencyPath,
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, normalizeHolidayList } from '../utils/projectConfig';
+import { COLUMN_MIN_WIDTHS } from '../utils/columns';
 import { validateProjectState } from '../utils/validateProjectState';
 import {
   backupBaseline,
@@ -364,6 +365,44 @@ const taskStore = create<TaskStoreState>()(
         return changed ? { tasks } : {};
       }),
 
+      setTaskDateValues: (ids, field, values) => set((state) => {
+        if (ids.length === 0 || values.length === 0) {
+          return {};
+        }
+
+        // 値が 1 個なら全行に同一値、複数なら ids の順に対応させる。
+        const list: Array<string | null | undefined> =
+          values.length === 1 && ids.length > 1 ? ids.map(() => values[0]) : values;
+
+        let tasks = state.tasks;
+        let changed = false;
+
+        ids.forEach((id, index) => {
+          const task = tasks[id];
+          const value = list[index];
+          // 親タスクの日付は子からロールアップされるため、貼り付け対象にしない。
+          if (!task || task.children.length > 0 || value == null) {
+            return;
+          }
+          if ((task[field] ?? '') === value) {
+            return;
+          }
+
+          // 1 行ずつ既存の更新経路へ通し、期間・終了日・依存伝播・親ロールアップを揃える。
+          const nextTasks = applyTaskUpdate(
+            { tasks, projectConfig: state.projectConfig },
+            id,
+            { [field]: value }
+          );
+          if (nextTasks) {
+            tasks = nextTasks;
+            changed = true;
+          }
+        });
+
+        return changed ? { tasks } : {};
+      }),
+
       updateTask: (id, updates) => set((state) => {
         const tasks = applyTaskUpdate(state, id, updates);
         return tasks ? { tasks } : {};
@@ -574,7 +613,8 @@ const taskStore = create<TaskStoreState>()(
           ...state.projectConfig,
           columnWidths: {
             ...state.projectConfig.columnWidths,
-            [columnId]: Math.max(50, width), // Prevent columns from becoming too small
+            // 列ごとの下限（日付列は MM/DD + カレンダーボタンが収まる幅）。
+            [columnId]: Math.max(COLUMN_MIN_WIDTHS[columnId], width),
           },
         },
       })),

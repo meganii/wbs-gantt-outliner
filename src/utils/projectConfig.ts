@@ -1,5 +1,6 @@
 import { format, isValid, parseISO } from 'date-fns';
 import type { ProjectConfig, ColumnId } from '../types';
+import { COLUMN_MIN_WIDTHS } from './columns';
 import { parseIsoDateStrict } from './date';
 
 type ProjectConfigInput = Partial<Omit<ProjectConfig, 'calendar' | 'columnWidths'>> & {
@@ -45,6 +46,13 @@ export const COMPACT_COLUMNS: ColumnId[] = [
   'duration',
 ];
 
+/**
+ * 日付列の旧既定幅。日付セルを MM/DD + カレンダーボタンのコンパクトな
+ * レイアウトへ変更したため、保存値がこの幅のときだけ新しい既定へ移行する
+ * （意図的に広げた幅は維持する）。
+ */
+export const LEGACY_DATE_COLUMN_WIDTH = 224;
+
 export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
   calendar: {
     workDays: [1, 2, 3, 4, 5],
@@ -59,7 +67,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     status: 60,
     progress: 80,
     duration: 64,
-    date: 224,
+    date: 128,
   },
   showBaseline: true,
   baselineSetAt: null,
@@ -166,6 +174,16 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
   if (invalidWidthCount > 0) {
     warnings?.push(`列幅設定(columnWidths)の不正な値 ${invalidWidthCount} 件を既定値に戻しました`);
   }
+
+  // 旧既定値の日付列だけ新しい既定へ移行する（ユーザーが広げた幅は維持）。
+  if (nextColumnWidths.date === LEGACY_DATE_COLUMN_WIDTH) {
+    nextColumnWidths.date = DEFAULT_PROJECT_CONFIG.columnWidths.date;
+  }
+
+  // 狭すぎる列は下限へクランプする（読み込んだ古い設定も含む）。
+  COLUMN_WIDTH_KEYS.forEach((key) => {
+    nextColumnWidths[key] = Math.max(COLUMN_MIN_WIDTHS[key], nextColumnWidths[key]);
+  });
 
   // タイムライン表示範囲: 両端が有効な日付で start <= end のときだけ採用
   const rawTimelineRange = asRecord(config?.timelineRange);
