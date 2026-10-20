@@ -32,6 +32,13 @@ test.describe('日付セル（MM/DD + カレンダー + 複数行ペースト）
     await expect(startInputs.nth(2)).toHaveValue('06/04');
     await expect(endInputs.nth(2)).toHaveValue('06/08');
 
+    // 親（カレンダーボタンなし）も葉と同じ入力幅にして、日付の中心位置を揃える。
+    const parentStartBox = await startInputs.nth(0).boundingBox();
+    const leafStartBox = await startInputs.nth(1).boundingBox();
+    expect(parentStartBox).not.toBeNull();
+    expect(leafStartBox).not.toBeNull();
+    expect(Math.abs((parentStartBox?.width ?? 0) - (leafStartBox?.width ?? 0))).toBeLessThan(0.5);
+
     // 日付列は 128px。入力欄・カレンダーボタンがセルの外へはみ出さない。
     const dateCells = page.locator('[data-date-cell]');
     await expect(dateCells).toHaveCount(3);

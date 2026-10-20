@@ -436,7 +436,11 @@ export const TaskDateCell = memo(({
           />
         </div>
 
-        {!isReadOnly && (
+        {isReadOnly ? (
+          // 親タスクはカレンダーボタンを出さないが、同じ幅の余白を確保して
+          // 葉タスクと日付テキストの中心位置を揃える。
+          <span aria-hidden="true" className="h-[15px] w-[15px] shrink-0" />
+        ) : (
           <button
             type="button"
             onClick={() => openPicker(field)}

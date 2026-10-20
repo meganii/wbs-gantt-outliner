@@ -19,6 +19,7 @@
   - 日付列の既定幅を **224 → 128px**、最小幅を **112px** に変更。`COLUMN_MIN_WIDTHS` で全列の下限を一元管理し、読み込み時は「保存値が旧既定値 224 の日付列だけ」128 へ移行する（意図的に 300px 等へ広げた値は維持）。列リサイズ / `setColumnWidth` も下限へクランプする。
   - 変更: `src/utils/date.ts`（`formatToEdit` / `formatFullDate` / `parseInputDate`）、`src/utils/columns.ts`、`src/utils/projectConfig.ts`、`src/store/useTaskStore.ts`、`src/types.ts`、`src/components/TaskTableHeader.tsx`、`src/components/cells/TaskDateCell.tsx`、`src/utils/cellPastePlan.ts`（`planValuePaste` を抽出）、新規 `src/utils/datePaste.ts`。
   - 複数行選択時のフォーカス列ハイライトは、開始日と終了日を**独立した列**として扱う。以前は日付セル全体を帯状に強調していたため、両方の日付に貼り付くように見えていた。現在はフォーカス中のフィールド（開始日 or 終了日）だけを強調し、実際のペースト対象とも一致する。
+  - 親タスクはカレンダーボタンを表示しないが、ボタンと同じ 15px の余白を確保して、葉タスクと開始日 / 終了日の入力中心を揃えた（E2E で親 / 葉の入力幅一致を検証）。
   - 検証: `npm test -- --run` **292 件（32 ファイル）** / `npm run lint` 0 / `npm run build` 通過 / `npm run test:e2e` **6 件** / `npm run shots` で WBS の日付列（親は読み取り専用、葉はカレンダーアイコン付き）を目視確認。テスト追加: `src/components/cells/DateCell.test.tsx` / `src/components/ActiveColumnHighlight.test.tsx`（開始日 / 終了日の独立ハイライト） / `src/utils/datePaste.test.ts` / `e2e/date-cell.spec.ts` / `src/utils/date.test.ts` / `src/utils/projectConfig.test.ts` / `src/store/useTaskStore.test.ts`。
   - 付随更新: `bench/generate-tasks.mjs` と `bench/fixtures/tasks-100.json` / `tasks-1000.json` の日付列幅を 128 に更新。
 - **2 層モデル・表示名・状態列幅を main にマージ済み** (October 20, 2026):
@@ -379,7 +380,7 @@
 ## 直近の検証結果 (October 20, 2026 / 日付セル・ツールチップ刷新後)
 
 - `npm test -- --run` : **301テスト全件合格** (34ファイル。開始日 / 終了日の独立ハイライト、150ms ツールチップ、ガントバーの日程・進捗・基準表示を含む)
-- `npm run test:e2e` : **E2Eテスト全7件合格** (Playwright / chromium。既存の日付入力 `fill('2026-06-01')` → `06/01` の経路、`e2e/date-cell.spec.ts` の 128px レイアウト・複数行ペースト・開始日 / 終了日の独立ハイライト、新規 `e2e/tooltip.spec.ts` の日付セル / ガントバーツールチップを含む)
+- `npm run test:e2e` : **E2Eテスト全7件合格** (Playwright / chromium。既存の日付入力 `fill('2026-06-01')` → `06/01` の経路、`e2e/date-cell.spec.ts` の 128px レイアウト・複数行ペースト・開始日 / 終了日の独立ハイライト・親 / 葉の入力幅一致、新規 `e2e/tooltip.spec.ts` の日付セル / ガントバーツールチップを含む)
 - `npm run build` : 通過 (TypeScript 型チェック + Vite 本番ビルド)
 - `npm run lint` : **0件合格**
 - `npm run shots` : 10枚生成。WBS の日付列が 128px で溢れず、親タスクは読み取り専用、葉はカレンダーアイコン付きで表示されることを目視確認
