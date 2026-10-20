@@ -1,4 +1,4 @@
-import React, { useMemo, useLayoutEffect, useCallback, useRef, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useCallback, useRef, useEffect, useState } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   differenceInDays,
@@ -10,11 +10,13 @@ import type { DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskRow } from './TaskRow';
 import { TaskTableHeader } from './TaskTableHeader';
-import type { ColumnId, Task } from '../types';
+import type { ColumnId, Milestone, Task } from '../types';
 import { COMPACT_COLUMNS } from '../utils/projectConfig';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader, TIMELINE_HEADER_HEIGHT } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
+import { MilestoneLane } from './MilestoneLane';
+import { MilestoneDialog } from './MilestoneDialog';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
@@ -107,6 +109,12 @@ export const IntegratedView = ({
   // 同じ変化で再レンダーするため、二重の再レンダーにはならない。
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
+  const milestones = useTaskStore((state) => state.milestones);
+  const showMilestones = useTaskStore((state) => state.projectConfig.showMilestones ?? true);
+
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [milestoneInitialDate, setMilestoneInitialDate] = useState<string | undefined>(undefined);
 
   const flattenedItems = useMemo(
     () => flattenedItemsProp ?? flattenTree(tasks, rootIds),
@@ -129,6 +137,7 @@ export const IntegratedView = ({
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const milestoneViewportRef = useRef<HTMLDivElement>(null);
 
   // Use custom timeline hook
   const {
@@ -158,6 +167,9 @@ export const IntegratedView = ({
     const handleScroll = () => {
       if (headerRef.current) {
         headerRef.current.scrollLeft = container.scrollLeft;
+      }
+      if (milestoneViewportRef.current) {
+        milestoneViewportRef.current.scrollLeft = container.scrollLeft;
       }
       // 左のタスク名カラム（sticky で画面左端に固定）は、行が
       // `content-visibility: auto`（paint containment）でスタッキング
@@ -315,6 +327,29 @@ export const IntegratedView = ({
         </div>
       </div>
 
+      {/* マイルストーン帯（縦スクロールの外に置き、横スクロールだけ同期する） */}
+      {showMilestones && milestones.length > 0 && (
+        <MilestoneLane
+          timeRange={timeRange}
+          cellWidth={cellWidth}
+          viewMode={viewMode}
+          timelineMetrics={timelineMetrics}
+          milestones={milestones}
+          leftOffset={outlinerWidth}
+          viewportRef={milestoneViewportRef}
+          onEdit={(milestone) => {
+            setEditingMilestone(milestone);
+            setMilestoneInitialDate(undefined);
+            setIsMilestoneDialogOpen(true);
+          }}
+          onAdd={(date) => {
+            setEditingMilestone(null);
+            setMilestoneInitialDate(date);
+            setIsMilestoneDialogOpen(true);
+          }}
+        />
+      )}
+
       <div
         ref={containerRef}
         className="flex-1 relative overflow-auto min-h-0 min-w-0"
@@ -331,6 +366,7 @@ export const IntegratedView = ({
           timelineWidth={timelineWidth}
           pixelsPerDay={timelineMetrics.pixelsPerDay}
           leftOffset={outlinerWidth}
+          milestones={showMilestones ? milestones : []}
         />
 
         <svg
@@ -420,6 +456,13 @@ export const IntegratedView = ({
         className="absolute top-0 bottom-0 w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors z-50"
         style={{ left: outlinerWidth }}
         onMouseDown={onResizeStart}
+      />
+
+      <MilestoneDialog
+        isOpen={isMilestoneDialogOpen}
+        onClose={() => setIsMilestoneDialogOpen(false)}
+        milestone={editingMilestone}
+        initialDate={milestoneInitialDate}
       />
     </div>
   );

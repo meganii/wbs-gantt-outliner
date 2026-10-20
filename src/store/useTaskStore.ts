@@ -2,7 +2,7 @@ import { create, type StoreApi } from 'zustand';
 import { temporal, type TemporalState } from 'zundo';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
-import type { ProjectConfig, Task, TaskStoreState } from '../types';
+import type { Milestone, ProjectConfig, Task, TaskStoreState } from '../types';
 import {
   deleteTasksAndCleanup,
   propagateDependencyDates,
@@ -17,6 +17,8 @@ import {
 } from './taskStoreUtils';
 import { DEFAULT_PROJECT_CONFIG, normalizeHolidayList } from '../utils/projectConfig';
 import { COLUMN_MIN_WIDTHS } from '../utils/columns';
+import { parseIsoDateStrict } from '../utils/date';
+import { sortMilestones } from '../utils/milestones';
 import { validateProjectState } from '../utils/validateProjectState';
 import {
   backupBaseline,
@@ -30,11 +32,18 @@ export interface ProjectData {
   tasks: Record<string, Task>;
   rootIds: string[];
   projectConfig?: ProjectConfig;
+  milestones?: Milestone[];
 }
 
 type TaskStoreHistoryState = Pick<
   TaskStoreState,
-  'tasks' | 'rootIds' | 'projectConfig' | 'focusedTaskId' | 'focusedTaskField' | 'selectedTaskIds'
+  | 'tasks'
+  | 'rootIds'
+  | 'projectConfig'
+  | 'milestones'
+  | 'focusedTaskId'
+  | 'focusedTaskField'
+  | 'selectedTaskIds'
 >;
 
 type TaskTemporalStore = StoreApi<TemporalState<TaskStoreHistoryState>>;
@@ -125,6 +134,7 @@ const taskStore = create<TaskStoreState>()(
         [initialTaskId]: initialTask,
       },
       rootIds: [initialTaskId],
+      milestones: [],
       projectConfig: DEFAULT_PROJECT_CONFIG,
       focusedTaskId: null,
       focusedTaskField: 'title',
@@ -601,6 +611,83 @@ const taskStore = create<TaskStoreState>()(
         },
       })),
 
+      addMilestone: (input) => {
+        const date = parseIsoDateStrict(input.date);
+        if (!date) {
+          return '';
+        }
+
+        const id = uuidv4();
+        const title = input.title.trim() || 'マイルストーン';
+        const note = input.note?.trim();
+        const milestone: Milestone = note
+          ? { id, title, date, note }
+          : { id, title, date };
+
+        set((state) => ({
+          milestones: sortMilestones([...state.milestones, milestone]),
+        }));
+
+        return id;
+      },
+
+      updateMilestone: (id, updates) => set((state) => {
+        const existing = state.milestones.find((milestone) => milestone.id === id);
+        if (!existing) {
+          return {};
+        }
+
+        // 日付の更新は厳密な ISO 形式だけを受け付ける（不正なら変更しない）。
+        const nextDate = updates.date === undefined
+          ? existing.date
+          : parseIsoDateStrict(updates.date);
+        if (!nextDate) {
+          return {};
+        }
+
+        const nextTitle = updates.title === undefined
+          ? existing.title
+          : (updates.title.trim() || 'マイルストーン');
+        const nextNote = updates.note === undefined
+          ? existing.note
+          : (updates.note.trim() || undefined);
+
+        const nextMilestone: Milestone = {
+          ...existing,
+          title: nextTitle,
+          date: nextDate,
+        };
+        if (nextNote) {
+          nextMilestone.note = nextNote;
+        } else {
+          delete nextMilestone.note;
+        }
+
+        return {
+          milestones: sortMilestones(
+            state.milestones.map((milestone) => (
+              milestone.id === id ? nextMilestone : milestone
+            ))
+          ),
+        };
+      }),
+
+      deleteMilestone: (id) => set((state) => {
+        if (!state.milestones.some((milestone) => milestone.id === id)) {
+          return {};
+        }
+        return {
+          milestones: state.milestones.filter((milestone) => milestone.id !== id),
+        };
+      }),
+
+      setShowMilestones: (showMilestones) => set((state) => ({
+        projectConfig: {
+          ...state.projectConfig,
+          showMilestones,
+        },
+      })),
+
       setViewMode: (viewMode) => set((state) => ({
         projectConfig: {
           ...state.projectConfig,
@@ -673,6 +760,7 @@ const taskStore = create<TaskStoreState>()(
         tasks: state.tasks,
         rootIds: state.rootIds,
         projectConfig: state.projectConfig,
+        milestones: state.milestones,
         focusedTaskId: state.focusedTaskId,
         focusedTaskField: state.focusedTaskField,
         selectedTaskIds: state.selectedTaskIds,
@@ -680,7 +768,8 @@ const taskStore = create<TaskStoreState>()(
       equality: (a, b) =>
         a.tasks === b.tasks &&
         a.rootIds === b.rootIds &&
-        a.projectConfig === b.projectConfig,
+        a.projectConfig === b.projectConfig &&
+        a.milestones === b.milestones,
     }
   )
 );
@@ -716,6 +805,7 @@ export function loadProjectState(input: unknown): LoadProjectStateResult {
     tasks: validation.tasks,
     rootIds: validation.rootIds,
     projectConfig: validation.projectConfig,
+    milestones: validation.milestones,
     focusedTaskId: null,
     focusedTaskField: 'title',
     selectedTaskIds: [],

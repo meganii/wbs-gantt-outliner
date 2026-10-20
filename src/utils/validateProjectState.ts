@@ -1,14 +1,16 @@
-import type { ProjectConfig, Task } from '../types';
+import type { Milestone, ProjectConfig, Task } from '../types';
 import { parseIsoDateStrict } from './date';
 import { mergeProjectConfig } from './projectConfig';
+import { normalizeMilestones } from './milestones';
 import { hasDependencyPath } from '../store/taskStoreUtils';
-import { CURRENT_SCHEMA_VERSION, migrateTaskToV3 } from './planActualMigration';
+import { migrateTaskToV3 } from './planActualMigration';
 
 export interface ProjectStateValidationSuccess {
   ok: true;
   tasks: Record<string, Task>;
   rootIds: string[];
   projectConfig: ProjectConfig;
+  milestones: Milestone[];
   /** 修復した内容の要約（日本語）。空なら問題なし。 */
   warnings: string[];
 }
@@ -246,8 +248,9 @@ export function validateProjectState(input: unknown): ProjectStateValidationResu
   // 3. 旧形式を 2 層モデル（基準計画 + 現在の日程 + 進捗率）へ移行する。
   //    - v1（バージョンなし）: `plan*` ⇄ `startDate`/`endDate` の双方向同期 + 基準計画固定
   //    - v2: 3 層モデル（基準計画 / 予定 `plan*` / 実績 `startDate`/`endDate`）
+  //    v3 以降はタスク形式が同じなので移行しない（v4 は `milestones` の追加のみ）。
   const schemaVersion = typeof input.schemaVersion === 'number' ? input.schemaVersion : 1;
-  if (schemaVersion < CURRENT_SCHEMA_VERSION) {
+  if (schemaVersion < 3) {
     const legacyBaselineLocked = rawProjectConfig?.baselineLocked === true;
     const ids = Object.keys(sanitized);
     ids.forEach((id) => {
@@ -377,6 +380,9 @@ export function validateProjectState(input: unknown): ProjectStateValidationResu
   inputRootIds.forEach(pushRoot);
   Object.keys(tasks).forEach(pushRoot);
 
+  // 8. マイルストーン（v4 で追加）。未設定は空配列、不正値は修復する。
+  const milestones = normalizeMilestones(input.milestones, warnings);
+
   appendRepairWarnings(warnings, counts);
 
   return {
@@ -384,6 +390,7 @@ export function validateProjectState(input: unknown): ProjectStateValidationResu
     tasks,
     rootIds: orderedRootIds,
     projectConfig,
+    milestones,
     warnings,
   };
 }

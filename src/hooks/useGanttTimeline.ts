@@ -17,6 +17,7 @@ import {
   startOfYear,
 } from 'date-fns';
 import type { FlattenedItem } from '../utils/tree';
+import { getMilestoneDateRange } from '../utils/milestones';
 
 export interface TimelineMetrics {
   timelineStart: Date;
@@ -62,6 +63,7 @@ export const useGanttTimeline = (flattenedItems: FlattenedItem[]) => {
   const viewMode = useTaskStore((state) => state.projectConfig.viewMode);
   const calendar = useTaskStore((state) => state.projectConfig.calendar);
   const timelineRangeConfig = useTaskStore((state) => state.projectConfig.timelineRange);
+  const milestones = useTaskStore((state) => state.milestones);
 
   const cellWidth = useMemo(() => {
     switch (viewMode) {
@@ -82,8 +84,18 @@ export const useGanttTimeline = (flattenedItems: FlattenedItem[]) => {
   // 編集（タイトル変更など）では timeRange / timelineMetrics の参照が据え置かれ、
   // ヘッダー・グリッド・context 依存の行が不要に再レンダーされない。
   const taskDateRange = useMemo(() => getTaskDateRange(flattenedItems), [flattenedItems]);
-  const minDateMs = taskDateRange.minDate ? taskDateRange.minDate.getTime() : null;
-  const maxDateMs = taskDateRange.maxDate ? taskDateRange.maxDate.getTime() : null;
+  const milestoneDateRange = useMemo(() => getMilestoneDateRange(milestones), [milestones]);
+
+  // タスクとマイルストーンの両方を表示範囲に含める。
+  // タスクより遠い未来のマイルストーンでもタイムラインから消えないようにする。
+  const taskMinMs = taskDateRange.minDate ? taskDateRange.minDate.getTime() : null;
+  const taskMaxMs = taskDateRange.maxDate ? taskDateRange.maxDate.getTime() : null;
+  const minDateMs = taskMinMs === null
+    ? milestoneDateRange.minMs
+    : (milestoneDateRange.minMs === null ? taskMinMs : Math.min(taskMinMs, milestoneDateRange.minMs));
+  const maxDateMs = taskMaxMs === null
+    ? milestoneDateRange.maxMs
+    : (milestoneDateRange.maxMs === null ? taskMaxMs : Math.max(taskMaxMs, milestoneDateRange.maxMs));
 
   const timeRange = useMemo(() => {
     const today = new Date();

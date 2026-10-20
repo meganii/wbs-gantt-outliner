@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
-import { CalendarCheck, ChevronDown, ChevronsDownUp, ChevronsUpDown, Columns3 } from 'lucide-react';
+import { CalendarCheck, ChevronDown, ChevronsDownUp, ChevronsUpDown, Columns3, Diamond } from 'lucide-react';
 import { useTaskStore } from '../store/useTaskStore';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { ColumnVisibilityMenu } from './ColumnVisibilityMenu';
+import { MilestoneDialog } from './MilestoneDialog';
 import { COMPACT_COLUMNS } from '../utils/projectConfig';
 import type { ColumnId, ProjectConfig } from '../types';
 
@@ -55,6 +56,8 @@ export function SubToolbar({ view }: SubToolbarProps) {
   const [isColumnsOpen, setIsColumnsOpen] = useState(false);
   const columnsMenuRef = useRef<HTMLDivElement>(null);
   useClickOutside(columnsMenuRef, () => setIsColumnsOpen(false));
+
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
 
   return (
     <div className="h-9 shrink-0 flex items-center gap-1.5 px-2 bg-white border-b border-line select-none">
@@ -115,6 +118,16 @@ export function SubToolbar({ view }: SubToolbarProps) {
         すべて折りたたむ
       </button>
 
+      <div className="mx-0.5 h-5 w-px bg-line" />
+      <button
+        onClick={() => setIsMilestoneDialogOpen(true)}
+        className={barButton}
+        title="マイルストーンを管理"
+      >
+        <Diamond size={14} className="text-violet-500" />
+        マイルストーン
+      </button>
+
       {view !== 'gantt' && (
         <>
           <div className="mx-0.5 h-5 w-px bg-line" />
@@ -138,6 +151,11 @@ export function SubToolbar({ view }: SubToolbarProps) {
           </div>
         </>
       )}
+
+      <MilestoneDialog
+        isOpen={isMilestoneDialogOpen}
+        onClose={() => setIsMilestoneDialogOpen(false)}
+      />
     </div>
   );
 }

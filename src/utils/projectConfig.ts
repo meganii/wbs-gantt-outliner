@@ -70,6 +70,7 @@ export const DEFAULT_PROJECT_CONFIG: ProjectConfig = {
     date: 128,
   },
   showBaseline: true,
+  showMilestones: true,
   baselineSetAt: null,
   visibleColumns: [
     'taskName',
@@ -202,6 +203,10 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     ? config.showBaseline
     : DEFAULT_PROJECT_CONFIG.showBaseline;
 
+  const nextShowMilestones = typeof config?.showMilestones === 'boolean'
+    ? config.showMilestones
+    : DEFAULT_PROJECT_CONFIG.showMilestones;
+
   const rawBaselineSetAt = config?.baselineSetAt;
   const nextBaselineSetAt = typeof rawBaselineSetAt === 'string' && rawBaselineSetAt.trim() !== ''
     ? rawBaselineSetAt
@@ -215,6 +220,7 @@ export function mergeProjectConfig(projectConfig?: unknown, warnings?: string[])
     viewMode: nextViewMode,
     columnWidths: nextColumnWidths,
     showBaseline: nextShowBaseline,
+    showMilestones: nextShowMilestones,
     baselineSetAt: nextBaselineSetAt,
     visibleColumns: nextVisibleColumns,
     integratedColumns: nextIntegratedColumns,

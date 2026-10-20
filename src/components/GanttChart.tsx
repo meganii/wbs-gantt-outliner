@@ -1,4 +1,4 @@
-import React, { useMemo, useLayoutEffect, useRef, useEffect } from 'react';
+import React, { useMemo, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { useTaskStore } from '../store/useTaskStore';
 import {
   differenceInDays,
@@ -6,10 +6,12 @@ import {
 import { flattenTree, type FlattenedItem } from '../utils/tree';
 import clsx from 'clsx';
 import { TaskRow } from './TaskRow';
-import type { ColumnId } from '../types';
+import type { ColumnId, Milestone } from '../types';
 import { GanttTimelineRow } from './GanttTimelineRow';
 import { TimelineHeader, TIMELINE_HEADER_HEIGHT } from './TimelineHeader';
 import { TimelineGridBackground } from './TimelineGridBackground';
+import { MilestoneLane } from './MilestoneLane';
+import { MilestoneDialog } from './MilestoneDialog';
 import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
@@ -47,6 +49,12 @@ export const GanttChart = ({
   // tasks / rootIds を購読する（Outliner / IntegratedView と同様）。
   const tasks = useTaskStore(state => state.tasks);
   const rootIds = useTaskStore(state => state.rootIds);
+  const milestones = useTaskStore(state => state.milestones);
+  const showMilestones = useTaskStore(state => state.projectConfig.showMilestones ?? true);
+
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [milestoneInitialDate, setMilestoneInitialDate] = useState<string | undefined>(undefined);
 
   const visibleColumns = useMemo((): ColumnId[] => ['taskName', 'status', 'progress'], []);
 
@@ -87,6 +95,7 @@ export const GanttChart = ({
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const milestoneViewportRef = useRef<HTMLDivElement>(null);
 
   // Use custom drag interaction hook
   useGanttDrag(nameOffset, containerRef, CELL_WIDTH, timeRange, timelineMetrics);
@@ -140,6 +149,9 @@ export const GanttChart = ({
     const handleScroll = () => {
       if (headerRef.current) {
         headerRef.current.scrollLeft = container.scrollLeft;
+      }
+      if (milestoneViewportRef.current) {
+        milestoneViewportRef.current.scrollLeft = container.scrollLeft;
       }
       // 左のタスク名カラム（sticky で画面左端に固定）は、行が
       // `content-visibility: auto`（paint containment）でスタッキング
@@ -373,6 +385,29 @@ export const GanttChart = ({
         />
       </div>
 
+      {/* マイルストーン帯（縦スクロールの外に置き、横スクロールだけ同期する） */}
+      {showMilestones && milestones.length > 0 && (
+        <MilestoneLane
+          timeRange={timeRange}
+          cellWidth={CELL_WIDTH}
+          viewMode={viewMode}
+          timelineMetrics={timelineMetrics}
+          milestones={milestones}
+          leftOffset={nameOffset}
+          viewportRef={milestoneViewportRef}
+          onEdit={(milestone) => {
+            setEditingMilestone(milestone);
+            setMilestoneInitialDate(undefined);
+            setIsMilestoneDialogOpen(true);
+          }}
+          onAdd={(date) => {
+            setEditingMilestone(null);
+            setMilestoneInitialDate(date);
+            setIsMilestoneDialogOpen(true);
+          }}
+        />
+      )}
+
       {/* Gantt Rows */}
       <div
         className="flex-1 relative overflow-auto min-h-0 min-w-0"
@@ -393,6 +428,7 @@ export const GanttChart = ({
           timelineWidth={timeRange.length * CELL_WIDTH}
           pixelsPerDay={timelineMetrics.pixelsPerDay}
           leftOffset={nameOffset}
+          milestones={showMilestones ? milestones : []}
         />
 
         {/* SVG Layer for Dependencies - Z-10 */}
@@ -508,6 +544,13 @@ export const GanttChart = ({
           })}
         </TimelineContext.Provider>
       </div>
+
+      <MilestoneDialog
+        isOpen={isMilestoneDialogOpen}
+        onClose={() => setIsMilestoneDialogOpen(false)}
+        milestone={editingMilestone}
+        initialDate={milestoneInitialDate}
+      />
     </div>
   );
 };

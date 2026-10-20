@@ -277,6 +277,24 @@
     "p2",
     "p3"
   ],
+  "milestones": [
+    {
+      "id": "m1",
+      "title": "要件定義完了",
+      "date": "2026-10-20"
+    },
+    {
+      "id": "m2",
+      "title": "設計レビュー完了",
+      "date": "2026-11-10",
+      "note": "設計レビュー指摘のクローズを含む"
+    },
+    {
+      "id": "m3",
+      "title": "リリース判定",
+      "date": "2026-12-18"
+    }
+  ],
   "projectConfig": {
     "calendar": {
       "workDays": [
@@ -294,5 +312,5 @@
     "showBaseline": true,
     "baselineSetAt": "2026-10-05T09:00:00.000Z"
   },
-  "schemaVersion": 3
+  "schemaVersion": 4
 }

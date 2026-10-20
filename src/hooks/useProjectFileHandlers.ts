@@ -1,5 +1,6 @@
 import { loadProjectState, useTaskStore } from '../store/useTaskStore';
 import { useNotificationStore } from '../store/useNotificationStore';
+import { CURRENT_SCHEMA_VERSION } from '../utils/planActualMigration';
 
 /**
  * ipcRenderer 経由のファイル操作（保存・読込・Excel エクスポート）を提供するフック。
@@ -10,10 +11,19 @@ export function useProjectFileHandlers() {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
   const projectConfig = useTaskStore((state) => state.projectConfig);
+  const milestones = useTaskStore((state) => state.milestones);
   const notify = useNotificationStore((state) => state.notify);
 
   const handleSave = async () => {
-    const data = JSON.stringify({ tasks, rootIds, projectConfig }, null, 2);
+    // schemaVersion を書き忘れると、次回読込時に旧形式（v1）として
+    // 移行処理が走ってしまうため、保存時に現行バージョンを明示する。
+    const data = JSON.stringify({
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      tasks,
+      rootIds,
+      projectConfig,
+      milestones,
+    }, null, 2);
     await window.ipcRenderer.invoke('save-file', data);
   };
 
