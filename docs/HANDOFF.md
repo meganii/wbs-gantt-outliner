@@ -4,7 +4,7 @@
 
 ## 現在の状態
 
-- **ガント上部のマイルストーン（Phase 1: 独立データ・表示のみ）** (October 20, 2026 / `feature/milestones`, 未コミット):
+- **ガント上部のマイルストーン（Phase 1: 独立データ・表示のみ）** (October 20, 2026 / `feature/milestones` `508a01d`):
   - 要望: スケジュールの上部に「マイルストーン」を置きたい。まずは**表示のみ**で、タスクの日付を自動で動かさない。マイルストーンはタスクとは**独立したデータ**として管理する。配置は**日付ヘッダーの直下**。
   - モデル: `src/types.ts` に `Milestone { id, title, date: 'YYYY-MM-DD', note? }` を追加し、ストアのトップレベル `milestones: Milestone[]` に保持（`projectConfig` には入れない）。追加・更新・削除は `addMilestone` / `updateMilestone` / `deleteMilestone`。`setShowMilestones` は `projectConfig.showMilestones`（既定 `true`）を更新する。
   - 表示: ガント／統合表示のヘッダー直下に高さ 28px の `MilestoneLane` を置く。**縦スクロールコンテナの外**に置き、横スクロールだけを `viewportRef` 経由でヘッダーと同期する。0 件または `showMilestones=false` のときはバンド自体を出さない。
