@@ -4,6 +4,10 @@
 
 ## 現在の状態
 
+- **保守性 P2 / D9: 未使用 `taskBarRefs` の削除と行高の定数化** (October 22, 2026):
+  - `GanttTimelineRow` がバーの DOM を `taskBarRefs` に `.set` / `.delete` するだけで、どこからも読まれていなかった（依存線は `flattenedItems` から座標を計算する方式へ移行済み）。`GanttChart` / `IntegratedView` / `GanttTimelineRow` から ref の生成・受け渡しを削除し、バーの `ref` はツールチップの `anchorRef` だけに整理した。
+  - 行高 `32` が `IntegratedView` / `GanttChart`（キーボード移動時のスクロール計算）/ `useGanttDependencies` に散在していたため、`src/utils/layout.ts` の `TASK_ROW_HEIGHT` に集約。行要素の Tailwind `h-8`（= 32px）と一致させる旨をコメントで明記した。
+  - 挙動変更なし（純粋な整理）。検証: `npx vitest --run` **347 件（41 ファイル）** / `npm run test:e2e` **9 件** / `npm run lint` 0 / `npm run build` 通過。
 - **ガントバーの複数選択と一括移動（PR #49 で main マージ済み: `d89a89d`）** (October 20, 2026):
   - マージ後の後始末: `feature/gantt-multi-move` のローカル／リモートブランチを削除し、`main` 上で vitest **347 件（41 ファイル）** を再確認した。
   - 要望: ガント／統合表示で複数の葉タスクのバーを選択し、1 本をドラッグすると同じ日数だけまとめて移動する。ドラッグ中は選択中の全バーが同じ日数だけ動くプレビューにし、Undo 1 回で全体を戻す。
@@ -233,7 +237,7 @@
   - **4-B（参照安定化）**: `SortableContext items={flattenedIds}` と `TimelineContext` の値が親の再レンダーごとに参照が変わり、context 経由で全行（`useSortable` 消費側 / `RowContainer`）が再レンダーし続けていた（`React.memo` では止まらない）。`src/hooks/useStableFlattenedIds.ts`（新規）で ID 列を内容ベースで安定化し、`useGanttTimeline` の `timeRange` / `timelineMetrics` を値（epoch ms / Date の時刻）依存にして、日付範囲が変わらない編集では参照を据え置くようにした。
   - **実測（1,000 タスク、同一セッションでの A/B）**: duration 確定 **402ms → 0ms**、タイトル確定（Enter → 追加）**1,053ms → 約 180ms**、ドラッグ確定（mouseup）**456ms → 約 22〜42ms**、ドラッグ全体 **486ms → 約 78ms**、ドラッグ中 mousemove の操作窓 **340ms → 約 195ms**。タイトル確定は Enter で新規タスクを追加する操作で ID 列そのものが変わるため全行再構築が残る（残りは構造変更由来）。詳細は `bench/README.md`「Step 4-A / Step 4-B」。
   - 挙動を変えない（純粋な再レンダー削減）ため回帰テストは追加せず、既存のユニットテスト 105 件・E2E 6 件・ビルド・lint 0 件で退行なしを確認。
-  - **これで P1（購読ファンアウト D7 / 依存線 P2 / 入力連鎖 P3 / Context D6）が完了**。残る P2（保守性）は D8（`updateTask`/`endDragUpdate`/`addDependency` の共通化）、D9（未使用 `taskBarRefs` / 行高定数化 / デバッグ用テストの整理）、D10（zundo の `partialize` と `equality` の同期）。
+  - **これで P1（購読ファンアウト D7 / 依存線 P2 / 入力連鎖 P3 / Context D6）が完了**。P2（保守性）のうち D9 は October 22, 2026 に完了。残りは D8（`updateTask`/`endDragUpdate`/`addDependency` の共通化）と D10（zundo の `partialize` と `equality` の同期）。
 - **描画性能 P1 Step 3: `TimelineContext` の value を `useMemo` 化（D6）** (October 17, 2026):
   - `IntegratedView` / `GanttChart` の `<TimelineContext.Provider value={{ timelineMetrics, timelineWidth }}>` が毎レンダー新規オブジェクトだったため、行ホバー（`hoveredTaskId` の変更）のたびに **context 消費側の全行 `RowContainer` が再レンダー**していた（`React.memo` では止まらない）。`value` を `useMemo` 化（依存: `timelineMetrics` / `timelineWidth`）し、ホバーでは参照が変わらないようにした。
   - 実測（1,000 タスク, `npm run bench` の `hover(20 rows)`）: 操作窓 **741.7ms → 524.2 / 511.0ms**、longtask 合計 **60.3ms（最長 91ms）→ 17.3 / 19.7ms（最長 52 / 59ms）**、over 50ms の longtask 数 2 → 0〜1。最長タスクは約 43% 減。
@@ -445,7 +449,7 @@
 4. **保守性の改善（設計レビューの P2 / D8・D9・D10）** — 詳細は下記「設計レビュー結果」を参照
    - 旧 #2「JSON インポートの互換性・異常値バリデーション強化」は October 17, 2026 に完了（上記「現在の状態」参照）。
    - D8: `updateTask` / `endDragUpdate` / `addDependency` の共通ロジック統合（`applyTaskUpdate` への集約で一部前進。`addDependency` は未統合）。
-   - D9: 行高 `32` の定数化（`useGanttDependencies` 以外は未対応）、未使用 `taskBarRefs` の削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
+   - D9: ✅ **完了（October 22, 2026）** 行高は `src/utils/layout.ts` の `TASK_ROW_HEIGHT` に集約し、未使用の `taskBarRefs` を削除。デバッグ用テストの混在は October 17, 2026 に整理済み。
    - D10: zundo の `partialize` と `equality` のズレ。「データ変更時だけ履歴化し、その時点の選択/フォーカスを一緒に保存する」意図的な設計とも読めるため、まずバグか仕様かを切り分ける。
 
 > 描画性能 P1（購読ファンアウト D7 / 依存線 P2 / 入力連鎖 P3 / Context D6）は October 17, 2026 に Step 1〜4 を完了。経緯と実測値は「現在の状態」と `bench/README.md` を参照。
@@ -466,7 +470,7 @@
 | D6 | `TimelineContext` の value が毎レンダー新規 → ホバーのたびに全行 `RowContainer` が再レンダー | **修正済み**（P1 Step 3 で `useMemo` 化） |
 | D7 | セル 10 種が各自 `useTaskStore` を購読し 1 行あたり約 79 購読 → 1 更新で約 96,000 selector（購読ファンアウト） | **修正済み**（P1 Step 4-A/4-B）。`selectedTaskIds.includes(id)` の行ごとの走査は残（軽微・P2 送り） |
 | D8 | `updateTask` / `endDragUpdate` / `addDependency` のロジック二重化（D1 の非対称を生む土壌） | 未対応（優先課題 #3） |
-| D9 | 未使用の `taskBarRefs`、行高 `32` の散在 | 未対応（優先課題 #3）。デバッグ用テストの混在は October 17, 2026 に整理済み（非干渉テスト `updateTaskIsolation.test.ts` へ昇格 / 不要 E2E `reproduce-bug.spec.ts` を削除） |
+| D9 | 未使用の `taskBarRefs`、行高 `32` の散在 | **修正済み**（October 22, 2026。`taskBarRefs` を削除し、行高を `TASK_ROW_HEIGHT` に集約）。デバッグ用テストの混在は October 17, 2026 に整理済み（非干渉テスト `updateTaskIsolation.test.ts` へ昇格 / 不要 E2E `reproduce-bug.spec.ts` を削除） |
 | D10 | zundo の `partialize` と `equality` の不一致（undo で古い選択/フォーカスが復元され得る） | 未対応（優先課題 #3） |
 
 ### 性能（「重い」）の構造的原因

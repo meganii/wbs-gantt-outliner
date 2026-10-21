@@ -3,6 +3,7 @@ import { useTaskStore } from '../store/useTaskStore';
 import type { FlattenedItem } from '../utils/tree';
 import type { Task } from '../types';
 import type { TimelineMetrics } from './useGanttTimeline';
+import { TASK_ROW_HEIGHT } from '../utils/layout';
 import { differenceInDays } from 'date-fns';
 
 export interface DependencyLine {
@@ -12,7 +13,6 @@ export interface DependencyLine {
   toId: string;
 }
 
-const ROW_HEIGHT = 32;
 const BOX_PADDING = 20;
 const EMPTY_OVERRIDES: ReadonlyMap<string, TaskDates> = new Map();
 
@@ -79,16 +79,16 @@ function buildDependencyLine(fromId: string, toId: string, ctx: GeometryContext)
   if (!sourceDates.end || !targetDates.start) return null;
 
   const startX = (differenceInDays(sourceDates.end, ctx.timelineStart) + 1) * ctx.pixelsPerDay;
-  const startY = sourceIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+  const startY = sourceIndex * TASK_ROW_HEIGHT + TASK_ROW_HEIGHT / 2;
   const endX = differenceInDays(targetDates.start, ctx.timelineStart) * ctx.pixelsPerDay;
-  const endY = targetIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+  const endY = targetIndex * TASK_ROW_HEIGHT + TASK_ROW_HEIGHT / 2;
 
   let path: string;
   if (endX > startX + BOX_PADDING * 2) {
     const midX = startX + (endX - startX) / 2;
     path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
   } else {
-    const verticalLaneY = endY > startY ? startY + ROW_HEIGHT / 2 : startY - ROW_HEIGHT / 2;
+    const verticalLaneY = endY > startY ? startY + TASK_ROW_HEIGHT / 2 : startY - TASK_ROW_HEIGHT / 2;
     path =
       `M ${startX} ${startY} L ${startX + BOX_PADDING} ${startY} L ${startX + BOX_PADDING} ${verticalLaneY} ` +
       `L ${endX - BOX_PADDING} ${verticalLaneY} L ${endX - BOX_PADDING} ${endY} L ${endX} ${endY}`;

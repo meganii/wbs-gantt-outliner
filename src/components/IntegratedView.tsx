@@ -21,6 +21,7 @@ import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 import { leftPaneDividerStyle } from '../utils/leftPaneDivider';
+import { TASK_ROW_HEIGHT } from '../utils/layout';
 
 // Import custom hooks
 import { useGanttTimeline, TimelineContext, useTimelineContext } from '../hooks/useGanttTimeline';
@@ -38,7 +39,6 @@ interface RowContainerProps {
   currentBgClass: string;
   isSelected: boolean;
   isHovered: boolean;
-  taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   onHoverTaskChange: ((taskId: string | null) => void) | undefined;
   onSelect?: (taskId: string, multi: boolean, range: boolean) => void;
 }
@@ -53,7 +53,6 @@ const RowContainer = ({
   currentBgClass,
   isSelected,
   isHovered,
-  taskBarRefs,
   onHoverTaskChange,
   onSelect,
 }: RowContainerProps) => {
@@ -78,7 +77,6 @@ const RowContainer = ({
         taskId={id}
         task={task}
         timelineMetrics={timelineMetrics}
-        taskBarRefs={taskBarRefs}
         timelineWidth={timelineWidth}
         isSelected={isSelected}
         isHovered={isHovered}
@@ -95,8 +93,6 @@ interface IntegratedViewProps {
   hoveredTaskId?: string | null;
   onHoverTaskChange?: (taskId: string | null) => void;
 }
-
-const ROW_HEIGHT = 32;
 
 export const IntegratedView = ({
   outlinerWidth,
@@ -135,7 +131,6 @@ export const IntegratedView = ({
     flattenedIdsRef.current = flattenedIds;
   }, [flattenedIds]);
 
-  const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -365,7 +360,7 @@ export const IntegratedView = ({
           cellWidth={cellWidth}
           calendar={calendar}
           viewMode={viewMode}
-          totalHeight={flattenedItems.length * ROW_HEIGHT}
+          totalHeight={flattenedItems.length * TASK_ROW_HEIGHT}
           timelineWidth={timelineWidth}
           pixelsPerDay={timelineMetrics.pixelsPerDay}
           leftOffset={outlinerWidth}
@@ -376,7 +371,7 @@ export const IntegratedView = ({
           ref={svgRef}
           className="absolute inset-0 pointer-events-none z-10"
           style={{
-            minHeight: flattenedItems.length * ROW_HEIGHT,
+            minHeight: flattenedItems.length * TASK_ROW_HEIGHT,
             width: timelineWidth,
             left: outlinerWidth,
           }}
@@ -443,7 +438,6 @@ export const IntegratedView = ({
                         currentBgClass={currentBgClass}
                         isSelected={isSelected}
                         isHovered={isHovered}
-                        taskBarRefs={taskBarRefs}
                         onHoverTaskChange={onHoverTaskChange}
                         onSelect={handleSelectionChange}
                       />

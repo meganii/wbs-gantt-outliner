@@ -13,7 +13,6 @@ export interface GanttTimelineRowProps {
     pixelsPerDay: number;
     totalDays: number;
   };
-  taskBarRefs: React.RefObject<Map<string, HTMLDivElement>>;
   timelineWidth: number;
   /** 選択中の行かどうか（タイムライン側にもハイライト帯を敷く）。 */
   isSelected?: boolean;
@@ -43,7 +42,6 @@ export const GanttTimelineRow = memo(({
   taskId,
   task,
   timelineMetrics,
-  taskBarRefs,
   timelineWidth,
   isSelected = false,
   isHovered = false,
@@ -235,14 +233,7 @@ export const GanttTimelineRow = memo(({
             {/* 現在の日程バー（唯一の操作対象。進捗を左端から塗る） */}
             {barWidth > 0 && (
               <div
-                ref={(el) => {
-                  barTooltip.anchorRef.current = el;
-                  if (el) {
-                    taskBarRefs.current?.set(taskId, el);
-                  } else {
-                    taskBarRefs.current?.delete(taskId);
-                  }
-                }}
+                ref={barTooltip.anchorRef}
                 {...barTooltip.triggerProps}
                 data-task-id={taskId}
                 data-gantt-bar="schedule"

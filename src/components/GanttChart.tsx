@@ -16,6 +16,7 @@ import { GanttDependencyLines } from './GanttDependencyLines';
 import { DraggedDependencyLines } from './DraggedDependencyLines';
 import { DraggingDependencyLine } from './DraggingDependencyLine';
 import { leftPaneDividerStyle } from '../utils/leftPaneDivider';
+import { TASK_ROW_HEIGHT } from '../utils/layout';
 
 // Import custom hooks
 import { useGanttTimeline, TimelineContext } from '../hooks/useGanttTimeline';
@@ -74,7 +75,6 @@ export const GanttChart = ({
   // （直前の選択の末尾を起点にすると、2 回目以降で範囲が後ろにずれる）。
   const anchorIdRef = useRef<string | null>(null);
 
-  const taskBarRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // ガント表示の左列はタスク名に加えてステータス・進捗も表示する
   // （統合表示と情報量を揃え、スケジュールと状態を同時に把握できるようにする）。
   const NAME_COLUMN_WIDTH =
@@ -295,7 +295,7 @@ export const GanttChart = ({
 
           const container = containerRef.current;
           if (container) {
-            const rowHeight = 32;
+            const rowHeight = TASK_ROW_HEIGHT;
             const targetTop = targetIndex * rowHeight;
             const containerHeight = container.clientHeight;
             const currentScrollTop = container.scrollTop;
@@ -534,7 +534,6 @@ export const GanttChart = ({
                   taskId={id}
                   task={task}
                   timelineMetrics={timelineMetrics}
-                  taskBarRefs={taskBarRefs}
                   timelineWidth={timeRange.length * CELL_WIDTH}
                   isSelected={isSelected}
                   isHovered={isHovered}
