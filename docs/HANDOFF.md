@@ -4,6 +4,17 @@
 
 ## 現在の状態
 
+- **自動保存とリロード時の復元 / 未保存警告を実装** (October 22, 2026 / `feature/web-file-io`):
+  - 背景: ブラウザ移行で Electron の `before-input-event`（Cmd/Ctrl+R の抑止）を失い、リロードで未保存データが消える状態になっていた。ブラウザ予約のキー操作は確実に抑止できないため、**`beforeunload` の確認ダイアログ**と **localStorage への自動保存 + 復元**の二段構えにした。
+  - 自動保存: `src/utils/autosave.ts` に保存形式を集約（`wbs-gantt-outliner:autosave:v1`、`{ version, savedAt, dirty, project }`）。`project` は保存 JSON と同じ形で、`loadProjectState` にそのまま渡せる。デバウンス 800ms（`AUTOSAVE_DELAY_MS`）、`pagehide` / `visibilitychange`（hidden）で即時フラッシュ。容量不足などは `console.warn` のみでアプリは継続する。
+  - 変更検知: ストア購読で **`tasks` / `rootIds` / `projectConfig` / `milestones` の参照変化**だけを見る（フォーカス・選択・ドラッグ中座標では発火しない）。`dirty` は zundo の履歴に入れないよう、独立した `useSessionStore` に置いた。
+  - 復元: `useAutosaveRestore` が `useLayoutEffect` で描画前に適用（初期プロジェクトが一瞬見えない）。StrictMode の二重実行は `useRef` で抑止。復元時は「前回の編集内容を復元しました」を通知し、未保存なら注意書きを添える。壊れたデータ・スキーマ不一致は破棄。
+  - 保存との連携: `handleSave` が `'saved'` を返したとき、および `handleLoad` 成功時に `dirty=false` にし、自動保存も `dirty=false` で書き直す。保存ダイアログのキャンセル時は未保存のまま（警告も維持）。
+  - UI: 保存ボタン横に未保存インジケーター（オレンジの点、`data-testid="unsaved-indicator"`）と `title` の補足を追加。
+  - 決定: Cmd/Ctrl+R のキー抑止は実装しない（ブラウザによって無効化される／挙動が不安定）。`beforeunload` の文言はブラウザ固定でカスタマイズ不可。
+  - テスト: `src/utils/autosave.test.ts`（6 件: ラウンドトリップ、破損・未知バージョンの破棄、容量不足）、`src/hooks/useAutosave.test.tsx`（5 件: デバウンス、pagehide フラッシュ、未変更セッションの非保存、対象外変更の無視、unmount）、`src/hooks/useAutosaveRestore.test.tsx`（5 件）、`src/hooks/useBeforeUnloadWarning.test.tsx`（3 件）、`e2e/autosave.spec.ts`（2 件: リロード復元と beforeunload、保存後の未保存マーク解除）。`useProjectFileHandlers.test.tsx` に保存・読込後の dirty 解除と自動保存更新の検証を追加。
+  - 検証: `npm test -- --run` **385 件（47 ファイル）** / `npm run test:e2e` **13 件** / `npm run lint` 0 / `npm run build` 通過。
+  - 既知の制約: 複数タブで開くと最後に書いたタブの自動保存が勝つ（タブ間同期は未実装）。自動保存は localStorage のため、ブラウザ・プロファイルを変えると復元されない。キャッシュ削除でも消える。保存先パスは引き続き記憶しない。
 - **Electron 依存を削除し、Chrome/Edge + localhost の Web アプリへ移行** (October 22, 2026 / `feature/web-file-io`):
   - 背景: 「Electron は本当に必要か。File API で置き換えられないか」という調査から、レンダラーが Electron に依存していないこと（`src/` に `electron` の import 0 件、E2E / bench / スクリーンショットが素の Chromium で動作）を確認し、削除に踏み切った。
   - 決定: 配布は **localhost（`npm start`）**。単一 HTML（`file://`）は不採用。理由は (1) `file://` では外部 `type="module"` が CORS でブロックされ、インライン化が必須（実測）、(2) インライン化すると ExcelJS 1.4MB が起動時にパースされ、キャッシュ・デバッグも不利になるため。将来必要になれば `vite-plugin-singlefile` で追加できる（v2.3.4 が Vite 7 対応であることは確認済み）。
@@ -15,7 +26,7 @@
   - テスト: 新規 `src/platform/fileIO.test.ts`（11 件: ピッカー経路・キャンセル・フォールバック・遅延生成の順序・書き込み失敗時の abort）、`src/utils/export.test.ts`（4 件: 生成 xlsx を ExcelJS で読み戻し、ヘッダー / 行 / 基準計画 / 日付列を検証。従来テストゼロだった領域）、`e2e/file-io.spec.ts`（2 件: JSON 保存→再読込ラウンドトリップ、Excel ダウンロードを ExcelJS で検証）。
   - 検証: `npm test -- --run` **364 件（43 ファイル）** / `npm run test:e2e` **11 件** / `npm run bench` 2 件 / `npm run lint` 0 / `npm run build` 通過 / `npm start` が :4173 で 200 を返すことを確認 / `npm run shots` 12 枚生成。
   - 付随修正（既存の陳腐化）: `bench/perf.spec.ts` が「ドラッグでガントバーの `title` が変わる」ことを検証していたが、2026-10-20 の独自ツールチップ導入で `title` 属性が無くなり失敗していた。バーの `style.left` 比較に置き換えた（本ブランチの変更とは独立した既存不具合）。
-  - 既知の制約・次フェーズ候補: リロードで未保存データが失われる（Electron の `before-input-event` による Cmd/Ctrl+R 抑止を失った）。`beforeunload` 警告と未保存フラグ / localStorage 自動保存は未実装。ネイティブピッカー自体の実機確認は手動（自動テストはフォールバック経路とモックでカバー）。保存先パスは記憶しない（毎回ピッカー）。ウィンドウ最小サイズ・アイコン・メニューはブラウザ側の制約。
+  - 既知の制約・次フェーズ候補: ネイティブピッカー自体の実機確認は手動（自動テストはフォールバック経路とモックでカバー）。保存先パスは記憶しない（毎回ピッカー）。ウィンドウ最小サイズ・アイコン・メニューはブラウザ側の制約。（リロード時のデータ消失は、同日追加した自動保存 + `beforeunload` で対応済み。上のエントリを参照）
   - 対象外: 単一 HTML ビルド、Firefox / Safari 最適化、サービスワーカーによるオフライン化。
 
 - **保守性 P2 / D9: 未使用 `taskBarRefs` の削除と行高の定数化** (October 22, 2026):

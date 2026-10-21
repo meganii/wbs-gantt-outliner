@@ -11,6 +11,8 @@ import {
   type FileIO,
   type FileKind,
 } from '../platform/fileIO';
+import { useSessionStore } from '../store/useSessionStore';
+import { readAutosave } from '../utils/autosave';
 import type { Task } from '../types';
 
 // Excel 生成は重いので、フックのテストではモジュールごと差し替える。
@@ -52,6 +54,8 @@ function validTask(): Task {
 
 describe('useProjectFileHandlers.handleLoad', () => {
   beforeEach(() => {
+    localStorage.clear();
+    useSessionStore.setState({ dirty: false });
     useNotificationStore.setState({ notifications: [] });
     act(() => {
       useTaskStore.setState(initialState, true);
@@ -62,6 +66,7 @@ describe('useProjectFileHandlers.handleLoad', () => {
     const io = stubOpenText(
       JSON.stringify({ tasks: { x: validTask() }, rootIds: ['x'], schemaVersion: 3 })
     );
+    useSessionStore.setState({ dirty: true });
 
     const { result } = renderHook(() => useProjectFileHandlers(io));
     await act(async () => {
@@ -74,6 +79,11 @@ describe('useProjectFileHandlers.handleLoad', () => {
     expect(notifications[0].level).toBe('info');
     expect(useTaskStore.getState().tasks['x'].title).toBe('X');
     expect(useTaskStore.getState().milestones).toEqual([]);
+
+    // 読み込んだ内容はファイルと一致するので未保存扱いにしない
+    expect(useSessionStore.getState().dirty).toBe(false);
+    expect(readAutosave()?.project.tasks.x.title).toBe('X');
+    expect(readAutosave()?.dirty).toBe(false);
   });
 
   it('restores milestones when a v4 project is loaded', async () => {
@@ -205,6 +215,8 @@ describe('useProjectFileHandlers.handleLoad', () => {
 
 describe('useProjectFileHandlers.handleSave', () => {
   beforeEach(() => {
+    localStorage.clear();
+    useSessionStore.setState({ dirty: false });
     useNotificationStore.setState({ notifications: [] });
     act(() => {
       useTaskStore.setState(initialState, true);
@@ -215,6 +227,8 @@ describe('useProjectFileHandlers.handleSave', () => {
   it('writes the current schema version and milestones', async () => {
     const saveText = vi.fn().mockResolvedValue('saved');
     const io = createIO({ saveText });
+
+    useSessionStore.setState({ dirty: true });
 
     act(() => {
       useTaskStore.getState().addMilestone({
@@ -241,6 +255,25 @@ describe('useProjectFileHandlers.handleSave', () => {
     expect(payload.tasks).toBeDefined();
     expect(payload.rootIds).toBeDefined();
     expect(payload.projectConfig).toBeDefined();
+
+    // 明示保存に成功したら未保存フラグを下ろし、自動保存も保存済みにする
+    expect(useSessionStore.getState().dirty).toBe(false);
+    expect(readAutosave()?.dirty).toBe(false);
+  });
+
+  it('keeps the unsaved state when the save dialog is cancelled', async () => {
+    const saveText = vi.fn().mockResolvedValue('canceled');
+    const io = createIO({ saveText });
+
+    useSessionStore.setState({ dirty: true });
+
+    const { result } = renderHook(() => useProjectFileHandlers(io));
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    expect(useSessionStore.getState().dirty).toBe(true);
+    expect(readAutosave()).toBeNull();
   });
 
   it('notifies an error when saving fails', async () => {

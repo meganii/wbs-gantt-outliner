@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 import { getTemporalState, useTaskStore } from './store/useTaskStore';
+import { useSessionStore } from './store/useSessionStore';
 
 const initialState = useTaskStore.getState();
 
 describe('App collapse controls', () => {
   beforeEach(() => {
+    // 自動保存が前のテストから残っていると、App のマウント時に復元されてしまう。
+    localStorage.clear();
+    useSessionStore.setState({ dirty: false });
     act(() => {
       useTaskStore.setState(initialState, true);
       getTemporalState().clear();

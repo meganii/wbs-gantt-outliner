@@ -10,6 +10,9 @@ import { ToastContainer } from './components/ToastContainer';
 import { useTaskStore } from './store/useTaskStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useOutlinerResize } from './hooks/useOutlinerResize';
+import { useAutosave } from './hooks/useAutosave';
+import { useAutosaveRestore } from './hooks/useAutosaveRestore';
+import { useBeforeUnloadWarning } from './hooks/useBeforeUnloadWarning';
 import { flattenTree } from './utils/tree';
 import { COMPACT_COLUMNS } from './utils/projectConfig';
 
@@ -17,6 +20,12 @@ function App() {
   const [view, setView] = useState<'wbs' | 'integrated' | 'gantt'>('integrated');
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
   const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
+
+  // 前回セッションの自動保存を復元（描画前に適用）→ 以降の変更を自動保存
+  useAutosaveRestore();
+  useAutosave();
+  // 未保存のままリロード・終了しようとしたら確認する
+  useBeforeUnloadWarning();
 
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);

@@ -1,13 +1,24 @@
 import { loadProjectState, useTaskStore } from '../store/useTaskStore';
 import { useNotificationStore } from '../store/useNotificationStore';
-import { CURRENT_SCHEMA_VERSION } from '../utils/planActualMigration';
+import { useSessionStore } from '../store/useSessionStore';
 import { excelExportFileName, projectJsonFileName } from '../utils/fileNames';
+import { serializeProject, writeAutosave } from '../utils/autosave';
 import {
   browserFileIO,
   EXCEL_KIND,
   PROJECT_JSON_KIND,
   type FileIO,
 } from '../platform/fileIO';
+
+/**
+ * 現在のストア内容を「保存済み」として自動保存へ書き戻す。
+ *
+ * 明示保存の直後にリロードしても未保存扱いにならないよう、`dirty` も更新する。
+ */
+function persistAutosave(dirty: boolean): void {
+  const { tasks, rootIds, projectConfig, milestones } = useTaskStore.getState();
+  writeAutosave(serializeProject({ tasks, rootIds, projectConfig, milestones }), dirty);
+}
 
 /**
  * ファイル操作（保存・読込・Excel エクスポート）を提供するフック。
@@ -28,16 +39,20 @@ export function useProjectFileHandlers(io: FileIO = browserFileIO) {
   const handleSave = async () => {
     // schemaVersion を書き忘れると、次回読込時に旧形式（v1）として
     // 移行処理が走ってしまうため、保存時に現行バージョンを明示する。
-    const data = JSON.stringify({
-      schemaVersion: CURRENT_SCHEMA_VERSION,
-      tasks,
-      rootIds,
-      projectConfig,
-      milestones,
-    }, null, 2);
+    const data = JSON.stringify(
+      serializeProject({ tasks, rootIds, projectConfig, milestones }),
+      null,
+      2
+    );
 
     try {
-      await io.saveText(projectJsonFileName(), data, PROJECT_JSON_KIND);
+      const outcome = await io.saveText(projectJsonFileName(), data, PROJECT_JSON_KIND);
+      if (outcome !== 'saved') {
+        // キャンセル時は未保存のまま（beforeunload の警告も維持する）。
+        return;
+      }
+      useSessionStore.getState().setDirty(false);
+      persistAutosave(false);
     } catch (error) {
       console.error('Failed to save project file', error);
       notify({
@@ -75,6 +90,10 @@ export function useProjectFileHandlers(io: FileIO = browserFileIO) {
       });
       return;
     }
+
+    // 読み込んだ内容はファイルと一致しているので未保存扱いにしない。
+    useSessionStore.getState().setDirty(false);
+    persistAutosave(false);
 
     if (result.warnings.length > 0) {
       console.warn('Project file loaded with repairs', result.warnings);

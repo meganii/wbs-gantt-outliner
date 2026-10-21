@@ -23,6 +23,7 @@ import {
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useProjectFileHandlers } from '../hooks/useProjectFileHandlers';
 import { useTaskStore } from '../store/useTaskStore';
+import { useSessionStore } from '../store/useSessionStore';
 
 type View = 'wbs' | 'integrated' | 'gantt';
 
@@ -111,6 +112,7 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
 
   // ── File handlers ─────────────────────────────────────────────────────────
   const { handleSave, handleLoad, handleExport } = useProjectFileHandlers();
+  const isDirty = useSessionStore((state) => state.dirty);
 
   const iconButton =
     'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-500 no-drag';
@@ -310,9 +312,21 @@ export function AppHeader({ view, setView, onOpenProjectSettings }: AppHeaderPro
 
       {/* File operations */}
       <div className="flex items-center gap-0.5 shrink-0">
-        <button onClick={handleSave} className={textButton} title="保存 (JSON)" aria-label="保存">
+        <button
+          onClick={handleSave}
+          className={textButton}
+          title={isDirty ? '未保存の変更があります（保存 (JSON)）' : '保存 (JSON)'}
+          aria-label="保存"
+        >
           <Save size={14} />
           <span className="hidden xl:inline">保存</span>
+          {isDirty && (
+            <span
+              aria-hidden="true"
+              data-testid="unsaved-indicator"
+              className="h-1.5 w-1.5 rounded-full bg-amber-500"
+            />
+          )}
         </button>
         <button onClick={handleLoad} className={textButton} title="読み込み (JSON)" aria-label="読み込み">
           <FolderOpen size={14} />
