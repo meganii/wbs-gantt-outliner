@@ -4,6 +4,20 @@
 
 ## 現在の状態
 
+- **Electron 依存を削除し、Chrome/Edge + localhost の Web アプリへ移行** (October 22, 2026 / `feature/web-file-io`):
+  - 背景: 「Electron は本当に必要か。File API で置き換えられないか」という調査から、レンダラーが Electron に依存していないこと（`src/` に `electron` の import 0 件、E2E / bench / スクリーンショットが素の Chromium で動作）を確認し、削除に踏み切った。
+  - 決定: 配布は **localhost（`npm start`）**。単一 HTML（`file://`）は不採用。理由は (1) `file://` では外部 `type="module"` が CORS でブロックされ、インライン化が必須（実測）、(2) インライン化すると ExcelJS 1.4MB が起動時にパースされ、キャッシュ・デバッグも不利になるため。将来必要になれば `vite-plugin-singlefile` で追加できる（v2.3.4 が Vite 7 対応であることは確認済み）。
+  - 保存・読込: **File System Access API**（`showSaveFilePicker` / `showOpenFilePicker`）を主経路にし、非対応・失敗時は `<a download>` / `<input type="file">` へフォールバック。`src/platform/fileIO.ts` に集約。ピッカーはユーザーアクティベーションが必要なため、**Excel は「ピッカー → 生成 → 書き込み」の順**（`saveBinary` が遅延生成関数を受け取る）。
+  - Excel: `buildExcelExportFile`（main プロセス用）を廃止し、`buildExcelExportBuffer` + `excelExportFileName` に分離。レンダラーから **動的 import** するため、初期バンドルは 433KB のまま（ExcelJS は `dist/assets/export-*.js` 940KB / gzip 272KB の遅延チャンク）。
+  - 削除: `electron/`（main / preload）、`forge.config.cjs`、`src/renderer.d.ts`、`src/hooks/useIpcSwitchView.ts`、`scratch/vite.web.config.ts`。devDependencies から `electron` / `@electron-forge/*` / `vite-plugin-electron` / `vite-plugin-electron-renderer` / `concurrently` / `cross-env` / `wait-on` を削除（409 パッケージ減）。`package.json` の `main` / `package` / `make` も削除。
+  - スクリプト: `npm start`（build + `vite preview` :4173）、`npm run dev`（:5173）、`npm run preview`。`vite.config.ts` から Electron プラグインを外し、`server` / `preview` に `strictPort: true` を設定。
+  - テスト・ツール: IPC スタブを廃止し、`bench/loadProject.ts` の共通ヘルパー（ピッカーを `undefined` にして `filechooser` を使う）へ移行。`playwright.config.ts` / `playwright.bench.config.ts` の webServer は `npm run dev` に統一。`src/App.test.tsx` から IPC ダブルと switch-view テストを削除。
+  - テスト: 新規 `src/platform/fileIO.test.ts`（11 件: ピッカー経路・キャンセル・フォールバック・遅延生成の順序・書き込み失敗時の abort）、`src/utils/export.test.ts`（4 件: 生成 xlsx を ExcelJS で読み戻し、ヘッダー / 行 / 基準計画 / 日付列を検証。従来テストゼロだった領域）、`e2e/file-io.spec.ts`（2 件: JSON 保存→再読込ラウンドトリップ、Excel ダウンロードを ExcelJS で検証）。
+  - 検証: `npm test -- --run` **364 件（43 ファイル）** / `npm run test:e2e` **11 件** / `npm run bench` 2 件 / `npm run lint` 0 / `npm run build` 通過 / `npm start` が :4173 で 200 を返すことを確認 / `npm run shots` 12 枚生成。
+  - 付随修正（既存の陳腐化）: `bench/perf.spec.ts` が「ドラッグでガントバーの `title` が変わる」ことを検証していたが、2026-10-20 の独自ツールチップ導入で `title` 属性が無くなり失敗していた。バーの `style.left` 比較に置き換えた（本ブランチの変更とは独立した既存不具合）。
+  - 既知の制約・次フェーズ候補: リロードで未保存データが失われる（Electron の `before-input-event` による Cmd/Ctrl+R 抑止を失った）。`beforeunload` 警告と未保存フラグ / localStorage 自動保存は未実装。ネイティブピッカー自体の実機確認は手動（自動テストはフォールバック経路とモックでカバー）。保存先パスは記憶しない（毎回ピッカー）。ウィンドウ最小サイズ・アイコン・メニューはブラウザ側の制約。
+  - 対象外: 単一 HTML ビルド、Firefox / Safari 最適化、サービスワーカーによるオフライン化。
+
 - **保守性 P2 / D9: 未使用 `taskBarRefs` の削除と行高の定数化** (October 22, 2026):
   - `GanttTimelineRow` がバーの DOM を `taskBarRefs` に `.set` / `.delete` するだけで、どこからも読まれていなかった（依存線は `flattenedItems` から座標を計算する方式へ移行済み）。`GanttChart` / `IntegratedView` / `GanttTimelineRow` から ref の生成・受け渡しを削除し、バーの `ref` はツールチップの `anchorRef` だけに整理した。
   - 行高 `32` が `IntegratedView` / `GanttChart`（キーボード移動時のスクロール計算）/ `useGanttDependencies` に散在していたため、`src/utils/layout.ts` の `TASK_ROW_HEIGHT` に集約。行要素の Tailwind `h-8`（= 32px）と一致させる旨をコメントで明記した。

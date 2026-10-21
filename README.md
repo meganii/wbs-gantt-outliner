@@ -1,6 +1,6 @@
 # WBS Gantt Outliner
 
-WBS（作業分解構成図）をアウトライナー形式で素早く作成し、ガントチャートでスケジュール管理できる Electron デスクトップアプリです。現状は「WBS 編集」「ガント操作」「JSON 保存/読込」「Excel エクスポート」を一通り備えた、開発継続中のツールになっています。
+WBS（作業分解構成図）をアウトライナー形式で素早く作成し、ガントチャートでスケジュール管理できる Web アプリです。Chrome / Edge の localhost で動作し、「WBS 編集」「ガント操作」「JSON 保存/読込」「Excel エクスポート」を一通り備えています。
 
 ## 現在できること
 
@@ -28,12 +28,23 @@ WBS（作業分解構成図）をアウトライナー形式で素早く作成�
 npm install
 ```
 
+## 起動
+
+```bash
+# 日常利用（ビルドして http://localhost:4173/ で配信）
+npm start
+
+# 開発（http://localhost:5173/、HMR あり）
+npm run dev
+```
+
+ブラウザは **Chrome / Edge** を対象にしています。`localhost` は secure context のため、保存・読込には File System Access API（`showSaveFilePicker` / `showOpenFilePicker`）が使われます。ピッカーが使えない環境では、ダウンロード / `<input type="file">` に自動でフォールバックします。
+
+> リロード（`Cmd/Ctrl+R`）すると未保存の編集内容は失われます。こまめに「保存」してください（自動保存は未実装）。
+
 ## 開発コマンド
 
 ```bash
-# 開発サーバー
-npm run dev
-
 # テスト実行（ユニット）
 npm test -- --run
 
@@ -43,14 +54,12 @@ npm run test:e2e
 # Lint（eslint）
 npm run lint
 
-# 本番ビルド
+# 本番ビルド（dist/ に出力）
 npm run build
 
-# パッケージング（electron-forge。成果物は out/ に出力）
-npm run package
-
-# インストーラ作成（electron-forge make）
-npm run make
+# スクリーンショット生成 / 性能ベンチ
+npm run shots
+npm run bench
 ```
 
 ## プロジェクト構成
@@ -61,15 +70,13 @@ npm run make
   - Zustand ストアと、タスク整合性や依存伝播などのロジックを管理します。
 - `src/utils`
   - ツリー展開、営業日計算、Excel エクスポートなどの補助処理をまとめています。
-- `electron`
-  - Electron の main/preload を持ち、ファイル保存/読込の IPC を扱います。
+- `src/platform`
+  - ブラウザ API に依存する処理（ファイル保存 / 読み込み）のアダプタです。
 - `e2e`
   - Playwright による結合テストを配置しています。
 
 ## 技術スタック
 
-- [Electron](https://www.electronjs.org/)
-- [Electron Forge](https://www.electronforge.io/)
 - [React](https://react.dev/)
 - [Vite](https://vitejs.dev/)
 - [TypeScript](https://www.typescriptlang.org/)
@@ -80,6 +87,12 @@ npm run make
 - [ExcelJS](https://github.com/exceljs/exceljs)
 - [Vitest](https://vitest.dev/)
 - [Playwright](https://playwright.dev/)
+
+## ファイル入出力
+
+- 保存 / 読込: `File System Access API` を優先。未対応・失敗時はダウンロード / ファイル選択にフォールバック。
+- Excel 出力: ExcelJS を**出力時に動的 import** するため、通常の起動では読み込まれません（`dist/assets/export-*.js` に別チャンクとして出力）。
+- 保存先パスは記憶しません（毎回ピッカーが開きます）。ファイル名には日時が入ります。
 
 ## 開発状況
 
@@ -101,8 +114,9 @@ npm run make
 - [ ] JSON インポート強化とバリデーション
 - [ ] ガント操作まわりの E2E テスト追加
 - [ ] ストア責務のさらなる整理
+- [ ] リロード・タブ終了時の未保存警告 / 自動保存
 
 ## 補足
 
 - 現時点の引き継ぎ事項、優先課題、注意点は [docs/HANDOFF.md](docs/HANDOFF.md) にまとめています。
-- `npm run build` は通りますが、Excel エクスポート由来の大きいチャンクに関する警告が出ます。現状は既知事項として扱っています。
+- `npm run build` では、ExcelJS の遅延チャンク（約 940KB）に対してチャンクサイズ警告が出ます。出力時にだけ読み込まれるため、現状は既知事項として扱っています。
