@@ -5,23 +5,22 @@
  *   SCRATCH_URL=http://localhost:5173 npm run shots
  *
  * 事前に dev サーバを起動しておくこと（別ターミナルで `npm run dev`）。
- * Electron の ipcRenderer をモックして `scratch/sample-project.json` を
+ * ファイルピッカーを無効化して `scratch/sample-project.json` を
  * 「読み込み」させ、3 ビュー（WBS / 統合表示 / ガントチャート）と
  * 選択状態・狭い幅・ダイアログを撮影する。UI 変更時の目視確認用。
  *
  * 出力先（scratch/shots/）は .gitignore 済み。生成物なのでコミットしない。
  */
 import { chromium } from 'playwright';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, 'shots');
-const sampleProject = readFileSync(join(here, 'sample-project.json'), 'utf-8');
 const baseUrl = process.env.SCRATCH_URL ?? 'http://localhost:5173';
 
-/** Electron 既定ウィンドウに合わせた表示サイズ */
+/** デスクトップ想定の表示サイズ（1440x900） */
 const VIEWPORT = { width: 1440, height: 900 };
 const VIEWS = [
   ['wbs', 'WBS'],
@@ -34,15 +33,12 @@ mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 2 });
 
-// Electron の preload（ipcRenderer）をモックする。load-file はサンプルを返し、
-// save / export は何もしない。
-await page.addInitScript((payload) => {
-  window.ipcRenderer = {
-    invoke: async (channel) => (channel === 'load-file' ? payload : undefined),
-    send: () => {},
-    on: () => () => {},
-  };
-}, sampleProject);
+// File System Access API のピッカーは自動操作できないため無効化し、
+// `<input type="file">` のフォールバック経路を使う。
+await page.addInitScript(() => {
+  window.showSaveFilePicker = undefined;
+  window.showOpenFilePicker = undefined;
+});
 
 const shot = (name) => page.screenshot({ path: join(outDir, `${name}.png`) });
 
@@ -59,7 +55,11 @@ try {
 
 const loadButton = page.getByRole('button', { name: '読み込み', exact: true });
 await loadButton.waitFor({ state: 'visible', timeout: 10_000 });
-await loadButton.click();
+const [projectChooser] = await Promise.all([
+  page.waitForEvent('filechooser'),
+  loadButton.click(),
+]);
+await projectChooser.setFiles(join(here, 'sample-project.json'));
 
 // 読み込み完了トーストが写り込まないよう閉じる
 const closeToasts = async () => {

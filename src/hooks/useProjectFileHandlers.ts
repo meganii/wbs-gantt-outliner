@@ -1,13 +1,24 @@
 import { loadProjectState, useTaskStore } from '../store/useTaskStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { CURRENT_SCHEMA_VERSION } from '../utils/planActualMigration';
+import { excelExportFileName, projectJsonFileName } from '../utils/fileNames';
+import {
+  browserFileIO,
+  EXCEL_KIND,
+  PROJECT_JSON_KIND,
+  type FileIO,
+} from '../platform/fileIO';
 
 /**
- * ipcRenderer 経由のファイル操作（保存・読込・Excel エクスポート）を提供するフック。
+ * ファイル操作（保存・読込・Excel エクスポート）を提供するフック。
+ *
+ * 実際の I/O は `FileIO` に委譲する。既定はブラウザ実装
+ * （File System Access API / ダウンロード）。テストでは差し替える。
+ *
  * Zustand ストアから tasks / rootIds / projectConfig を直接取得するため、
  * 呼び出し元がこれらを props として渡す必要はない。
  */
-export function useProjectFileHandlers() {
+export function useProjectFileHandlers(io: FileIO = browserFileIO) {
   const tasks = useTaskStore((state) => state.tasks);
   const rootIds = useTaskStore((state) => state.rootIds);
   const projectConfig = useTaskStore((state) => state.projectConfig);
@@ -24,11 +35,21 @@ export function useProjectFileHandlers() {
       projectConfig,
       milestones,
     }, null, 2);
-    await window.ipcRenderer.invoke('save-file', data);
+
+    try {
+      await io.saveText(projectJsonFileName(), data, PROJECT_JSON_KIND);
+    } catch (error) {
+      console.error('Failed to save project file', error);
+      notify({
+        level: 'error',
+        message: '保存に失敗しました',
+        details: [error instanceof Error ? error.message : String(error)],
+      });
+    }
   };
 
   const handleLoad = async () => {
-    const content = await window.ipcRenderer.invoke('load-file');
+    const content = await io.openText(PROJECT_JSON_KIND);
     if (typeof content !== 'string' || !content) {
       return;
     }
@@ -68,11 +89,24 @@ export function useProjectFileHandlers() {
   };
 
   const handleExport = async () => {
-    await window.ipcRenderer.invoke('export-excel', {
-      tasks,
-      rootIds,
-      projectConfig,
-    });
+    const payload = { tasks, rootIds, projectConfig };
+    // ExcelJS は大きい（約 1.4MB）ため、出力を押したときだけ読み込む。
+    const build = async () => {
+      const { buildExcelExportBuffer } = await import('../utils/export');
+      return buildExcelExportBuffer(payload);
+    };
+
+    try {
+      // ファイル名はピッカーに渡すため、重い生成より先に決めておく。
+      await io.saveBinary(excelExportFileName(), EXCEL_KIND, build);
+    } catch (error) {
+      console.error('Failed to export Excel', error);
+      notify({
+        level: 'error',
+        message: 'Excel 出力に失敗しました',
+        details: [error instanceof Error ? error.message : String(error)],
+      });
+    }
   };
 
   return { handleSave, handleLoad, handleExport };

@@ -1,15 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 import { getTemporalState, useTaskStore } from './store/useTaskStore';
-import type { IpcRenderer } from './renderer';
-
-/** テスト用の IPC ダブル（本番の IpcRenderer に test 用の trigger を足したもの） */
-type TestIpcRenderer = IpcRenderer & {
-  trigger: (channel: string, ...args: unknown[]) => void;
-};
-
-const getTestIpc = () => window.ipcRenderer as TestIpcRenderer;
 
 const initialState = useTaskStore.getState();
 
@@ -18,25 +10,6 @@ describe('App collapse controls', () => {
     act(() => {
       useTaskStore.setState(initialState, true);
       getTemporalState().clear();
-    });
-
-    const ipcListeners: Record<string, (event: unknown, ...args: unknown[]) => void> = {};
-    Object.defineProperty(window, 'ipcRenderer', {
-      value: {
-        invoke: vi.fn().mockResolvedValue(undefined),
-        send: vi.fn(),
-        on: vi.fn((channel, listener) => {
-          ipcListeners[channel] = listener;
-          return () => {
-            delete ipcListeners[channel];
-          };
-        }),
-        trigger: (channel: string, ...args: unknown[]) => {
-          ipcListeners[channel]?.({}, ...args);
-        },
-      },
-      writable: true,
-      configurable: true,
     });
   });
 
@@ -129,41 +102,5 @@ describe('App collapse controls', () => {
     });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(useTaskStore.getState().selectedTaskIds).toEqual([]);
-  });
-
-  it('switches views via switch-view IPC event', () => {
-    render(<App />);
-
-    const wbsBtn = screen.getByRole('button', { name: 'WBS' });
-    const integratedBtn = screen.getByRole('button', { name: '統合表示' });
-    const ganttBtn = screen.getByRole('button', { name: 'ガントチャート' });
-
-    expect(integratedBtn.className).toContain('bg-white');
-    expect(wbsBtn.className).not.toContain('bg-white');
-    expect(ganttBtn.className).not.toContain('bg-white');
-
-    // Switch to WBS view (IPC)
-    act(() => {
-      getTestIpc().trigger('switch-view', 'wbs');
-    });
-    expect(wbsBtn.className).toContain('bg-white');
-    expect(integratedBtn.className).not.toContain('bg-white');
-    expect(ganttBtn.className).not.toContain('bg-white');
-
-    // Switch to Gantt view (IPC)
-    act(() => {
-      getTestIpc().trigger('switch-view', 'gantt');
-    });
-    expect(ganttBtn.className).toContain('bg-white');
-    expect(wbsBtn.className).not.toContain('bg-white');
-    expect(integratedBtn.className).not.toContain('bg-white');
-
-    // Switch back to Integrated view (IPC)
-    act(() => {
-      getTestIpc().trigger('switch-view', 'integrated');
-    });
-    expect(integratedBtn.className).toContain('bg-white');
-    expect(wbsBtn.className).not.toContain('bg-white');
-    expect(ganttBtn.className).not.toContain('bg-white');
   });
 });

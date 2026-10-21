@@ -9,7 +9,6 @@ import { StatusBar } from './components/StatusBar';
 import { ToastContainer } from './components/ToastContainer';
 import { useTaskStore } from './store/useTaskStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useIpcSwitchView } from './hooks/useIpcSwitchView';
 import { useOutlinerResize } from './hooks/useOutlinerResize';
 import { flattenTree } from './utils/tree';
 import { COMPACT_COLUMNS } from './utils/projectConfig';
@@ -38,8 +37,6 @@ function App() {
 
   // Keyboard Shortcuts for Undo/Redo & View Switches
   useKeyboardShortcuts({ setView });
-  // IPC View Switch (Electron)
-  useIpcSwitchView(setView);
 
   // View 切り替え時に hover 状態をリセット
   // (effect 内での setState を避け、レンダー中に state を調整する)

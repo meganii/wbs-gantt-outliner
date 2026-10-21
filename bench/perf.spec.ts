@@ -1,7 +1,7 @@
 /**
  * Playwright ベースの描画性能ベンチマーク（P1: 描画性能 Step 0 の計測用）。
  *
- * アプリを実ブラウザ（Chromium）で起動し、`window.ipcRenderer` をスタブして
+ * アプリを実ブラウザ（Chromium）で起動し、ピッカーを無効化したうえで
  * サンプル JSON を「読み込み」ボタンから実際のインポート経路で流し込む。
  *
  * 計測対象:
@@ -29,6 +29,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { disableFilePickers, loadProjectJson } from './loadProject';
 
 interface BenchTask {
   id: string;
@@ -48,7 +49,7 @@ interface PerfHarness {
   start(): void;
   stop(): FrameRecording;
 }
-type PerfWindow = Window & { __perf?: PerfHarness; ipcRenderer?: unknown };
+type PerfWindow = Window & { __perf?: PerfHarness };
 
 interface InteractionStat {
   label: string;
@@ -123,18 +124,13 @@ function summarize(label: string, recordings: FrameRecording[]): InteractionStat
   };
 }
 
-/** ipcRenderer スタブとフレーム計測器をページへ事前注入する。 */
-async function installHarness(page: import('@playwright/test').Page, projectJson: string) {
-  await page.addInitScript((json: string) => {
+/** フレーム計測器をページへ事前注入する。 */
+async function installHarness(page: import('@playwright/test').Page) {
+  await page.addInitScript(() => {
     const w = window as unknown as {
       __perf: {
         start: () => void;
         stop: () => { frames: number[]; longTasks: number[]; durationMs: number };
-      };
-      ipcRenderer: {
-        invoke: (channel: string) => Promise<unknown>;
-        send: () => void;
-        on: () => () => void;
       };
     };
 
@@ -184,13 +180,7 @@ async function installHarness(page: import('@playwright/test').Page, projectJson
         };
       },
     };
-
-    w.ipcRenderer = {
-      invoke: async (channel: string) => (channel === 'load-file' ? json : null),
-      send: () => {},
-      on: () => () => {},
-    };
-  }, projectJson);
+  });
 }
 
 async function recordOnce(
@@ -249,13 +239,14 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
       expect(targetId).not.toBe('');
       expect(targetIndex).toBeGreaterThanOrEqual(0);
 
-      await installHarness(page, JSON.stringify(data));
+      await installHarness(page);
+      await disableFilePickers(page);
       await page.setViewportSize(VIEWPORT);
       await page.goto('/');
 
       // ── 読み込み（実インポート経路） ─────────────────────────────────────
       const loadStart = Date.now();
-      await page.getByRole('button', { name: '読み込み' }).click();
+      await loadProjectJson(page, JSON.stringify(data));
       await expect(page.locator('input[data-field="title"]')).toHaveCount(taskCount, { timeout: 120_000 });
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
       await page.waitForTimeout(500);
@@ -312,12 +303,9 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
         return point;
       };
 
-      const readTargetTitle = () =>
-        page.evaluate(
-          (id: string) =>
-            (document.querySelector(`div[data-task-id="${id}"][data-gantt-bar]`) as HTMLElement | null)?.title ?? null,
-          targetId
-        );
+      // バーは title 属性ではなく独自ツールチップ（HoverTooltip）で日付を出すため、
+      // 「ドラッグ確定で日程が動いた」ことはバーの位置（inline style.left）で判定する。
+      const readBarLeft = () => barLocator.evaluate((el) => (el as HTMLElement).style.left ?? '');
 
       // ドラッグが実際に始まったか（= バーがドラッグ状態になったか）を記録する。
       const failedDragStarts: string[] = [];
@@ -326,7 +314,7 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
         const dragging = await page.evaluate(() => document.querySelectorAll('.cursor-grabbing').length);
         if (dragging === 0) failedDragStarts.push(label);
       };
-      const initialTitle = await readTargetTitle();
+      const initialLeft = await readBarLeft();
 
       // (a) ドラッグ全体（30 moves + mouseup での確定コミット）
       const dragRecordings: FrameRecording[] = [];
@@ -411,7 +399,7 @@ test.describe('描画性能ベンチマーク (P1 Step 0)', () => {
       // バーが実際にドラッグされ、確定で予定日が動いたことを検証する
       expect(failedDragStarts, `ドラッグが始まらなかった計測: ${failedDragStarts.join(', ')}`).toEqual([]);
       expect(failedSyntheticMoves, `合成 mousemove がバーを動かさなかった: ${failedSyntheticMoves.join(', ')}`).toEqual([]);
-      expect(await readTargetTitle()).not.toBe(initialTitle);
+      expect(await readBarLeft()).not.toBe(initialLeft);
 
       // ── (d) 依存ハンドルのドラッグ（setMousePos のファンアウト） ─────────
       const handleBox = await barLocator.locator('div[title="Drag to create dependency"]').boundingBox();

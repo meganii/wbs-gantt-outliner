@@ -1,28 +1,19 @@
 import { configDefaults, defineConfig } from 'vitest/config'
-import path from 'node:path'
-import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // ビルド成果物を相対パスで参照する（静的ホスティング配下でも動くように）。
   base: './',
-  plugins: [
-    react(),
-    electron({
-      main: {
-        // Shortcut of `build.lib.entry`.
-        entry: 'electron/main.ts',
-      },
-      preload: {
-        // Shortcut of `build.rollupOptions.input`.
-        // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
-        input: path.join(__dirname, 'electron/preload.ts'),
-      },
-      // Ployfill the Electron and Node.js built-in modules for Renderer process.
-      // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
-      renderer: {},
-    }),
-  ],
+  plugins: [react()],
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
+  },
   test: {
     globals: true,
     environment: 'jsdom',

@@ -29,7 +29,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx vite --config scratch/vite.web.config.ts',
+    command: 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
     timeout: 30 * 1000,

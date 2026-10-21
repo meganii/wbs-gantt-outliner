@@ -10,16 +10,17 @@ export interface ExcelExportPayload {
   projectConfig: ProjectConfig;
 }
 
-export interface ExcelExportFile {
-  buffer: Uint8Array;
-  fileName: string;
-}
-
-export async function buildExcelExportFile({
+/**
+ * Excel ブックを生成して `Uint8Array` で返す。
+ *
+ * ファイル名の生成（`excelExportFileName`）と分離しているのは、保存先ピッカーを
+ * 生成より先に開く必要があるため。呼び出し側は `src/utils/fileNames.ts` を使う。
+ */
+export async function buildExcelExportBuffer({
   tasks,
   rootIds,
   projectConfig,
-}: ExcelExportPayload): Promise<ExcelExportFile> {
+}: ExcelExportPayload): Promise<Uint8Array> {
   const flattened = flattenTreeAll(tasks, rootIds);
 
   // Bar & font colors
@@ -230,11 +231,6 @@ export async function buildExcelExportFile({
     }
   });
 
-  // 6. Generate and Download
-  const buffer = new Uint8Array(await workbook.xlsx.writeBuffer());
-
-  return {
-    buffer,
-    fileName: `project_gantt_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`,
-  };
+  // 6. Generate
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
 }

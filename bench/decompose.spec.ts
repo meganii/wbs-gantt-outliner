@@ -19,6 +19,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
+import { disableFilePickers, loadProjectJson } from './loadProject';
 
 interface BenchTask {
   id: string;
@@ -131,14 +132,8 @@ function pickTargetIndex(data: BenchProjectData): number {
   return targetIndex;
 }
 
-async function installHarness(page: Page, projectJson: string) {
-  await page.addInitScript((json: string) => {
-    (window as unknown as { ipcRenderer: unknown }).ipcRenderer = {
-      invoke: async (channel: string) => (channel === 'load-file' ? json : null),
-      send: () => {},
-      on: () => () => {},
-    };
-  }, projectJson);
+async function installHarness(page: Page) {
+  await disableFilePickers(page);
 }
 
 test('decompose: 1,000 タスクの commit / hover を CPU プロファイルで分解', async ({ page }) => {
@@ -150,10 +145,10 @@ test('decompose: 1,000 タスクの commit / hover を CPU プロファイルで
   const targetIndex = pickTargetIndex(data);
   expect(targetIndex).toBeGreaterThanOrEqual(0);
 
-  await installHarness(page, JSON.stringify(data));
+  await installHarness(page);
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto('/');
-  await page.getByRole('button', { name: '読み込み' }).click();
+  await loadProjectJson(page, JSON.stringify(data));
   await expect(page.locator('input[data-field="title"]')).toHaveCount(1000, { timeout: 120_000 });
   await page.waitForTimeout(500);
 

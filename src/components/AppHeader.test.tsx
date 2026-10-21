@@ -38,8 +38,6 @@ describe('AppHeader の設定メニュー', () => {
     expect(menu!.classList.contains('fixed')).toBe(true);
     // メイン領域の行 z-40 / リサイズハンドル z-50 より前面
     expect(menu!.classList.contains('z-[60]')).toBe(true);
-    // Electron のウィンドウドラッグ領域にクリックを吸われない
-    expect(menu!.classList.contains('no-drag')).toBe(true);
     // ボタンの直下に位置を計算する
     expect(menu!.style.top).toBe('4px');
   });
